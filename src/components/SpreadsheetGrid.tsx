@@ -643,6 +643,7 @@ export default function SpreadsheetGrid({
 
       {schemaEditable && fieldModal && modalColumn && (
         <FieldModal
+          key={`${fieldModal.columnId}-${fieldModal.mode}`}
           open
           mode={fieldModal.mode}
           fieldName={modalColumn.name}

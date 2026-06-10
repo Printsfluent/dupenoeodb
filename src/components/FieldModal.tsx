@@ -40,6 +40,8 @@ const PERMISSIONS: { value: ColumnEditPermission; label: string }[] = [
   { value: 'creators_only', label: 'Admins only' },
 ]
 
+const EMPTY_SELECT_OPTIONS: SelectOption[] = []
+
 export default function FieldModal({
   open,
   mode,
@@ -48,13 +50,14 @@ export default function FieldModal({
   description = '',
   editPermission = 'everyone',
   filterValue = '',
-  options = [],
+  options: optionsProp,
   colorCodeOptions = true,
   alphabetizeOptions = false,
   defaultValue = '',
   onConfirm,
   onClose,
 }: FieldModalProps) {
+  const options = optionsProp ?? EMPTY_SELECT_OPTIONS
   const [name, setName] = useState(fieldName)
   const [type, setType] = useState<ColumnType>(normalizeColumnType(fieldType))
   const [desc, setDesc] = useState(description)
@@ -66,21 +69,23 @@ export default function FieldModal({
   const [defaultVal, setDefaultVal] = useState(defaultValue)
   const [optionsError, setOptionsError] = useState('')
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
+  const wasOpenRef = useRef(false)
 
   useEffect(() => {
-    if (open) {
-      setName(fieldName)
-      setType(normalizeColumnType(fieldType))
-      setDesc(description)
-      setPermission(editPermission)
-      setFilter(filterValue)
-      setSelectOptions(options.length ? options : [])
-      setColorCode(colorCodeOptions)
-      setAlphabetize(alphabetizeOptions)
-      setDefaultVal(defaultValue)
-      setOptionsError('')
-      setTimeout(() => inputRef.current?.focus(), 50)
-    }
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!justOpened) return
+    setName(fieldName)
+    setType(normalizeColumnType(fieldType))
+    setDesc(description)
+    setPermission(editPermission)
+    setFilter(filterValue)
+    setSelectOptions(options.length ? options : EMPTY_SELECT_OPTIONS)
+    setColorCode(colorCodeOptions)
+    setAlphabetize(alphabetizeOptions)
+    setDefaultVal(defaultValue)
+    setOptionsError('')
+    setTimeout(() => inputRef.current?.focus(), 50)
   }, [open, fieldName, fieldType, description, editPermission, filterValue, options, colorCodeOptions, alphabetizeOptions, defaultValue])
 
   function handleTypeChange(next: ColumnType) {
