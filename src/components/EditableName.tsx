@@ -7,7 +7,6 @@ interface EditableNameProps {
   placeholder?: string
   className?: string
   inputClassName?: string
-  dark?: boolean
   showIcon?: boolean
 }
 
@@ -17,7 +16,6 @@ export default function EditableName({
   placeholder = 'Untitled',
   className = '',
   inputClassName = '',
-  dark = false,
   showIcon = true,
 }: EditableNameProps) {
   const [editing, setEditing] = useState(false)
@@ -56,11 +54,7 @@ export default function EditableName({
           if (e.key === 'Escape') cancel()
         }}
         placeholder={placeholder}
-        className={`px-2 py-0.5 rounded border outline-none focus:ring-1 focus:ring-brand-500 ${
-          dark
-            ? 'bg-[#1a1a1a] border-[#3a3a3a] text-white'
-            : 'bg-white border-gray-200 text-gray-900'
-        } ${inputClassName}`}
+        className={`px-2 py-0.5 rounded border outline-none focus:ring-1 focus:ring-brand-500 bg-app-input border-app-border-strong text-app-text ${inputClassName}`}
       />
     )
   }
@@ -74,9 +68,7 @@ export default function EditableName({
     >
       <span className="truncate">{value || placeholder}</span>
       {showIcon && (
-        <Pencil className={`w-3 h-3 shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity ${
-          dark ? 'text-gray-500' : 'text-gray-400'
-        }`} />
+        <Pencil className="w-3 h-3 shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity text-app-faint" />
       )}
     </button>
   )

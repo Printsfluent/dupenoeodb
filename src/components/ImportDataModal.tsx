@@ -96,11 +96,11 @@ export default function ImportDataModal({
       />
       <div className="relative w-full max-w-lg rounded-xl border border-app-border bg-app-surface shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-app-border">
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
+          <h3 className="text-sm font-semibold text-app-text">{title}</h3>
           <button
             type="button"
             onClick={handleClose}
-            className="p-1 text-gray-500 hover:text-gray-300"
+            className="p-1 text-app-faint hover:text-app-muted"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -128,8 +128,8 @@ export default function ImportDataModal({
             {file ? (
               <div className="flex flex-col items-center gap-2">
                 <FileSpreadsheet className="w-10 h-10 text-brand-400" />
-                <p className="text-sm font-medium text-white">{file.name}</p>
-                <p className="text-xs text-gray-500">
+                <p className="text-sm font-medium text-app-text">{file.name}</p>
+                <p className="text-xs text-app-faint">
                   {sheets.length} table{sheets.length !== 1 ? 's' : ''} · {totalRows} row{totalRows !== 1 ? 's' : ''}
                 </p>
                 <button
@@ -142,16 +142,16 @@ export default function ImportDataModal({
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3">
-                <Upload className="w-10 h-10 text-gray-600" />
+                <Upload className="w-10 h-10 text-app-faint" />
                 <div>
-                  <p className="text-sm text-gray-300">Drop a spreadsheet here</p>
-                  <p className="text-xs text-gray-500 mt-1">CSV, TSV, XLS, or XLSX</p>
+                  <p className="text-sm text-app-muted">Drop a spreadsheet here</p>
+                  <p className="text-xs text-app-faint mt-1">CSV, TSV, XLS, or XLSX</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => inputRef.current?.click()}
                   disabled={loading}
-                  className="px-4 py-2 rounded-lg bg-app-surface-active text-sm text-gray-300 hover:bg-app-surface-hover transition-colors disabled:opacity-50"
+                  className="px-4 py-2 rounded-lg bg-app-surface-active text-sm text-app-muted hover:bg-app-surface-hover transition-colors disabled:opacity-50"
                 >
                   {loading ? 'Reading file...' : 'Browse files'}
                 </button>
@@ -170,7 +170,7 @@ export default function ImportDataModal({
             <>
               {mode === 'base' && (
                 <div>
-                  <label htmlFor="import-base-name" className="block text-xs font-medium text-gray-400 mb-1.5">
+                  <label htmlFor="import-base-name" className="block text-xs font-medium text-app-faint mb-1.5">
                     Base name
                   </label>
                   <input
@@ -178,18 +178,18 @@ export default function ImportDataModal({
                     value={baseName}
                     onChange={(e) => setBaseName(e.target.value)}
                     placeholder="Name for imported base"
-                    className="w-full px-3 py-2.5 rounded-lg bg-app-input border border-app-border text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
+                    className="app-input-field px-3 py-2.5"
                   />
                 </div>
               )}
 
               <div className="rounded-lg bg-app-input border border-app-border p-3 max-h-32 overflow-y-auto">
-                <p className="text-xs font-medium text-gray-500 mb-2">Preview</p>
+                <p className="text-xs font-medium text-app-faint mb-2">Preview</p>
                 <ul className="space-y-1">
                   {sheets.map((sheet) => (
-                    <li key={sheet.name} className="text-xs text-gray-400 flex justify-between">
+                    <li key={sheet.name} className="text-xs text-app-faint flex justify-between">
                       <span className="truncate">{sheet.name}</span>
-                      <span className="text-gray-600 shrink-0 ml-2">
+                      <span className="text-app-faint shrink-0 ml-2">
                         {sheet.headers.length} cols · {sheet.rows.length} rows
                       </span>
                     </li>
@@ -203,7 +203,7 @@ export default function ImportDataModal({
             <button
               type="button"
               onClick={handleClose}
-              className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-app-surface-active transition-colors"
+              className="px-4 py-2 app-btn-ghost"
             >
               Cancel
             </button>

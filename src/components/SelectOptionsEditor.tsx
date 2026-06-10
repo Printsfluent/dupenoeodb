@@ -51,14 +51,14 @@ export default function SelectOptionsEditor({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-500 leading-relaxed">
+      <p className="text-xs text-app-faint leading-relaxed">
         {isMulti
           ? 'Multi select — each cell can have one or more of these choices.'
           : 'Single select — each cell can have only one of these choices.'}
         {' '}Click a color swatch to change it.
       </p>
       <div className="flex items-center justify-between gap-4">
-        <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+        <label className="flex items-center gap-2 text-xs text-app-faint cursor-pointer">
           <input
             type="checkbox"
             checked={colorCodeOptions}
@@ -67,7 +67,7 @@ export default function SelectOptionsEditor({
           />
           Color-code options
         </label>
-        <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+        <label className="flex items-center gap-2 text-xs text-app-faint cursor-pointer">
           <input
             type="checkbox"
             checked={alphabetizeOptions}
@@ -80,7 +80,7 @@ export default function SelectOptionsEditor({
 
       <div className="space-y-1.5 max-h-48 overflow-y-auto">
         {displayOptions.length === 0 && (
-          <p className="text-xs text-gray-500 px-2 py-3 rounded-lg border border-dashed border-app-border text-center">
+          <p className="text-xs text-app-faint px-2 py-3 rounded-lg border border-dashed border-app-border text-center">
             No options yet. Add your first choice below.
           </p>
         )}
@@ -89,7 +89,7 @@ export default function SelectOptionsEditor({
             key={option.id}
             className="flex items-center gap-2 rounded-lg border border-app-border bg-app-input px-2 py-1.5"
           >
-            <GripVertical className="w-3.5 h-3.5 text-gray-600 shrink-0" />
+            <GripVertical className="w-3.5 h-3.5 text-app-faint shrink-0" />
             <button
               type="button"
               onClick={() => updateOption(option.id, { color: cycleSelectColor(option.color) })}
@@ -106,12 +106,12 @@ export default function SelectOptionsEditor({
               value={option.label}
               onChange={(e) => updateOption(option.id, { label: e.target.value })}
               placeholder="Option label"
-              className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder:text-gray-600 outline-none"
+              className="flex-1 min-w-0 bg-transparent text-sm text-app-text placeholder:text-app-faint outline-none"
             />
             <button
               type="button"
               onClick={() => removeOption(option.id)}
-              className="p-1 text-gray-500 hover:text-red-400 shrink-0"
+              className="p-1 text-app-faint hover:text-red-400 shrink-0"
               aria-label="Remove option"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -124,7 +124,7 @@ export default function SelectOptionsEditor({
         <button
           type="button"
           onClick={() => addOption()}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-app-border text-xs text-gray-300 hover:bg-app-surface-hover"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-app-border text-xs text-app-muted hover:bg-app-surface-hover"
         >
           <Plus className="w-3.5 h-3.5" />
           Add option
@@ -132,7 +132,7 @@ export default function SelectOptionsEditor({
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-400 mb-1.5">Default value</label>
+        <label className="block text-xs font-medium text-app-faint mb-1.5">Default value</label>
         {isMulti ? (
           <div className="flex flex-wrap gap-1.5">
             {displayOptions.map((option) => {
@@ -151,7 +151,7 @@ export default function SelectOptionsEditor({
                   className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
                     selected
                       ? 'border-brand-500 bg-brand-500/20 text-brand-300'
-                      : 'border-app-border text-gray-400 hover:border-app-border-strong'
+                      : 'border-app-border text-app-faint hover:border-app-border-strong'
                   }`}
                 >
                   {option.label}
@@ -163,7 +163,7 @@ export default function SelectOptionsEditor({
           <select
             value={defaultValue}
             onChange={(e) => onDefaultValueChange(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-white focus:outline-none focus:border-brand-500"
+            className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-app-text focus:outline-none focus:border-brand-500"
           >
             <option value="">None</option>
             {displayOptions.map((option) => (

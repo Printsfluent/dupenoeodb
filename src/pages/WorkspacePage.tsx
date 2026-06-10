@@ -166,14 +166,14 @@ export default function WorkspacePage() {
             {hasFullAccess ? (
               <DataActions onAction={handleAction} />
             ) : (
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-app-faint mb-6">
                 Open a base below to view or edit data based on your role.
               </p>
             )}
 
             {bases.length > 0 && (
               <div className={hasFullAccess ? 'mt-12' : ''}>
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+                <h2 className="text-sm font-semibold text-app-faint uppercase tracking-wider mb-4">
                   Your Bases
                 </h2>
                 <div className="space-y-2">
@@ -197,14 +197,13 @@ export default function WorkspacePage() {
                             value={base.name}
                             onChange={(name) => handleRenameBase(base.id, name)}
                             placeholder="Base name"
-                            className="text-sm font-medium text-white"
+                            className="text-sm font-medium text-app-text"
                             inputClassName="text-sm"
-                            dark
                           />
                         ) : (
-                          <p className="text-sm font-medium text-white">{base.name}</p>
+                          <p className="text-sm font-medium text-app-text">{base.name}</p>
                         )}
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-app-faint mt-0.5">
                           {base.tables.length} table{base.tables.length !== 1 ? 's' : ''} · {base.id.slice(0, 8)}
                         </p>
                       </div>
@@ -212,7 +211,7 @@ export default function WorkspacePage() {
                         <button
                           type="button"
                           onClick={(e) => handleDeleteBase(e, base.id)}
-                          className="p-1.5 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                          className="p-1.5 text-app-faint hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
                           aria-label="Delete base"
                         >
                           <Trash2 className="w-4 h-4" />

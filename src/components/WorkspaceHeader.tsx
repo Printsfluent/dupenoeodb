@@ -36,7 +36,7 @@ export default function WorkspaceHeader({ workspaceName, activeTab, onTabChange,
               onClick={() => onTabChange(tab.id)}
               className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 isActive
-                  ? 'border-brand-500 text-brand-400'
+                  ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                   : 'border-transparent text-app-faint hover:text-app-muted'
               }`}
             >

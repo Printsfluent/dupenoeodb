@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react'
 import { getSelectBadgeStyle } from '../lib/selectOptions'
+import { useTheme } from '../context/ThemeContext'
 
 interface SelectOptionBadgeProps {
   label: string
@@ -11,9 +12,11 @@ interface SelectOptionBadgeProps {
 export default function SelectOptionBadge({
   label,
   color,
-  dark = false,
+  dark: darkProp,
   compact = false,
 }: SelectOptionBadgeProps) {
+  const { theme } = useTheme()
+  const dark = darkProp ?? theme === 'dark'
   const style = getSelectBadgeStyle(color, dark)
 
   if (!label) {

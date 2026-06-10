@@ -14,12 +14,8 @@ interface CellValueEditorProps {
   dark?: boolean
 }
 
-function inputClass(dark?: boolean) {
-  return `w-full px-3 py-2 border-2 outline-none text-sm ${
-    dark
-      ? 'bg-app-surface border-brand-500 text-white placeholder:text-gray-600'
-      : 'bg-white border-brand-400 text-gray-900 placeholder:text-gray-400'
-  }`
+function inputClass() {
+  return 'w-full px-3 py-2 border-2 outline-none text-sm bg-app-surface border-brand-500 text-app-text placeholder:text-app-faint'
 }
 
 function toDatetimeLocal(value: string) {
@@ -69,7 +65,7 @@ export function RatingInput({
         >
           <Star
             className={`${iconClass} ${
-              i < rating ? 'text-amber-400 fill-amber-400' : 'text-gray-600 hover:text-amber-300'
+              i < rating ? 'text-amber-400 fill-amber-400' : 'text-app-faint hover:text-amber-300'
             }`}
           />
         </button>
@@ -89,7 +85,7 @@ export default function CellValueEditor({
   dark,
 }: CellValueEditorProps) {
   const normalized = normalizeColumnType(type)
-  const cls = inputClass(dark)
+  const cls = inputClass()
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && normalized !== 'longText' && normalized !== 'json' && normalized !== 'geometry') {
@@ -174,7 +170,7 @@ export default function CellValueEditor({
     case 'colour': {
       const hex = value.startsWith('#') ? value : value ? `#${value}` : '#3388fc'
       return (
-        <div className={`flex items-center gap-2 px-2 py-1.5 border-2 ${dark ? 'border-brand-500 bg-app-surface' : 'border-brand-400 bg-white'}`}>
+        <div className="flex items-center gap-2 px-2 py-1.5 border-2 border-brand-500 bg-app-surface">
           <input
             autoFocus
             type="color"
@@ -197,7 +193,7 @@ export default function CellValueEditor({
 
     case 'checkbox':
       return (
-        <label className={`flex items-center justify-center min-h-[36px] cursor-pointer ${dark ? 'bg-app-surface' : 'bg-white'}`}>
+        <label className="flex items-center justify-center min-h-[36px] cursor-pointer bg-app-surface">
           <input
             autoFocus
             type="checkbox"
@@ -213,7 +209,7 @@ export default function CellValueEditor({
 
     case 'rating':
       return (
-        <div className={`min-h-[36px] flex items-center ${dark ? 'bg-app-surface' : 'bg-white'}`}>
+        <div className="min-h-[36px] flex items-center bg-app-surface">
           <RatingInput value={value} onChange={(v) => { onChange(v); }} />
         </div>
       )
@@ -262,7 +258,7 @@ export default function CellValueEditor({
 
     case 'autoNumber':
       return (
-        <div className={`px-3 py-2 text-sm tabular-nums ${dark ? 'text-gray-500 bg-app-surface-muted' : 'text-gray-400 bg-gray-50'}`}>
+        <div className="px-3 py-2 text-sm tabular-nums text-app-faint bg-app-surface-muted">
           {value || '—'}
         </div>
       )
@@ -270,7 +266,7 @@ export default function CellValueEditor({
     case 'singleSelect':
     case 'multiSelect':
       return (
-        <div className={`relative min-h-[36px] px-2 py-1 ${dark ? 'bg-app-surface' : 'bg-white'}`}>
+        <div className="relative min-h-[36px] px-2 py-1 bg-app-surface">
           <SelectCellEditor
             options={options}
             value={value}

@@ -49,11 +49,11 @@ export default function NameModal({
       />
       <div className="relative w-full max-w-md rounded-xl border border-app-border bg-app-surface shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-app-border">
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
+          <h3 className="text-sm font-semibold text-app-text">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 text-gray-500 hover:text-gray-300"
+            className="p-1 text-app-faint hover:text-app-muted"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -61,7 +61,7 @@ export default function NameModal({
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label htmlFor="name-modal-input" className="block text-xs font-medium text-gray-400 mb-1.5">
+            <label htmlFor="name-modal-input" className="block text-xs font-medium text-app-faint mb-1.5">
               {label}
             </label>
             <input
@@ -71,14 +71,14 @@ export default function NameModal({
               onChange={(e) => setName(e.target.value)}
               placeholder={placeholder}
               autoFocus
-              className="w-full px-3 py-2.5 rounded-lg bg-app-input border border-app-border text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
+              className="app-input-field px-3 py-2.5"
             />
           </div>
           <div className="flex justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-app-surface-active transition-colors"
+              className="px-4 py-2 app-btn-ghost"
             >
               Cancel
             </button>

@@ -94,7 +94,7 @@ export default function SelectCellEditor({
   function renderTriggerLabel() {
     if (selectedIds.length === 0) {
       return (
-        <span className={`text-sm ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+        <span className="text-sm text-app-faint">
           {options.length === 0 ? 'Add options in field settings' : 'Select…'}
         </span>
       )
@@ -105,11 +105,11 @@ export default function SelectCellEditor({
         <span className="inline-flex flex-wrap gap-1">
           {selectedIds.map((id) => {
             const option = findSelectOption(options, id)
-            if (!option) return <span key={id} className="text-xs text-gray-400">{id}</span>
+            if (!option) return <span key={id} className="text-xs text-app-faint">{id}</span>
             return colorCodeOptions ? (
               <SelectOptionBadge key={id} label={option.label} color={option.color} dark={dark} compact />
             ) : (
-              <span key={id} className={`text-xs ${dark ? 'text-gray-200' : 'text-gray-800'}`}>{option.label}</span>
+              <span key={id} className="text-xs text-app-text">{option.label}</span>
             )
           })}
         </span>
@@ -117,20 +117,18 @@ export default function SelectCellEditor({
     }
 
     const option = findSelectOption(options, selectedIds[0])
-    if (!option) return <span className="text-sm text-gray-400">{selectedIds[0]}</span>
+    if (!option) return <span className="text-sm text-app-faint">{selectedIds[0]}</span>
     return colorCodeOptions ? (
       <SelectOptionBadge label={option.label} color={option.color} dark={dark} />
     ) : (
-      <span className={`text-sm ${dark ? 'text-gray-200' : 'text-gray-800'}`}>{option.label}</span>
+      <span className="text-sm text-app-text">{option.label}</span>
     )
   }
 
   const menu = open ? (
     <div
       ref={menuRef}
-      className={`fixed z-[100] rounded-lg border shadow-xl py-1 max-h-64 overflow-y-auto ${
-        dark ? 'border-app-border bg-app-surface' : 'border-gray-200 bg-white'
-      }`}
+      className="fixed z-[100] rounded-lg border border-app-border bg-app-surface shadow-xl py-1 max-h-64 overflow-y-auto"
       style={{
         top: menuStyle.top,
         left: menuStyle.left,
@@ -138,7 +136,7 @@ export default function SelectCellEditor({
       }}
     >
       {sorted.length === 0 ? (
-        <p className={`px-3 py-2 text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+        <p className="px-3 py-2 text-xs text-app-faint">
           No options yet. Edit the field to add choices.
         </p>
       ) : (
@@ -149,24 +147,22 @@ export default function SelectCellEditor({
               key={option.id}
               type="button"
               onClick={() => toggleOption(option.id)}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
-                dark ? 'hover:bg-app-surface-hover' : 'hover:bg-gray-50'
-              }`}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-app-surface-hover"
             >
               {colorCodeOptions ? (
                 <SelectOptionBadge label={option.label} color={option.color} dark={dark} compact />
               ) : (
-                <span className={dark ? 'text-gray-200' : 'text-gray-800'}>{option.label}</span>
+                <span className="text-app-text">{option.label}</span>
               )}
               {selected && (
-                <Check className={`w-4 h-4 ml-auto shrink-0 ${dark ? 'text-brand-400' : 'text-brand-500'}`} />
+                <Check className="w-4 h-4 ml-auto shrink-0 text-brand-500" />
               )}
             </button>
           )
         })
       )}
       {multiple && (
-        <div className={`px-3 py-2 border-t ${dark ? 'border-app-border' : 'border-gray-100'}`}>
+        <div className="px-3 py-2 border-t border-app-border">
           <button
             type="button"
             onClick={() => { setOpen(false); onDone?.() }}
@@ -188,9 +184,7 @@ export default function SelectCellEditor({
           setOpen((prev) => !prev)
           if (!open) updateMenuPosition()
         }}
-        className={`w-full min-h-[32px] flex items-center justify-between gap-2 px-2 py-1 rounded-md text-left transition-colors ${
-          dark ? 'hover:bg-app-surface-hover' : 'hover:bg-gray-50'
-        }`}
+        className="w-full min-h-[32px] flex items-center justify-between gap-2 px-2 py-1 rounded-md text-left transition-colors hover:bg-app-surface-hover"
       >
         <span className="flex-1 min-w-0">{renderTriggerLabel()}</span>
         <ChevronDown className={`w-4 h-4 shrink-0 opacity-60 ${open ? 'rotate-180' : ''} transition-transform`} />

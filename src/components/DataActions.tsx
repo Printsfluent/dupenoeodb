@@ -24,7 +24,7 @@ interface DataActionsProps {
 export default function DataActions({ onAction }: DataActionsProps) {
   return (
     <div>
-      <h2 className="text-xl font-semibold text-white mb-6">Data Actions</h2>
+      <h2 className="text-xl font-semibold text-app-text mb-6">Data Actions</h2>
       <div className="grid sm:grid-cols-2 gap-4">
         {actions.map((action) => {
           const Icon = action.icon
@@ -36,8 +36,8 @@ export default function DataActions({ onAction }: DataActionsProps) {
               className="text-left p-5 rounded-xl border border-app-border bg-app-surface hover:border-app-border-strong hover:bg-app-surface-hover cursor-pointer transition-all"
             >
               <Icon className={`w-6 h-6 mb-4 ${action.iconColor}`} />
-              <h3 className="text-sm font-semibold text-white mb-1">{action.title}</h3>
-              <p className="text-xs text-gray-500">{action.desc}</p>
+              <h3 className="text-sm font-semibold text-app-text mb-1">{action.title}</h3>
+              <p className="text-xs text-app-faint">{action.desc}</p>
             </button>
           )
         })}

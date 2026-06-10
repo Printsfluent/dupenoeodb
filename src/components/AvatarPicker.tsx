@@ -41,11 +41,11 @@ export default function AvatarPicker({ name, currentEmoji, onSave, onClose }: Av
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
-          <h3 className="text-sm font-semibold text-white">Profile picture</h3>
+          <h3 className="text-sm font-semibold text-app-text">Profile picture</h3>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 text-gray-500 hover:text-gray-300"
+            className="p-1 text-app-faint hover:text-app-muted"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -56,8 +56,8 @@ export default function AvatarPicker({ name, currentEmoji, onSave, onClose }: Av
           <div className="flex items-center gap-3">
             <UserAvatar name={name} emoji={selected ?? undefined} size="lg" />
             <div>
-              <p className="text-sm font-medium text-white">{name}</p>
-              <p className="text-xs text-gray-500">Pick an emoji or use your initials</p>
+              <p className="text-sm font-medium text-app-text">{name}</p>
+              <p className="text-xs text-app-faint">Pick an emoji or use your initials</p>
             </div>
           </div>
 
@@ -78,12 +78,12 @@ export default function AvatarPicker({ name, currentEmoji, onSave, onClose }: Av
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1.5">Or paste any emoji</label>
+            <label className="block text-xs font-medium text-app-faint mb-1.5">Or paste any emoji</label>
             <input
               value={custom}
               onChange={(e) => handleCustomChange(e.target.value)}
               placeholder="e.g. 🎸"
-              className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
+              className="app-input-field px-3 py-2 text-sm"
             />
             {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
           </div>
@@ -91,7 +91,7 @@ export default function AvatarPicker({ name, currentEmoji, onSave, onClose }: Av
           <button
             type="button"
             onClick={() => { setSelected(null); setCustom(''); setError('') }}
-            className="text-xs text-gray-500 hover:text-gray-300"
+            className="text-xs text-app-faint hover:text-app-muted"
           >
             Use initials instead
           </button>
@@ -101,7 +101,7 @@ export default function AvatarPicker({ name, currentEmoji, onSave, onClose }: Av
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2 rounded-lg border border-app-border text-sm text-gray-400 hover:bg-app-surface-active"
+            className="flex-1 py-2 app-btn-ghost"
           >
             Cancel
           </button>

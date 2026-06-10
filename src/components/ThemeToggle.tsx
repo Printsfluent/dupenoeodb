@@ -17,7 +17,7 @@ export default function ThemeToggle({ className = '', compact = false }: ThemeTo
       className={`inline-flex items-center justify-center rounded-lg transition-colors ${
         compact
           ? 'p-1.5 text-app-faint hover:text-app-text hover:bg-app-surface-active'
-          : 'gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-app-faint dark:hover:text-app-text dark:hover:bg-app-surface-active'
+          : 'gap-2 px-3 py-2 text-sm font-medium text-app-muted hover:text-app-text hover:bg-app-surface-active'
       } ${className}`}
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
       title={isDark ? 'Light mode' : 'Dark mode'}

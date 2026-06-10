@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Table2, Upload } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
-import { useTheme } from '../context/ThemeContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
 import EditableName from '../components/EditableName'
 import NameModal from '../components/NameModal'
@@ -27,7 +26,6 @@ export default function BasePage() {
   const { workspaceId, baseId } = useParams<{ workspaceId: string; baseId: string }>()
   const { user } = useAuth()
   const { ready } = useData()
-  const { theme } = useTheme()
   const navigate = useNavigate()
   const [base, setBase] = useState<Base | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
@@ -153,7 +151,6 @@ export default function BasePage() {
               placeholder="Base name"
               className="text-sm font-medium text-app-text"
               inputClassName="text-sm"
-              dark={theme === 'dark'}
             />
           ) : (
             <span className="text-sm font-medium text-app-text">{base.name}</span>
@@ -168,7 +165,7 @@ export default function BasePage() {
               onClick={() => setActiveTableId(table.id)}
               className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTableId === table.id
-                  ? 'border-brand-500 text-brand-400'
+                  ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                   : 'border-transparent text-app-faint hover:text-app-muted'
               }`}
             >

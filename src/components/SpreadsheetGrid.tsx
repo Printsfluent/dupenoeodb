@@ -304,20 +304,18 @@ export default function SpreadsheetGrid({
     onChange({ ...table, name })
   }
 
-  const toolbar = dark ? 'border-app-border bg-app-surface' : 'border-gray-200 bg-white'
-  const title = dark ? 'text-white' : 'text-gray-900'
-  const addColBtn = dark
-    ? 'text-gray-400 hover:text-brand-400 hover:bg-app-surface-active'
-    : 'text-gray-600 hover:text-brand-600 hover:bg-brand-50'
-  const thead = dark ? 'bg-app-surface border-app-border' : 'bg-gray-50 border-gray-200'
-  const thText = dark ? 'text-gray-500' : 'text-gray-400'
-  const thBorder = dark ? 'border-app-border' : 'border-gray-100'
-  const rowHover = dark ? 'hover:bg-app-surface' : 'hover:bg-brand-50/20'
-  const rowBorder = dark ? 'border-app-border' : 'border-gray-100'
-  const cellBorder = dark ? 'border-[#222]' : 'border-gray-50'
-  const cellHover = dark ? 'hover:bg-app-surface-hover' : 'hover:bg-brand-50/50'
-  const cellText = dark ? 'text-gray-200' : 'text-gray-800'
-  const emptyText = dark ? 'text-gray-600' : 'text-gray-300'
+  const toolbar = 'border-app-border bg-app-surface'
+  const title = 'text-app-text'
+  const addColBtn = 'text-app-faint hover:text-brand-500 hover:bg-app-surface-active'
+  const thead = 'bg-app-surface-muted border-app-border'
+  const thText = 'text-app-faint'
+  const thBorder = 'border-app-border'
+  const rowHover = 'hover:bg-app-surface-hover'
+  const rowBorder = 'border-app-border'
+  const cellBorder = 'border-app-border'
+  const cellHover = 'hover:bg-app-surface-hover'
+  const cellText = 'text-app-text'
+  const emptyText = 'text-app-faint'
   const activeColumn = fieldMenu
     ? table.columns.find((col) => col.id === fieldMenu.columnId)
     : null
@@ -411,7 +409,7 @@ export default function SpreadsheetGrid({
             <button
               type="button"
               onClick={() => deleteRow(row.id)}
-              className="p-1.5 text-gray-600 hover:text-red-400 opacity-40 group-hover:opacity-100 transition-all rounded"
+              className="p-1.5 text-app-faint hover:text-red-400 opacity-40 group-hover:opacity-100 transition-all rounded"
               aria-label="Delete row"
               title="Delete row"
             >
@@ -433,7 +431,6 @@ export default function SpreadsheetGrid({
             placeholder="Table name"
             className={`font-semibold ${title}`}
             inputClassName="text-sm font-semibold min-w-[160px]"
-            dark={dark}
           />
         ) : (
           <span className={`font-semibold text-sm ${title}`}>{table.name}</span>
@@ -443,9 +440,7 @@ export default function SpreadsheetGrid({
             <button
               type="button"
               onClick={() => setView((v) => ({ ...v, showHidden: !v.showHidden }))}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                dark ? 'text-gray-400 hover:bg-app-surface-active' : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors text-app-faint hover:text-app-muted hover:bg-app-surface-active"
             >
               <Eye className="w-3.5 h-3.5" />
               {view.showHidden ? 'Hide hidden fields' : `Show ${hiddenCount} hidden`}
@@ -455,9 +450,7 @@ export default function SpreadsheetGrid({
             <button
               type="button"
               onClick={clearViewOverrides}
-              className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                dark ? 'text-gray-400 hover:bg-app-surface-active' : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors text-app-faint hover:text-app-muted hover:bg-app-surface-active"
             >
               <X className="w-3.5 h-3.5" />
               Clear view
@@ -502,9 +495,7 @@ export default function SpreadsheetGrid({
                       e.stopPropagation()
                       openEditField(col.id)
                     }}
-                    className={`w-full flex items-center gap-1 px-2 py-1.5 rounded text-left transition-colors ${
-                      dark ? 'hover:bg-app-surface-active' : 'hover:bg-gray-100'
-                    } ${col.hidden ? 'opacity-50' : ''}`}
+                    className={`w-full flex items-center gap-1 px-2 py-1.5 rounded text-left transition-colors hover:bg-app-surface-active ${col.hidden ? 'opacity-50' : ''}`}
                     title={canEditFields ? `${col.name} — click for menu, double-click to edit field` : col.name}
                   >
                     <span className="flex-1 min-w-0 flex items-center gap-1">
@@ -528,9 +519,7 @@ export default function SpreadsheetGrid({
                             openEditField(col.id)
                           }
                         }}
-                        className={`p-0.5 rounded shrink-0 opacity-0 group-hover/col:opacity-100 transition-opacity ${
-                          dark ? 'hover:bg-app-surface-hover text-gray-400 hover:text-brand-400' : 'hover:bg-gray-200 text-gray-500 hover:text-brand-600'
-                        }`}
+                        className="p-0.5 rounded shrink-0 opacity-0 group-hover/col:opacity-100 transition-opacity hover:bg-app-surface-hover text-app-faint hover:text-brand-500"
                         title="Edit field"
                       >
                         <Pencil className="w-3 h-3" />
@@ -546,7 +535,7 @@ export default function SpreadsheetGrid({
           <tbody>
             {groupedRows
               ? groupedRows.flatMap(([group, rows]) => [
-                <tr key={`group-${group}`} className={dark ? 'bg-app-surface-muted' : 'bg-gray-50'}>
+                <tr key={`group-${group}`} className="bg-app-surface-muted">
                   <td
                     colSpan={visibleColumns.length + 2}
                     className={`px-3 py-2 text-xs font-semibold uppercase tracking-wider ${thText}`}

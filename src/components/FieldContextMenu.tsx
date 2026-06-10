@@ -51,11 +51,11 @@ function MenuItem({
         danger
           ? 'text-red-400 hover:bg-red-900/20 disabled:opacity-40'
           : disabled
-            ? 'text-gray-600 cursor-not-allowed'
-            : 'text-gray-200 hover:bg-app-surface-active'
+            ? 'text-app-faint cursor-not-allowed'
+            : 'text-app-text hover:bg-app-surface-active'
       }`}
     >
-      <Icon className={`w-4 h-4 shrink-0 ${danger ? 'text-red-400' : disabled ? 'text-gray-600' : 'text-gray-400'}`} />
+      <Icon className={`w-4 h-4 shrink-0 ${danger ? 'text-red-400' : disabled ? 'text-app-faint' : 'text-app-muted'}`} />
       {label}
     </button>
   )
@@ -127,13 +127,13 @@ export default function FieldContextMenu({
       style={{ top, left }}
     >
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-app-border">
-        <span className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase truncate">
+        <span className="text-[10px] font-semibold tracking-wider text-app-faint uppercase truncate">
           Field ID: {column.id}
         </span>
         <button
           type="button"
           onClick={handleCopyId}
-          className="p-1 text-gray-500 hover:text-gray-300 shrink-0"
+          className="p-1 text-app-faint hover:text-app-muted shrink-0"
           title="Copy field ID"
         >
           {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}

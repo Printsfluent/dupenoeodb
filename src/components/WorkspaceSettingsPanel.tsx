@@ -32,13 +32,13 @@ function CopyId({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 py-2">
       <div className="min-w-0">
-        <p className="text-xs text-gray-500">{label}</p>
-        <p className="text-sm text-gray-300 font-mono truncate">{value}</p>
+        <p className="text-xs text-app-faint">{label}</p>
+        <p className="text-sm text-app-muted font-mono truncate">{value}</p>
       </div>
       <button
         type="button"
         onClick={handleCopy}
-        className="p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-app-surface-active shrink-0"
+        className="p-2 rounded-lg text-app-faint hover:text-app-muted hover:bg-app-surface-active shrink-0"
         title="Copy ID"
       >
         {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
@@ -115,7 +115,7 @@ export default function WorkspaceSettingsPanel({
   return (
     <div className="max-w-2xl space-y-8">
       <section className="rounded-xl border border-app-border bg-app-surface p-6">
-        <h2 className="text-sm font-semibold text-white mb-4">Workspace Appearance</h2>
+        <h2 className="text-sm font-semibold text-app-text mb-4">Workspace Appearance</h2>
         <div className="flex items-start gap-4">
           <div
             className="w-14 h-14 rounded-lg flex items-center justify-center text-lg font-bold text-white shrink-0"
@@ -126,8 +126,8 @@ export default function WorkspaceSettingsPanel({
           <div className="flex-1 space-y-4">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label htmlFor="ws-name" className="text-xs font-medium text-gray-400">Name</label>
-                <span className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+                <label htmlFor="ws-name" className="text-xs font-medium text-app-faint">Name</label>
+                <span className="text-[10px] font-semibold tracking-wider text-app-faint uppercase">
                   Workspace ID: {workspace.slug}
                 </span>
               </div>
@@ -137,10 +137,10 @@ export default function WorkspaceSettingsPanel({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onBlur={saveName}
-                  className="w-full px-3 py-2.5 rounded-lg bg-app-input border border-app-border text-white focus:outline-none focus:border-brand-500"
+                  className="app-input-field px-3 py-2.5"
                 />
               ) : (
-                <p className="text-white">{workspace.name}</p>
+                <p className="text-app-text">{workspace.name}</p>
               )}
             </div>
             <CopyId label="Full workspace ID" value={workspace.id} />
@@ -150,15 +150,15 @@ export default function WorkspaceSettingsPanel({
       </section>
 
       <section className="rounded-xl border border-app-border bg-app-surface p-6">
-        <h2 className="text-sm font-semibold text-white mb-4">Tables & IDs</h2>
+        <h2 className="text-sm font-semibold text-app-text mb-4">Tables & IDs</h2>
         {allTables.length === 0 ? (
-          <p className="text-sm text-gray-500">No tables yet. Create a base to see table IDs here.</p>
+          <p className="text-sm text-app-faint">No tables yet. Create a base to see table IDs here.</p>
         ) : (
-          <div className="divide-y divide-[#2a2a2a]">
+          <div className="divide-y divide-app-border">
             {allTables.map(({ table, baseName, baseId }) => (
               <div key={table.id} className="py-3 first:pt-0 last:pb-0">
-                <p className="text-sm text-white font-medium">{table.name}</p>
-                <p className="text-xs text-gray-500 mb-2">{baseName}</p>
+                <p className="text-sm text-app-text font-medium">{table.name}</p>
+                <p className="text-xs text-app-faint mb-2">{baseName}</p>
                 <CopyId label="Table ID" value={table.id} />
                 <CopyId label="Base ID" value={baseId} />
               </div>
@@ -169,24 +169,24 @@ export default function WorkspaceSettingsPanel({
 
       {hasFullAccess && (
         <section className="rounded-xl border border-app-border bg-app-surface p-6">
-          <h2 className="text-sm font-semibold text-white mb-1">User Plans</h2>
-          <p className="text-xs text-gray-500 mb-4">
+          <h2 className="text-sm font-semibold text-app-text mb-1">User Plans</h2>
+          <p className="text-xs text-app-faint mb-4">
             Upgrade or downgrade any account. Changes apply immediately across all workspaces.
           </p>
           {allUsers.length === 0 ? (
-            <p className="text-sm text-gray-500">No registered users yet.</p>
+            <p className="text-sm text-app-faint">No registered users yet.</p>
           ) : (
-            <div className="divide-y divide-[#2a2a2a]">
+            <div className="divide-y divide-app-border">
               {allUsers.map((account) => (
                 <div key={account.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{account.name}</p>
-                    <p className="text-xs text-gray-500 truncate">{account.email}</p>
+                    <p className="text-sm font-medium text-app-text truncate">{account.name}</p>
+                    <p className="text-xs text-app-faint truncate">{account.email}</p>
                   </div>
                   <select
                     value={account.plan ?? 'free'}
                     onChange={(e) => handleUserPlanChange(account.id, account.email, e.target.value as PlanId)}
-                    className="px-2 py-1.5 rounded-lg text-xs font-medium border border-app-border-strong bg-app-input text-gray-300 cursor-pointer shrink-0"
+                    className="px-2 py-1.5 rounded-lg text-xs font-medium border border-app-border-strong bg-app-input text-app-muted cursor-pointer shrink-0"
                   >
                     {PLAN_OPTIONS.map((plan) => (
                       <option key={plan.id} value={plan.id}>
@@ -203,17 +203,17 @@ export default function WorkspaceSettingsPanel({
 
       {hasFullAccess && (
         <section className="rounded-xl border border-app-border bg-app-surface p-6">
-          <h2 className="text-sm font-semibold text-white mb-4">Member Policy</h2>
+          <h2 className="text-sm font-semibold text-app-text mb-4">Member Policy</h2>
           <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={allowLeave}
               onChange={(e) => saveLeaveSetting(e.target.checked)}
-              className="mt-1 rounded border-gray-600"
+              className="mt-1 rounded border-app-border-strong"
             />
             <div>
-              <p className="text-sm text-white">Allow members to leave on their own</p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-sm text-app-text">Allow members to leave on their own</p>
+              <p className="text-xs text-app-faint mt-1">
                 When disabled, only you (the owner) can remove or block member access.
               </p>
             </div>
@@ -226,8 +226,8 @@ export default function WorkspaceSettingsPanel({
           <h2 className="text-sm font-semibold text-red-400 mb-2">Danger Zone</h2>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm text-white">Leave this workspace</p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-sm text-app-text">Leave this workspace</p>
+              <p className="text-xs text-app-faint mt-1">
                 {workspace.settings.allowMembersToLeave
                   ? 'You will no longer have access unless re-invited.'
                   : 'Leaving is disabled by the workspace owner.'}

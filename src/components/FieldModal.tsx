@@ -135,8 +135,8 @@ export default function FieldModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
-          <h3 className="text-sm font-semibold text-white">{titles[mode]}</h3>
-          <button type="button" onClick={onClose} className="p-1 text-gray-500 hover:text-gray-300">
+          <h3 className="text-sm font-semibold text-app-text">{titles[mode]}</h3>
+          <button type="button" onClick={onClose} className="p-1 text-app-faint hover:text-app-muted">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -145,18 +145,18 @@ export default function FieldModal({
           {mode === 'edit' && (
             <>
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5">Field name</label>
+                <label className="block text-xs font-medium text-app-faint mb-1.5">Field name</label>
                 <input
                   ref={inputRef as React.RefObject<HTMLInputElement>}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-white focus:outline-none focus:border-brand-500"
+                  className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-app-text focus:outline-none focus:border-brand-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                <label className="block text-xs font-medium text-app-faint mb-1.5">
                   Field type
-                  <span className="ml-2 text-gray-600 font-normal">{getFieldTypeLabel(type)}</span>
+                  <span className="ml-2 text-app-faint font-normal">{getFieldTypeLabel(type)}</span>
                 </label>
                 <FieldTypePicker value={type} onChange={handleTypeChange} />
               </div>
@@ -183,25 +183,25 @@ export default function FieldModal({
 
           {mode === 'description' && (
             <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1.5">Description</label>
+              <label className="block text-xs font-medium text-app-faint mb-1.5">Description</label>
               <textarea
                 ref={inputRef as React.RefObject<HTMLTextAreaElement>}
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
                 rows={4}
                 placeholder="Describe what this field is for..."
-                className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500 resize-none"
+                className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-app-text placeholder:text-app-faint focus:outline-none focus:border-brand-500 resize-none"
               />
             </div>
           )}
 
           {mode === 'permissions' && (
             <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1.5">Who can edit this field</label>
+              <label className="block text-xs font-medium text-app-faint mb-1.5">Who can edit this field</label>
               <select
                 value={permission}
                 onChange={(e) => setPermission(e.target.value as ColumnEditPermission)}
-                className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-white focus:outline-none focus:border-brand-500"
+                className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-app-text focus:outline-none focus:border-brand-500"
               >
                 {PERMISSIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -212,13 +212,13 @@ export default function FieldModal({
 
           {mode === 'filter' && (
             <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1.5">Contains value</label>
+              <label className="block text-xs font-medium text-app-faint mb-1.5">Contains value</label>
               <input
                 ref={inputRef as React.RefObject<HTMLInputElement>}
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 placeholder="Leave empty to clear filter"
-                className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
+                className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-app-text placeholder:text-app-faint focus:outline-none focus:border-brand-500"
               />
             </div>
           )}
@@ -227,7 +227,7 @@ export default function FieldModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2 rounded-lg border border-app-border text-sm text-gray-400 hover:bg-app-surface-active"
+              className="flex-1 py-2 rounded-lg border border-app-border text-sm text-app-faint hover:bg-app-surface-active"
             >
               Cancel
             </button>

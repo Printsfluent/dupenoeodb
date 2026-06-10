@@ -23,11 +23,11 @@ export default function FieldTypePicker({ value, onChange }: FieldTypePickerProp
               onClick={() => onChange(option.value)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors ${
                 isSelected
-                  ? 'bg-app-surface-active text-white'
-                  : 'text-gray-300 hover:bg-app-surface-hover'
+                  ? 'bg-app-surface-active text-app-text'
+                  : 'text-app-muted hover:bg-app-surface-hover'
               }`}
             >
-              <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-gray-200' : 'text-gray-500'}`} />
+              <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-app-muted' : 'text-app-faint'}`} />
               <span className="flex-1">{option.label}</span>
               {isSelected && <Check className="w-4 h-4 shrink-0 text-brand-400" />}
             </button>
