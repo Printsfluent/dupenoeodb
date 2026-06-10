@@ -199,6 +199,21 @@ export async function persistMember(member: WorkspaceMember) {
   }
 }
 
+export async function deleteMemberDocs(memberIds: string[]) {
+  if (memberIds.length === 0) return
+  setMembers([], memberIds)
+  if (skipCloudSync()) return
+  try {
+    const batch = writeBatch(getFirestoreDb())
+    memberIds.forEach((memberId) => {
+      batch.delete(doc(getFirestoreDb(), COL.members, memberId))
+    })
+    await batch.commit()
+  } catch (error) {
+    logSyncError('deleteMemberDocs', error)
+  }
+}
+
 export async function persistMembers(members: WorkspaceMember[]) {
   setMembers(members)
   if (skipCloudSync()) return

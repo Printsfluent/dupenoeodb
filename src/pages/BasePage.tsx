@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Table2, Upload } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useData } from '../context/DataContext'
 import { useTheme } from '../context/ThemeContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
 import EditableName from '../components/EditableName'
@@ -25,6 +26,7 @@ import type { ParsedSheet } from '../lib/importSpreadsheet'
 export default function BasePage() {
   const { workspaceId, baseId } = useParams<{ workspaceId: string; baseId: string }>()
   const { user } = useAuth()
+  const { ready } = useData()
   const { theme } = useTheme()
   const navigate = useNavigate()
   const [base, setBase] = useState<Base | null>(null)
@@ -103,9 +105,14 @@ export default function BasePage() {
   }
 
   const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
-  const workspace = rawWorkspace && user
-    ? repairWorkspaceForUser(rawWorkspace, { id: user.userId, email: user.email, name: user.name })
-    : rawWorkspace
+  const workspace = useMemo(() => {
+    if (!rawWorkspace || !user || !ready) return rawWorkspace
+    return repairWorkspaceForUser(rawWorkspace, {
+      id: user.userId,
+      email: user.email,
+      name: user.name,
+    })
+  }, [rawWorkspace, user, ready])
   const hasFullAccess = workspace && user
     ? hasFullWorkspaceAccess(workspace, user.userId, user.email, workspace.id)
     : false

@@ -20,7 +20,6 @@ import {
   clearDataCache,
   getCache,
   replaceBasesForWorkspace,
-  replaceMembersForWorkspace,
   replaceTeamsForWorkspace,
   setInvites,
   setMembers,
@@ -29,6 +28,7 @@ import {
   setWorkspaces,
   subscribeDataCache,
 } from '../lib/dataStore'
+import { applyWorkspaceMembersFromFirestore } from '../lib/members'
 import type { PlanId, WorkspaceInvite } from '../types'
 
 interface DataContextValue {
@@ -264,7 +264,7 @@ export function DataProvider({
         onSnapshot(
           query(collection(firestore, COL.members), where('workspaceId', '==', workspaceId)),
           (snapshot) => {
-            replaceMembersForWorkspace(
+            applyWorkspaceMembersFromFirestore(
               workspaceId,
               snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never),
             )

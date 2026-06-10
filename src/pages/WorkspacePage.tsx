@@ -33,7 +33,7 @@ import type { ParsedSheet } from '../lib/importSpreadsheet'
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { user } = useAuth()
-  const { cacheVersion } = useData()
+  const { cacheVersion, ready } = useData()
   const navigate = useNavigate()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [bases, setBases] = useState<Base[]>([])
@@ -52,7 +52,7 @@ export default function WorkspacePage() {
     : false
 
   useEffect(() => {
-    if (!user || !workspaceId) return
+    if (!user || !workspaceId || !ready) return
     const found = getUserWorkspaces(user.userId, user.email).find((w) => w.id === workspaceId)
     if (!found) {
       navigate('/app')
@@ -65,8 +65,12 @@ export default function WorkspacePage() {
     }
     const repaired = repairWorkspaceForUser(found, { id: user.userId, email: user.email, name: user.name })
     setWorkspace(repaired)
+  }, [user, workspaceId, navigate, ready])
+
+  useEffect(() => {
+    if (!workspaceId) return
     setBases(getWorkspaceBases(workspaceId))
-  }, [user, workspaceId, navigate, cacheVersion])
+  }, [workspaceId, cacheVersion])
 
   function refreshBases() {
     if (workspaceId) setBases(getWorkspaceBases(workspaceId))

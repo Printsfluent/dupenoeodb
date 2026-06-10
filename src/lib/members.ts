@@ -2,9 +2,10 @@ import type { Team, WorkspaceMember, MemberRole } from '../types'
 import { createId } from './id'
 import { pickWorkspaceColor } from './colors'
 import { getUsers, getWorkspaces } from './storage'
-import { getCache } from './dataStore'
+import { getCache, replaceMembersForWorkspace } from './dataStore'
 import {
   ensureWorkspaceInCache,
+  deleteMemberDocs,
   persistMember,
   persistMembers,
   persistTeam,
@@ -18,6 +19,88 @@ import {
   linkInvitesToUser,
   updateInvite,
 } from './invites'
+
+const MEMBER_STATUS_RANK: Record<WorkspaceMember['status'], number> = {
+  active: 4,
+  pending: 3,
+  blocked: 2,
+  left: 1,
+}
+
+const MEMBER_ROLE_RANK: Record<MemberRole, number> = {
+  owner: 5,
+  creator: 4,
+  editor: 3,
+  viewer: 2,
+  no_access: 1,
+}
+
+/** Stable Firestore doc id so re-sync does not create duplicate member rows. */
+export function memberDocId(
+  workspaceId: string,
+  identity: { userId?: string | null; email: string },
+): string {
+  const email = identity.email.trim().toLowerCase()
+  if (identity.userId) return `${workspaceId}__${identity.userId}`
+  const safeEmail = email.replace(/@/g, '_at_').replace(/[^a-z0-9._-]/g, '_')
+  return `${workspaceId}__email__${safeEmail}`
+}
+
+function memberPriority(member: WorkspaceMember): number {
+  return MEMBER_ROLE_RANK[member.role] * 10 + MEMBER_STATUS_RANK[member.status]
+}
+
+function isSameWorkspaceMember(a: WorkspaceMember, b: WorkspaceMember): boolean {
+  if (a.workspaceId !== b.workspaceId) return false
+  const emailA = a.email.toLowerCase()
+  const emailB = b.email.toLowerCase()
+  if (emailA === emailB) return true
+  return !!(a.userId && b.userId && a.userId === b.userId)
+}
+
+export function dedupeWorkspaceMembersList(members: WorkspaceMember[]): {
+  keep: WorkspaceMember[]
+  remove: WorkspaceMember[]
+} {
+  const pool = members.filter((member) => member.status !== 'left')
+  const keep: WorkspaceMember[] = []
+  const remove: WorkspaceMember[] = []
+  const handled = new Set<string>()
+
+  for (const member of pool) {
+    if (handled.has(member.id)) continue
+    const dupes = pool.filter(
+      (candidate) => !handled.has(candidate.id) && isSameWorkspaceMember(candidate, member),
+    )
+    dupes.forEach((candidate) => handled.add(candidate.id))
+    if (dupes.length === 1) {
+      keep.push(dupes[0])
+      continue
+    }
+    const sorted = [...dupes].sort(
+      (a, b) =>
+        memberPriority(b) - memberPriority(a) ||
+        a.joinedAt.localeCompare(b.joinedAt) ||
+        a.id.localeCompare(b.id),
+    )
+    keep.push(sorted[0])
+    remove.push(...sorted.slice(1))
+  }
+
+  return { keep, remove }
+}
+
+export function applyWorkspaceMembersFromFirestore(
+  workspaceId: string,
+  members: WorkspaceMember[],
+) {
+  const workspaceMembers = members.filter((member) => member.workspaceId === workspaceId)
+  const { keep, remove } = dedupeWorkspaceMembersList(workspaceMembers)
+  replaceMembersForWorkspace(workspaceId, keep)
+  if (remove.length > 0) {
+    void deleteMemberDocs(remove.map((member) => member.id))
+  }
+}
 
 export function getAllMembers(): WorkspaceMember[] {
   return getCache().members
@@ -36,9 +119,10 @@ export function saveAllTeams(teams: Team[]) {
 }
 
 export function getWorkspaceMembers(workspaceId: string): WorkspaceMember[] {
-  return getAllMembers().filter(
-    (m) => m.workspaceId === workspaceId && m.status !== 'left',
+  const members = getAllMembers().filter(
+    (member) => member.workspaceId === workspaceId && member.status !== 'left',
   )
+  return dedupeWorkspaceMembersList(members).keep
 }
 
 export function getWorkspaceTeams(workspaceId: string): Team[] {
@@ -197,17 +281,25 @@ export function ensureUserIsOwner(
 ) {
   if (ownerId !== user.id) return
 
-  const members = getAllMembers()
-  const existing = members.find(
-    (m) => m.workspaceId === workspaceId && (m.userId === user.id || m.email === user.email.toLowerCase()),
+  const matches = getAllMembers().filter(
+    (member) =>
+      member.workspaceId === workspaceId &&
+      (member.userId === user.id || member.email === user.email.toLowerCase()),
   )
 
+  if (matches.length > 1) {
+    const { keep, remove } = dedupeWorkspaceMembersList(matches)
+    if (remove.length > 0) void deleteMemberDocs(remove.map((member) => member.id))
+    matches.splice(0, matches.length, keep[0])
+  }
+
+  const existing = matches[0]
   if (!existing) {
     void persistMember(createOwnerMember(workspaceId, user))
     return
   }
 
-  if (existing.role !== 'owner' || existing.status !== 'active') {
+  if (existing.role !== 'owner' || existing.status !== 'active' || existing.userId !== user.id) {
     updateMember({
       ...existing,
       userId: user.id,
@@ -223,7 +315,7 @@ export function createOwnerMember(
   user: { id: string; email: string; name: string },
 ): WorkspaceMember {
   return {
-    id: createId(),
+    id: memberDocId(workspaceId, { userId: user.id, email: user.email }),
     workspaceId,
     userId: user.id,
     email: user.email,
@@ -279,7 +371,7 @@ export function sendWorkspaceInvite(
   const memberRole = inviteRole as MemberRole
 
   const member: WorkspaceMember = {
-    id: createId(),
+    id: memberDocId(workspaceId, { userId: matchedUser?.id ?? null, email: trimmed }),
     workspaceId,
     userId: matchedUser?.id ?? null,
     email: trimmed,
@@ -518,12 +610,18 @@ export function ensureOwnerMember(
   workspaceId: string,
   owner: { id: string; email: string; name: string },
 ) {
-  const members = getAllMembers()
-  const exists = members.some(
-    (m) => m.workspaceId === workspaceId && m.userId === owner.id && m.role === 'owner',
+  const matches = getAllMembers().filter(
+    (member) =>
+      member.workspaceId === workspaceId &&
+      (member.userId === owner.id || member.email === owner.email.toLowerCase()),
   )
-  if (!exists) {
+  if (matches.length === 0) {
     void persistMember(createOwnerMember(workspaceId, owner))
+    return
+  }
+  if (matches.length > 1) {
+    const { remove } = dedupeWorkspaceMembersList(matches)
+    if (remove.length > 0) void deleteMemberDocs(remove.map((member) => member.id))
   }
 }
 
@@ -545,11 +643,16 @@ export function migrateMembersData(workspaces: { id: string; ownerId?: string; u
     if (!ownerId) continue
     const owner = users.find((u) => u.id === ownerId)
     if (!owner) continue
-    const exists = members.some(
-      (m) => m.workspaceId === ws.id && m.role === 'owner',
+    const matches = members.filter(
+      (member) =>
+        member.workspaceId === ws.id &&
+        (member.userId === ownerId || member.email === owner.email.toLowerCase()),
     )
-    if (!exists) {
+    if (matches.length === 0) {
       void persistMember(createOwnerMember(ws.id, owner))
+    } else if (matches.length > 1) {
+      const { remove } = dedupeWorkspaceMembersList(matches)
+      if (remove.length > 0) void deleteMemberDocs(remove.map((member) => member.id))
     }
   }
 }

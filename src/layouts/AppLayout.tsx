@@ -16,6 +16,7 @@ import UserAvatar from '../components/UserAvatar'
 import AvatarPicker from '../components/AvatarPicker'
 import PlanBadge from '../components/PlanBadge'
 import { canCreateWorkspace } from '../lib/planLimits'
+import { ensureUserIsOwner } from '../lib/members'
 import { useData } from '../context/DataContext'
 import NotificationsPanel, { NotificationBell, useInviteCount } from '../components/NotificationsPanel'
 import PendingInvitesBanner from '../components/PendingInvitesBanner'
@@ -62,6 +63,11 @@ export default function AppLayout() {
     }
     const workspace = createWorkspace(user.userId, newWorkspaceName.trim(), workspaces.length)
     upsertWorkspace(workspace)
+    ensureUserIsOwner(workspace.id, user.userId, {
+      id: user.userId,
+      email: user.email,
+      name: user.name,
+    })
     const updated = getUserWorkspaces(user.userId, user.email)
     setWorkspaces(updated)
     setNewWorkspaceName('')
