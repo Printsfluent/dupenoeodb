@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { acceptWorkspaceInvite, declineWorkspaceInvite } from '../lib/members'
+import { acceptWorkspaceInviteAsync, declineWorkspaceInvite } from '../lib/members'
 import { usePendingInvites } from '../hooks/usePendingInvites'
 import WorkspaceInviteItem from './WorkspaceInviteItem'
 
@@ -23,10 +23,10 @@ export default function PendingInvitesBanner({ onUpdate }: PendingInvitesBannerP
     onUpdate?.()
   }
 
-  function handleAccept(inviteId: string) {
+  async function handleAccept(inviteId: string) {
     if (!user) return
     setActing(inviteId)
-    const result = acceptWorkspaceInvite(inviteId, {
+    const result = await acceptWorkspaceInviteAsync(inviteId, {
       id: user.userId,
       email: user.email,
       name: user.name,
@@ -35,6 +35,8 @@ export default function PendingInvitesBanner({ onUpdate }: PendingInvitesBannerP
     if (result.ok && result.workspaceId) {
       handleUpdate()
       navigate(`/app/w/${result.workspaceId}`)
+    } else if (result.error) {
+      alert(result.error)
     }
   }
 

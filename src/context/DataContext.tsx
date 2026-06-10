@@ -29,7 +29,7 @@ import {
   setWorkspaces,
   subscribeDataCache,
 } from '../lib/dataStore'
-import type { PlanId } from '../types'
+import type { PlanId, WorkspaceInvite } from '../types'
 
 interface DataContextValue {
   ready: boolean
@@ -93,6 +93,13 @@ export function DataProvider({
   useEffect(() => subscribeDataCache(() => setCacheVersion((v) => v + 1)), [])
 
   useEffect(() => {
+    if (!userId || !userEmail) return
+    return subscribeDataCache(() => {
+      setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+    })
+  }, [userId, userEmail])
+
+  useEffect(() => {
     if (!isFirebaseConfigured()) {
       return subscribeDataCache(() => {
         persistCacheToLocalStorage()
@@ -146,11 +153,22 @@ export function DataProvider({
       ),
     )
 
+    const normalizedEmail = userEmail.toLowerCase()
+
+    function syncInvitesForUser(docs: WorkspaceInvite[]) {
+      const normalized = normalizedEmail
+      const forUser = docs.filter(
+        (invite) => invite.email === normalized || invite.userId === userId,
+      )
+      setInvites(forUser)
+    }
+
     unsubs.push(
       onSnapshot(
         query(collection(firestore, COL.members), where('userId', '==', userId)),
         (snapshot) => {
           setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+          setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
         },
         (error) => console.warn('Firestore members listener:', error),
       ),
@@ -161,6 +179,7 @@ export function DataProvider({
         query(collection(firestore, COL.members), where('email', '==', userEmail.toLowerCase())),
         (snapshot) => {
           setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+          setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
         },
         (error) => console.warn('Firestore members email listener:', error),
       ),
@@ -170,7 +189,9 @@ export function DataProvider({
       onSnapshot(
         query(collection(firestore, COL.invites), where('email', '==', userEmail.toLowerCase())),
         (snapshot) => {
-          setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+          syncInvitesForUser(
+            snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as WorkspaceInvite),
+          )
         },
         (error) => console.warn('Firestore invites email listener:', error),
       ),
@@ -180,7 +201,9 @@ export function DataProvider({
       onSnapshot(
         query(collection(firestore, COL.invites), where('userId', '==', userId)),
         (snapshot) => {
-          setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+          syncInvitesForUser(
+            snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as WorkspaceInvite),
+          )
         },
         (error) => console.warn('Firestore invites user listener:', error),
       ),

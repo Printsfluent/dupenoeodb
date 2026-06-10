@@ -2,6 +2,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   query,
@@ -19,6 +20,7 @@ import type {
 } from '../types'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 import {
+  getCache,
   removePendingPlan,
   setBases,
   setInvites,
@@ -84,6 +86,24 @@ export async function persistWorkspace(workspace: Workspace) {
     await setDoc(doc(getFirestoreDb(), COL.workspaces, workspace.id), workspace, { merge: true })
   } catch (error) {
     logSyncError('persistWorkspace', error)
+  }
+}
+
+export async function ensureWorkspaceInCache(workspaceId: string): Promise<Workspace | null> {
+  const cached = getCache().workspaces.find((workspace) => workspace.id === workspaceId)
+  if (cached) return cached
+
+  if (skipCloudSync()) return null
+
+  try {
+    const snapshot = await getDoc(doc(getFirestoreDb(), COL.workspaces, workspaceId))
+    if (!snapshot.exists()) return null
+    const workspace = { id: snapshot.id, ...snapshot.data() } as Workspace
+    setWorkspaces([workspace])
+    return workspace
+  } catch (error) {
+    logSyncError('ensureWorkspaceInCache', error)
+    return null
   }
 }
 

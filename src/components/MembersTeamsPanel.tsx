@@ -256,7 +256,9 @@ export default function MembersTeamsPanel({
                         <div className="flex items-center gap-1.5">
                           <span className="font-medium text-white">{member.name}</span>
                           {(member.role === 'owner' || member.userId === workspace.ownerId) && (
-                            <Shield className="w-3 h-3 text-purple-400" title="Workspace owner" />
+                            <span title="Workspace owner">
+                              <Shield className="w-3 h-3 text-purple-400" />
+                            </span>
                           )}
                         </div>
                         <span className="text-xs text-gray-500">{member.email}</span>

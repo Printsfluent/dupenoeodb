@@ -4,6 +4,7 @@ import { pickWorkspaceColor } from './colors'
 import { getUsers, getWorkspaces } from './storage'
 import { getCache } from './dataStore'
 import {
+  ensureWorkspaceInCache,
   persistMember,
   persistMembers,
   persistTeam,
@@ -339,6 +340,17 @@ export function acceptWorkspaceInvite(
   updateInvite({ ...invite, status: 'accepted', userId: user.id })
 
   return { ok: true, workspaceId: invite.workspaceId }
+}
+
+export async function acceptWorkspaceInviteAsync(
+  inviteId: string,
+  user: { id: string; email: string; name: string },
+): Promise<{ ok: boolean; error?: string; workspaceId?: string }> {
+  const result = acceptWorkspaceInvite(inviteId, user)
+  if (result.ok && result.workspaceId) {
+    await ensureWorkspaceInCache(result.workspaceId)
+  }
+  return result
 }
 
 export function declineWorkspaceInvite(
