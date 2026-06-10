@@ -1,0 +1,285 @@
+import { Star } from 'lucide-react'
+import type { ColumnType } from '../types'
+import { normalizeColumnType } from '../lib/fieldTypes'
+
+interface CellValueEditorProps {
+  type: ColumnType
+  value: string
+  onChange: (value: string) => void
+  onDone?: () => void
+  dark?: boolean
+}
+
+function inputClass(dark?: boolean) {
+  return `w-full px-3 py-2 border-2 outline-none text-sm ${
+    dark
+      ? 'bg-[#1a1a1a] border-brand-500 text-white placeholder:text-gray-600'
+      : 'bg-white border-brand-400 text-gray-900 placeholder:text-gray-400'
+  }`
+}
+
+function toDatetimeLocal(value: string) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function fromDatetimeLocal(value: string) {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toISOString()
+}
+
+function normalizeHex(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  return trimmed.startsWith('#') ? trimmed : `#${trimmed}`
+}
+
+export function RatingInput({
+  value,
+  onChange,
+  size = 'md',
+}: {
+  value: string
+  onChange: (value: string) => void
+  size?: 'sm' | 'md'
+}) {
+  const rating = Math.min(5, Math.max(0, parseInt(value, 10) || 0))
+  const iconClass = size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'
+
+  return (
+    <span className="inline-flex gap-0.5 px-2 py-1">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onChange(String(i + 1 === rating ? 0 : i + 1))
+          }}
+          className="p-0.5 rounded hover:scale-110 transition-transform"
+          aria-label={`Rate ${i + 1}`}
+        >
+          <Star
+            className={`${iconClass} ${
+              i < rating ? 'text-amber-400 fill-amber-400' : 'text-gray-600 hover:text-amber-300'
+            }`}
+          />
+        </button>
+      ))}
+    </span>
+  )
+}
+
+export default function CellValueEditor({
+  type,
+  value,
+  onChange,
+  onDone,
+  dark,
+}: CellValueEditorProps) {
+  const normalized = normalizeColumnType(type)
+  const cls = inputClass(dark)
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' && normalized !== 'longText' && normalized !== 'json' && normalized !== 'geometry') {
+      onDone?.()
+    }
+    if (e.key === 'Escape') onDone?.()
+  }
+
+  switch (normalized) {
+    case 'longText':
+      return (
+        <textarea
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onDone}
+          onKeyDown={(e) => { if (e.key === 'Escape') onDone?.() }}
+          rows={3}
+          placeholder="Enter long text..."
+          className={`${cls} resize-none min-h-[72px]`}
+        />
+      )
+
+    case 'json':
+    case 'geometry':
+      return (
+        <textarea
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onDone}
+          onKeyDown={(e) => { if (e.key === 'Escape') onDone?.() }}
+          rows={3}
+          placeholder={normalized === 'json' ? '{"key": "value"}' : 'POINT(lng lat)'}
+          className={`${cls} resize-none font-mono text-xs min-h-[72px]`}
+        />
+      )
+
+    case 'number':
+      return (
+        <input
+          autoFocus
+          type="number"
+          step="1"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onDone}
+          onKeyDown={handleKeyDown}
+          placeholder="0"
+          className={cls}
+        />
+      )
+
+    case 'decimal':
+      return (
+        <input
+          autoFocus
+          type="number"
+          step="any"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onDone}
+          onKeyDown={handleKeyDown}
+          placeholder="0.00"
+          className={cls}
+        />
+      )
+
+    case 'dateTime':
+      return (
+        <input
+          autoFocus
+          type="datetime-local"
+          value={toDatetimeLocal(value)}
+          onChange={(e) => onChange(fromDatetimeLocal(e.target.value))}
+          onBlur={onDone}
+          onKeyDown={handleKeyDown}
+          className={cls}
+        />
+      )
+
+    case 'colour': {
+      const hex = value.startsWith('#') ? value : value ? `#${value}` : '#3388fc'
+      return (
+        <div className={`flex items-center gap-2 px-2 py-1.5 border-2 ${dark ? 'border-brand-500 bg-[#1a1a1a]' : 'border-brand-400 bg-white'}`}>
+          <input
+            autoFocus
+            type="color"
+            value={/^#[0-9a-fA-F]{6}$/.test(hex) ? hex : '#3388fc'}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent shrink-0"
+          />
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(normalizeHex(e.target.value))}
+            onBlur={onDone}
+            onKeyDown={handleKeyDown}
+            placeholder="#3388fc"
+            className="flex-1 min-w-0 bg-transparent text-sm outline-none text-inherit"
+          />
+        </div>
+      )
+    }
+
+    case 'checkbox':
+      return (
+        <label className={`flex items-center justify-center min-h-[36px] cursor-pointer ${dark ? 'bg-[#1a1a1a]' : 'bg-white'}`}>
+          <input
+            autoFocus
+            type="checkbox"
+            checked={value === 'true' || value === '1' || value.toLowerCase() === 'yes'}
+            onChange={(e) => {
+              onChange(e.target.checked ? 'true' : '')
+              onDone?.()
+            }}
+            className="w-4 h-4 rounded border-gray-600 text-brand-500 focus:ring-brand-500"
+          />
+        </label>
+      )
+
+    case 'rating':
+      return (
+        <div className={`min-h-[36px] flex items-center ${dark ? 'bg-[#1a1a1a]' : 'bg-white'}`}>
+          <RatingInput value={value} onChange={(v) => { onChange(v); }} />
+        </div>
+      )
+
+    case 'attachment':
+      return (
+        <input
+          autoFocus
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onDone}
+          onKeyDown={handleKeyDown}
+          placeholder="filename.pdf or URL"
+          className={cls}
+        />
+      )
+
+    case 'user':
+      return (
+        <input
+          autoFocus
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onDone}
+          onKeyDown={handleKeyDown}
+          placeholder="Name or email"
+          className={cls}
+        />
+      )
+
+    case 'geoData':
+      return (
+        <input
+          autoFocus
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onDone}
+          onKeyDown={handleKeyDown}
+          placeholder="Address or 37.7749, -122.4194"
+          className={cls}
+        />
+      )
+
+    case 'autoNumber':
+      return (
+        <div className={`px-3 py-2 text-sm tabular-nums ${dark ? 'text-gray-500 bg-[#151515]' : 'text-gray-400 bg-gray-50'}`}>
+          {value || '—'}
+        </div>
+      )
+
+    default:
+      return (
+        <input
+          autoFocus
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onDone}
+          onKeyDown={handleKeyDown}
+          placeholder="Enter value"
+          className={cls}
+        />
+      )
+  }
+}
+
+export function getCellInteraction(type: ColumnType): 'toggle' | 'inline-rating' | 'readonly' | 'edit' {
+  const normalized = normalizeColumnType(type)
+  if (normalized === 'checkbox') return 'toggle'
+  if (normalized === 'rating') return 'inline-rating'
+  if (normalized === 'autoNumber') return 'readonly'
+  return 'edit'
+}

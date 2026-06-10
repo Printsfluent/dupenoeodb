@@ -1,0 +1,332 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  where,
+} from 'firebase/firestore'
+import { db, isFirebaseConfigured } from '../lib/firebase'
+import { hydrateCacheFromLocalStorage, persistCacheToLocalStorage } from '../lib/localPersistence'
+import { COL } from '../lib/firestoreSync'
+import {
+  clearDataCache,
+  getCache,
+  replaceBasesForWorkspace,
+  replaceMembersForWorkspace,
+  replaceTeamsForWorkspace,
+  setInvites,
+  setMembers,
+  setPendingPlans,
+  setUsers,
+  setWorkspaces,
+  subscribeDataCache,
+} from '../lib/dataStore'
+import type { PlanId } from '../types'
+
+interface DataContextValue {
+  ready: boolean
+  online: boolean
+  localMode: boolean
+  workspaceIds: string[]
+  cacheVersion: number
+}
+
+const DataContext = createContext<DataContextValue>({
+  ready: false,
+  online: true,
+  localMode: false,
+  workspaceIds: [],
+  cacheVersion: 0,
+})
+
+function computeWorkspaceIds(userId: string, email: string) {
+  const cache = getCache()
+  const normalized = email.toLowerCase()
+  const owned = cache.workspaces
+    .filter((workspace) => workspace.ownerId === userId)
+    .map((workspace) => workspace.id)
+  const member = cache.members
+    .filter(
+      (member) =>
+        member.status !== 'left' &&
+        (member.userId === userId || member.email === normalized),
+    )
+    .map((member) => member.workspaceId)
+  return [...new Set([...owned, ...member])]
+}
+
+export function DataProvider({
+  userId,
+  userEmail,
+  children,
+}: {
+  userId: string | null
+  userEmail: string | null
+  children: ReactNode
+}) {
+  const [ready, setReady] = useState(false)
+  const [online, setOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  )
+  const [workspaceIds, setWorkspaceIds] = useState<string[]>([])
+  const [cacheVersion, setCacheVersion] = useState(0)
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true)
+    const handleOffline = () => setOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  useEffect(() => subscribeDataCache(() => setCacheVersion((v) => v + 1)), [])
+
+  useEffect(() => {
+    if (!isFirebaseConfigured()) {
+      return subscribeDataCache(() => {
+        persistCacheToLocalStorage()
+        if (userId && userEmail) {
+          setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+        }
+      })
+    }
+  }, [userId, userEmail])
+
+  useEffect(() => {
+    if (!userId || !userEmail) {
+      clearDataCache()
+      setWorkspaceIds([])
+      setReady(true)
+      return
+    }
+
+    if (!isFirebaseConfigured()) {
+      hydrateCacheFromLocalStorage()
+      setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+      setReady(true)
+      return
+    }
+
+    setReady(false)
+    const unsubs: Array<() => void> = []
+    let pendingLoads = 0
+    let initialLoadsDone = false
+
+    const markLoaded = () => {
+      if (initialLoadsDone) return
+      pendingLoads = Math.max(0, pendingLoads - 1)
+      if (pendingLoads === 0) {
+        initialLoadsDone = true
+        setReady(true)
+      }
+    }
+
+    const track = (handler: () => void) => {
+      pendingLoads += 1
+      handler()
+    }
+
+    track(() => {
+      unsubs.push(
+        onSnapshot(
+          doc(db, COL.users, userId),
+          (snapshot) => {
+            if (snapshot.exists()) {
+              setUsers([{ id: snapshot.id, ...snapshot.data() } as never])
+            }
+            markLoaded()
+          },
+          () => markLoaded(),
+        ),
+      )
+    })
+
+    track(() => {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, COL.workspaces), where('ownerId', '==', userId)),
+          (snapshot) => {
+            setWorkspaces(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+            markLoaded()
+          },
+          () => markLoaded(),
+        ),
+      )
+    })
+
+    track(() => {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, COL.members), where('userId', '==', userId)),
+          (snapshot) => {
+            setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+            markLoaded()
+          },
+          () => markLoaded(),
+        ),
+      )
+    })
+
+    track(() => {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, COL.members), where('email', '==', userEmail.toLowerCase())),
+          (snapshot) => {
+            setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+            markLoaded()
+          },
+          () => markLoaded(),
+        ),
+      )
+    })
+
+    track(() => {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, COL.invites), where('email', '==', userEmail.toLowerCase())),
+          (snapshot) => {
+            setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+            markLoaded()
+          },
+          () => markLoaded(),
+        ),
+      )
+    })
+
+    track(() => {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, COL.invites), where('userId', '==', userId)),
+          (snapshot) => {
+            setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+            markLoaded()
+          },
+          () => markLoaded(),
+        ),
+      )
+    })
+
+    track(() => {
+      unsubs.push(
+        onSnapshot(
+          collection(db, COL.users),
+          (snapshot) => {
+            setUsers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+            markLoaded()
+          },
+          () => markLoaded(),
+        ),
+      )
+    })
+
+    track(() => {
+      unsubs.push(
+        onSnapshot(
+          collection(db, COL.pendingPlans),
+          (snapshot) => {
+            const plans: Record<string, PlanId> = {}
+            snapshot.docs.forEach((item) => {
+              const data = item.data() as { email?: string; plan?: PlanId }
+              if (data.email && data.plan) plans[data.email] = data.plan
+            })
+            setPendingPlans(plans)
+            markLoaded()
+          },
+          () => markLoaded(),
+        ),
+      )
+    })
+
+    return () => unsubs.forEach((unsub) => unsub())
+  }, [userId, userEmail])
+
+  useEffect(() => {
+    if (!userId || !userEmail) return
+
+    if (!isFirebaseConfigured()) {
+      setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+      return
+    }
+
+    const ids = computeWorkspaceIds(userId, userEmail)
+    setWorkspaceIds(ids)
+    if (ids.length === 0) return
+
+    const unsubs: Array<() => void> = []
+
+    ids.forEach((workspaceId) => {
+      unsubs.push(
+        onSnapshot(doc(db, COL.workspaces, workspaceId), (snapshot) => {
+          if (!snapshot.exists()) return
+          setWorkspaces([{ id: snapshot.id, ...snapshot.data() } as never])
+        }),
+      )
+
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, COL.members), where('workspaceId', '==', workspaceId)),
+          (snapshot) => {
+            replaceMembersForWorkspace(
+              workspaceId,
+              snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never),
+            )
+          },
+        ),
+      )
+
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, COL.teams), where('workspaceId', '==', workspaceId)),
+          (snapshot) => {
+            replaceTeamsForWorkspace(
+              workspaceId,
+              snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never),
+            )
+          },
+        ),
+      )
+
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, COL.bases), where('workspaceId', '==', workspaceId)),
+          (snapshot) => {
+            replaceBasesForWorkspace(
+              workspaceId,
+              snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never),
+            )
+          },
+        ),
+      )
+    })
+
+    return () => unsubs.forEach((unsub) => unsub())
+  }, [userId, userEmail, cacheVersion])
+
+  const value = useMemo(
+    () => ({
+      ready,
+      online,
+      localMode: !isFirebaseConfigured(),
+      workspaceIds,
+      cacheVersion,
+    }),
+    [ready, online, workspaceIds, cacheVersion],
+  )
+
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>
+}
+
+export function useData() {
+  return useContext(DataContext)
+}

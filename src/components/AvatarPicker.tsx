@@ -1,0 +1,119 @@
+import { useState } from 'react'
+import { X } from 'lucide-react'
+import { isValidProfileEmoji, normalizeProfileEmoji, PROFILE_EMOJIS } from '../lib/avatar'
+import UserAvatar from './UserAvatar'
+
+interface AvatarPickerProps {
+  name: string
+  currentEmoji?: string
+  onSave: (emoji: string | null) => void
+  onClose: () => void
+}
+
+export default function AvatarPicker({ name, currentEmoji, onSave, onClose }: AvatarPickerProps) {
+  const [selected, setSelected] = useState<string | null>(currentEmoji ?? null)
+  const [custom, setCustom] = useState('')
+  const [error, setError] = useState('')
+
+  function handleCustomChange(value: string) {
+    setCustom(value)
+    setError('')
+    if (!value.trim()) {
+      setSelected(null)
+      return
+    }
+    const emoji = normalizeProfileEmoji(value)
+    if (isValidProfileEmoji(emoji)) setSelected(emoji)
+  }
+
+  function handleSave() {
+    if (custom.trim() && !isValidProfileEmoji(normalizeProfileEmoji(custom))) {
+      setError('Enter a single emoji')
+      return
+    }
+    onSave(selected)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a]">
+          <h3 className="text-sm font-semibold text-white">Profile picture</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 text-gray-500 hover:text-gray-300"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="flex items-center gap-3">
+            <UserAvatar name={name} emoji={selected ?? undefined} size="lg" />
+            <div>
+              <p className="text-sm font-medium text-white">{name}</p>
+              <p className="text-xs text-gray-500">Pick an emoji or use your initials</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-8 gap-1.5">
+            {PROFILE_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => { setSelected(emoji); setCustom(''); setError('') }}
+                className={`h-9 rounded-lg text-lg hover:bg-[#2a2a2a] transition-colors ${
+                  selected === emoji ? 'bg-brand-500/20 ring-1 ring-brand-500' : ''
+                }`}
+                aria-label={`Use ${emoji} as profile picture`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">Or paste any emoji</label>
+            <input
+              value={custom}
+              onChange={(e) => handleCustomChange(e.target.value)}
+              placeholder="e.g. 🎸"
+              className="w-full px-3 py-2 rounded-lg bg-[#111] border border-[#2a2a2a] text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
+            />
+            {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => { setSelected(null); setCustom(''); setError('') }}
+            className="text-xs text-gray-500 hover:text-gray-300"
+          >
+            Use initials instead
+          </button>
+        </div>
+
+        <div className="flex gap-2 px-4 py-3 border-t border-[#2a2a2a]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2 rounded-lg border border-[#2a2a2a] text-sm text-gray-400 hover:bg-[#2a2a2a]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="flex-1 py-2 rounded-lg bg-brand-500 text-sm font-medium text-white hover:bg-brand-600"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
