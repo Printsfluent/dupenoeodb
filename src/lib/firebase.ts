@@ -1,8 +1,8 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app'
 import {
   getAuth,
+  initializeAuth,
   browserLocalPersistence,
-  setPersistence,
   type Auth,
 } from 'firebase/auth'
 import {
@@ -56,7 +56,21 @@ function getFirebaseApp() {
 }
 
 export function getFirebaseAuth() {
-  if (!authInstance) authInstance = getAuth(getFirebaseApp())
+  if (!authInstance) {
+    const app = getFirebaseApp()
+    try {
+      authInstance = initializeAuth(app, {
+        persistence: browserLocalPersistence,
+      })
+    } catch (error) {
+      const code = (error as { code?: string }).code
+      if (code === 'auth/already-initialized') {
+        authInstance = getAuth(app)
+      } else {
+        throw error
+      }
+    }
+  }
   return authInstance
 }
 
@@ -83,7 +97,7 @@ export async function initFirebasePersistence() {
   if (persistenceReady) return
   assertFirebaseConfigured()
 
-  await setPersistence(getFirebaseAuth(), browserLocalPersistence)
+  getFirebaseAuth()
 
   try {
     await enableIndexedDbPersistence(getFirestoreDb())
@@ -95,6 +109,11 @@ export async function initFirebasePersistence() {
   }
 
   persistenceReady = true
+}
+
+export async function waitForAuthReady() {
+  assertFirebaseConfigured()
+  await getFirebaseAuth().authStateReady()
 }
 
 export async function setFirestoreNetworkEnabled(enabled: boolean) {

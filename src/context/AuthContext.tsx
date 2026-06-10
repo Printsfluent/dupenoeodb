@@ -12,6 +12,7 @@ import {
   initFirebasePersistence,
   isFirebaseConfigured,
   mapAuthError,
+  waitForAuthReady,
 } from '../lib/firebase'
 import {
   getPendingPlanForEmail,
@@ -72,12 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hydrateSession = useCallback((firebaseUser: FirebaseUser | null) => {
     if (!firebaseUser) {
+      setLocalSession(null)
       setUser(null)
       return
     }
 
     const profile = getUserById(firebaseUser.uid)
     const session = buildSession(firebaseUser, profile)
+    setLocalSession(session)
     setUser(session)
 
     void linkMemberAccounts({
@@ -100,20 +103,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    let unsub = () => {}
-    initFirebasePersistence()
-      .then(() => {
-        unsub = onAuthStateChanged(auth, (firebaseUser) => {
-          hydrateSession(firebaseUser)
-          setLoading(false)
-        })
-      })
-      .catch((error) => {
-        console.error(error)
-        setLoading(false)
-      })
+    const cached = getLocalSession()
+    if (cached) setUser(cached)
 
-    return () => unsub()
+    let unsub = () => {}
+    let cancelled = false
+
+    unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      hydrateSession(firebaseUser)
+    })
+
+    void (async () => {
+      try {
+        await initFirebasePersistence()
+        await waitForAuthReady()
+        if (!cancelled) {
+          hydrateSession(auth.currentUser)
+          setLoading(false)
+        }
+      } catch (error) {
+        console.error(error)
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      unsub()
+    }
   }, [hydrateSession, localMode])
 
   useEffect(() => {
@@ -193,7 +210,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await persistUser(profile)
       linkInvitesToUser({ id: credential.user.uid, email: trimmedEmail })
 
-      setUser(buildSession(credential.user, profile))
+      const session = buildSession(credential.user, profile)
+      setLocalSession(session)
+      setUser(session)
       return { ok: true }
     } catch (error) {
       const code = (error as { code?: string }).code ?? ''
@@ -230,6 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const credential = await signInWithEmailAndPassword(auth, trimmedEmail, password)
       const profile = getUserById(credential.user.uid)
       const session = buildSession(credential.user, profile)
+      setLocalSession(session)
       setUser(session)
       linkMemberAccounts({ id: session.userId, email: session.email, name: session.name })
       linkInvitesToUser({ id: session.userId, email: session.email })
@@ -261,7 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       avatarEmoji: updated.avatarEmoji,
       plan: updated.plan,
     }
-    if (localMode) setLocalSession(session)
+    setLocalSession(session)
     setUser(session)
     return { ok: true }
   }, [user, localMode])
@@ -274,17 +294,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (!auth.currentUser) return
     const profile = getUserById(auth.currentUser.uid)
-    setUser(buildSession(auth.currentUser, profile))
+    const session = buildSession(auth.currentUser, profile)
+    setLocalSession(session)
+    setUser(session)
   }, [localMode])
 
   const logout = useCallback(async () => {
-    if (localMode) {
-      setLocalSession(null)
-      setUser(null)
-      return
-    }
-    await signOut(auth)
+    setLocalSession(null)
     setUser(null)
+    if (!localMode) await signOut(auth)
   }, [localMode])
 
   return (
