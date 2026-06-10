@@ -290,6 +290,15 @@ export function isWorkspaceCreatorMember(
   return member.userId === workspace.ownerId
 }
 
+/** Upgrade legacy owner/creator member roles to admin for consistent permissions. */
+export function migrateWorkspaceMemberRoles(workspaceId: string) {
+  getWorkspaceMembers(workspaceId).forEach((member) => {
+    if (member.role === 'owner' || member.role === 'creator') {
+      updateMember({ ...member, role: 'admin' })
+    }
+  })
+}
+
 export function ensureUserIsOwner(
   workspaceId: string,
   ownerId: string,

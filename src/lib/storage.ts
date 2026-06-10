@@ -1,4 +1,5 @@
 import type { Base, PlanId, Table, User, Workspace, WorkspaceSettings } from '../types'
+import { normalizeBase } from './tableSchema'
 import { createId } from './id'
 import { pickWorkspaceColor } from './colors'
 import { createSlug } from './slug'
@@ -19,6 +20,7 @@ import {
   getAllTeams,
   getUserMemberWorkspaceIds,
   migrateMembersData,
+  migrateWorkspaceMemberRoles,
 } from './members'
 
 function defaultSettings(): WorkspaceSettings {
@@ -129,7 +131,7 @@ export function saveWorkspaces(workspaces: Workspace[]) {
 }
 
 export function getBases(): Base[] {
-  return getCache().bases
+  return getCache().bases.map(normalizeBase)
 }
 
 export function saveBases(bases: Base[]) {
@@ -208,6 +210,8 @@ export function repairWorkspaceForUser(
   if (ownerId === user.id) {
     ensureUserIsOwner(updated.id, ownerId, user)
   }
+
+  migrateWorkspaceMemberRoles(updated.id)
 
   return getWorkspaces().find((w) => w.id === workspace.id) ?? updated
 }

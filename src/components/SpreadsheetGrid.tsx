@@ -41,8 +41,8 @@ export default function SpreadsheetGrid({
   onChange,
   dark: darkProp,
   readOnly = false,
-  canEditFields = true,
-  canModifySchema = true,
+  canEditFields = false,
+  canModifySchema = false,
   isWorkspaceAdmin = false,
   onManageTableTeams,
   tableTeamCount = 0,
@@ -73,12 +73,15 @@ export default function SpreadsheetGrid({
   )
 
   const hiddenCount = table.columns.filter((col) => col.hidden).length
+  const schemaEditable = canEditFields && canModifySchema
 
   function updateColumns(columns: Column[]) {
+    if (!schemaEditable) return
     onChange({ ...table, columns })
   }
 
   function updateColumn(colId: string, patch: Partial<Column>) {
+    if (!schemaEditable) return
     updateColumns(table.columns.map((col) => (col.id === colId ? { ...col, ...patch } : col)))
   }
 
@@ -168,7 +171,7 @@ export default function SpreadsheetGrid({
   }
 
   function deleteColumn(colId: string) {
-    if (table.columns.length <= 1) return
+    if (!schemaEditable || table.columns.length <= 1) return
     onChange({
       ...table,
       columns: table.columns.filter((c) => c.id !== colId),
@@ -187,6 +190,7 @@ export default function SpreadsheetGrid({
   }
 
   function addColumn() {
+    if (!schemaEditable) return
     const col = createColumn(`Column ${table.columns.length + 1}`)
     onChange({
       ...table,
@@ -199,6 +203,7 @@ export default function SpreadsheetGrid({
   }
 
   function insertColumn(anchorColId: string, side: 'left' | 'right') {
+    if (!schemaEditable) return
     const index = table.columns.findIndex((col) => col.id === anchorColId)
     if (index === -1) return
     const col = createColumn(`Column ${table.columns.length + 1}`)
@@ -215,6 +220,7 @@ export default function SpreadsheetGrid({
   }
 
   function duplicateColumn(colId: string) {
+    if (!schemaEditable) return
     const source = table.columns.find((col) => col.id === colId)
     if (!source) return
     const index = table.columns.findIndex((col) => col.id === colId)
@@ -237,6 +243,7 @@ export default function SpreadsheetGrid({
   }
 
   function setDisplayValue(colId: string) {
+    if (!schemaEditable) return
     updateColumns(
       table.columns.map((col) => ({
         ...col,
@@ -307,12 +314,13 @@ export default function SpreadsheetGrid({
   }
 
   function openEditField(colId: string) {
-    if (!canEditFields) return
+    if (!schemaEditable) return
     setFieldMenu(null)
     setFieldModal({ columnId: colId, mode: 'edit' })
   }
 
   function renameTable(name: string) {
+    if (!schemaEditable) return
     onChange({ ...table, name })
   }
 
@@ -436,7 +444,7 @@ export default function SpreadsheetGrid({
   return (
     <div className="flex flex-col h-full">
       <div className={`flex items-center justify-between px-4 py-3 border-b ${toolbar}`}>
-        {canModifySchema ? (
+        {schemaEditable ? (
           <EditableName
             value={table.name}
             onChange={renameTable}
@@ -468,7 +476,7 @@ export default function SpreadsheetGrid({
               Clear view
             </button>
           )}
-          {canModifySchema && onManageTableTeams && (
+          {schemaEditable && onManageTableTeams && (
             <button
               type="button"
               onClick={onManageTableTeams}
@@ -478,7 +486,7 @@ export default function SpreadsheetGrid({
               Team access{tableTeamCount > 0 ? ` (${tableTeamCount})` : ''}
             </button>
           )}
-          {canModifySchema && (
+          {schemaEditable && (
             <button
               type="button"
               onClick={addColumn}
@@ -518,7 +526,7 @@ export default function SpreadsheetGrid({
                       openEditField(col.id)
                     }}
                     className={`w-full flex items-center gap-1 px-2 py-1.5 rounded text-left transition-colors hover:bg-app-surface-active ${col.hidden ? 'opacity-50' : ''}`}
-                    title={canEditFields ? `${col.name} — click for menu, double-click to edit field` : col.name}
+                    title={schemaEditable ? `${col.name} — click for menu, double-click to edit field` : col.name}
                   >
                     <span className="flex-1 min-w-0 flex items-center gap-1">
                       <span className={`text-xs font-semibold uppercase tracking-wider truncate ${thText}`}>
@@ -526,7 +534,7 @@ export default function SpreadsheetGrid({
                       </span>
                       {col.isDisplayValue && <Star className="w-3 h-3 text-amber-400 shrink-0 fill-amber-400" />}
                     </span>
-                    {canEditFields && (
+                    {schemaEditable && (
                       <span
                         role="button"
                         tabIndex={0}
@@ -600,8 +608,8 @@ export default function SpreadsheetGrid({
           column={activeColumn}
           anchorRect={fieldMenu.rect}
           canDelete={table.columns.length > 1}
-          canEditFields={canEditFields}
-          schemaEditable={canModifySchema}
+          canEditFields={schemaEditable}
+          schemaEditable={schemaEditable}
           onClose={() => setFieldMenu(null)}
           onEditField={() => setFieldModal({ columnId: activeColumn.id, mode: 'edit' })}
           onDuplicateField={() => duplicateColumn(activeColumn.id)}

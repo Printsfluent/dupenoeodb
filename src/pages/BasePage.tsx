@@ -11,13 +11,14 @@ import TableTeamsModal from '../components/TableTeamsModal'
 import { getWorkspaceBases, getWorkspaces, upsertBase } from '../lib/storage'
 import {
   assignTableTeams,
-  canEditFieldsInWorkspace,
   canEditInWorkspace,
+  canModifyTableSchemaInWorkspace,
   getMemberForUser,
   getWorkspaceTeams,
-  hasFullWorkspaceAccess,
   memberCanAccessTable,
+  migrateWorkspaceMemberRoles,
 } from '../lib/members'
+import { isTableStructureChange } from '../lib/tableSchema'
 import { useToast } from '../context/ToastContext'
 import { repairWorkspaceForUser } from '../lib/storage'
 import { sheetsToTables } from '../lib/importSpreadsheet'
@@ -49,6 +50,24 @@ export default function BasePage() {
     })
   }, [rawWorkspace, user, ready])
 
+  const canManageSchema =
+    workspace && user
+      ? canModifyTableSchemaInWorkspace(workspace, user.userId, user.email, workspace.id)
+      : false
+  const hasFullAccess = canManageSchema
+  const canEdit =
+    workspace && user
+      ? canEditInWorkspace(workspace, user.userId, user.email, workspace.id)
+      : false
+  const member = workspace && user
+    ? getMemberForUser(workspace.id, user.userId, user.email)
+    : undefined
+
+  useEffect(() => {
+    if (!workspaceId) return
+    migrateWorkspaceMemberRoles(workspaceId)
+  }, [workspaceId, cacheVersion])
+
   useEffect(() => {
     if (!user || !workspaceId || !baseId) return
     const found = getWorkspaceBases(workspaceId).find((b) => b.id === baseId)
@@ -66,12 +85,17 @@ export default function BasePage() {
   }
 
   function renameBase(name: string) {
-    if (!base) return
+    if (!base || !canManageSchema) return
     saveBase({ ...base, name })
   }
 
   function updateTable(table: Table) {
     if (!base) return
+    const previous = base.tables.find((item) => item.id === table.id)
+    if (previous && isTableStructureChange(previous, table) && !canManageSchema) {
+      toast.error('Only workspace admins can change fields, columns, or table structure')
+      return
+    }
     saveBase({
       ...base,
       tables: base.tables.map((t) => (t.id === table.id ? table : t)),
@@ -110,19 +134,6 @@ export default function BasePage() {
     setActiveTableId(table.id)
     setShowNewTable(false)
   }
-
-  const hasFullAccess = workspace && user
-    ? hasFullWorkspaceAccess(workspace, user.userId, user.email, workspace.id)
-    : false
-  const canEdit = workspace && user
-    ? canEditInWorkspace(workspace, user.userId, user.email, workspace.id)
-    : false
-  const canEditFields = workspace && user
-    ? canEditFieldsInWorkspace(workspace, user.userId, user.email, workspace.id)
-    : false
-  const member = workspace && user
-    ? getMemberForUser(workspace.id, user.userId, user.email)
-    : undefined
 
   if (!base) {
     return (
@@ -227,9 +238,9 @@ export default function BasePage() {
             table={activeTable}
             onChange={updateTable}
             readOnly={!canEdit}
-            canEditFields={canEditFields}
-            canModifySchema={hasFullAccess}
-            isWorkspaceAdmin={hasFullAccess}
+            canEditFields={canManageSchema}
+            canModifySchema={canManageSchema}
+            isWorkspaceAdmin={canManageSchema}
             onManageTableTeams={
               hasFullAccess
                 ? () => {
