@@ -7,6 +7,7 @@ import {
   limit,
   query,
   setDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore'
 import type {
@@ -22,6 +23,8 @@ import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 import {
   getCache,
   removePendingPlan,
+  replaceBasesForWorkspace,
+  replaceTeamsForWorkspace,
   setBases,
   setInvites,
   setMembers,
@@ -105,6 +108,47 @@ export async function ensureWorkspaceInCache(workspaceId: string): Promise<Works
     logSyncError('ensureWorkspaceInCache', error)
     return null
   }
+}
+
+export async function ensureWorkspaceBasesInCache(workspaceId: string) {
+  if (skipCloudSync()) return
+
+  try {
+    const snapshot = await getDocs(
+      query(collection(getFirestoreDb(), COL.bases), where('workspaceId', '==', workspaceId)),
+    )
+    replaceBasesForWorkspace(
+      workspaceId,
+      snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Base)),
+    )
+  } catch (error) {
+    logSyncError('ensureWorkspaceBasesInCache', error)
+  }
+}
+
+export async function ensureWorkspaceTeamsInCache(workspaceId: string) {
+  if (skipCloudSync()) return
+
+  try {
+    const snapshot = await getDocs(
+      query(collection(getFirestoreDb(), COL.teams), where('workspaceId', '==', workspaceId)),
+    )
+    replaceTeamsForWorkspace(
+      workspaceId,
+      snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Team)),
+    )
+  } catch (error) {
+    logSyncError('ensureWorkspaceTeamsInCache', error)
+  }
+}
+
+/** Load workspace, members, teams, and bases after joining or opening a shared workspace. */
+export async function ensureWorkspaceDataInCache(workspaceId: string) {
+  await ensureWorkspaceInCache(workspaceId)
+  await Promise.all([
+    ensureWorkspaceBasesInCache(workspaceId),
+    ensureWorkspaceTeamsInCache(workspaceId),
+  ])
 }
 
 export async function persistWorkspaces(workspaces: Workspace[]) {

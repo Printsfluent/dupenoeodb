@@ -25,12 +25,22 @@ import type { ParsedSheet } from '../lib/importSpreadsheet'
 export default function BasePage() {
   const { workspaceId, baseId } = useParams<{ workspaceId: string; baseId: string }>()
   const { user } = useAuth()
-  const { ready } = useData()
+  const { ready, cacheVersion } = useData()
   const navigate = useNavigate()
   const [base, setBase] = useState<Base | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [showNewTable, setShowNewTable] = useState(false)
   const [showImport, setShowImport] = useState(false)
+
+  const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
+  const workspace = useMemo(() => {
+    if (!rawWorkspace || !user || !ready) return rawWorkspace
+    return repairWorkspaceForUser(rawWorkspace, {
+      id: user.userId,
+      email: user.email,
+      name: user.name,
+    })
+  }, [rawWorkspace, user, ready])
 
   useEffect(() => {
     if (!user || !workspaceId || !baseId) return
@@ -41,7 +51,7 @@ export default function BasePage() {
     }
     setBase(found)
     setActiveTableId((prev) => prev ?? found.tables[0]?.id ?? null)
-  }, [user, workspaceId, baseId, navigate])
+  }, [user, workspaceId, baseId, navigate, cacheVersion])
 
   function saveBase(updated: Base) {
     upsertBase(updated)
@@ -94,23 +104,6 @@ export default function BasePage() {
     setShowNewTable(false)
   }
 
-  if (!base) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
-
-  const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
-  const workspace = useMemo(() => {
-    if (!rawWorkspace || !user || !ready) return rawWorkspace
-    return repairWorkspaceForUser(rawWorkspace, {
-      id: user.userId,
-      email: user.email,
-      name: user.name,
-    })
-  }, [rawWorkspace, user, ready])
   const hasFullAccess = workspace && user
     ? hasFullWorkspaceAccess(workspace, user.userId, user.email, workspace.id)
     : false
@@ -123,6 +116,14 @@ export default function BasePage() {
   const member = workspace && user
     ? getMemberForUser(workspace.id, user.userId, user.email)
     : undefined
+
+  if (!base) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
 
   const visibleTables = hasFullAccess
     ? base.tables

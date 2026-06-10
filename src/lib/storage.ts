@@ -230,6 +230,10 @@ export function upsertBase(base: Base) {
   void persistBase(base)
 }
 
+export async function upsertBaseAsync(base: Base) {
+  await persistBase(base)
+}
+
 export function deleteWorkspace(workspaceId: string) {
   const members = getAllMembers().filter((member) => member.workspaceId === workspaceId)
   const teams = getAllTeams().filter((team) => team.workspaceId === workspaceId)

@@ -56,7 +56,7 @@ function computeWorkspaceIds(userId: string, email: string) {
   const member = cache.members
     .filter(
       (member) =>
-        member.status !== 'left' &&
+        member.status === 'active' &&
         (member.userId === userId || member.email === normalized),
     )
     .map((member) => member.workspaceId)

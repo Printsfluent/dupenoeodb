@@ -7,7 +7,7 @@ import { pickWorkspaceColor } from './colors'
 import { getUsers, getWorkspaces } from './storage'
 import { getCache, replaceMembersForWorkspace } from './dataStore'
 import {
-  ensureWorkspaceInCache,
+  ensureWorkspaceDataInCache,
   deleteMemberDocs,
   persistMember,
   persistMembers,
@@ -489,8 +489,8 @@ export async function acceptWorkspaceInviteAsync(
   }
 
   await persistInvite(updatedInvite)
-  await ensureWorkspaceInCache(invite.workspaceId)
   await ensureWorkspaceMembersInCache(invite.workspaceId)
+  await ensureWorkspaceDataInCache(invite.workspaceId)
 
   return { ok: true, workspaceId: invite.workspaceId }
 }

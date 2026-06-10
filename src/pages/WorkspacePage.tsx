@@ -15,6 +15,7 @@ import {
   getWorkspaceBases,
   createBase,
   upsertBase,
+  upsertBaseAsync,
   deleteBase,
   repairWorkspaceForUser,
 } from '../lib/storage'
@@ -86,7 +87,7 @@ export default function WorkspacePage() {
     setShowCreateBase(true)
   }
 
-  function handleConfirmCreateBase(name: string) {
+  async function handleConfirmCreateBase(name: string) {
     if (!user || !workspaceId || !hasFullAccess) return
     const check = canCreateBase(workspaceId, user.plan)
     if (!check.ok) {
@@ -94,7 +95,7 @@ export default function WorkspacePage() {
       return
     }
     const base = createBase(workspaceId, user.userId, name)
-    upsertBase(base)
+    await upsertBaseAsync(base)
     refreshBases()
     setShowCreateBase(false)
     navigate(`/app/w/${workspaceId}/bases/${base.id}`)
@@ -116,7 +117,7 @@ export default function WorkspacePage() {
     refreshBases()
   }
 
-  function handleImport(sheets: ParsedSheet[], baseName?: string) {
+  async function handleImport(sheets: ParsedSheet[], baseName?: string) {
     if (!user || !workspaceId || !baseName || !hasFullAccess) return
     const check = canCreateBase(workspaceId, user.plan)
     if (!check.ok) {
@@ -131,7 +132,7 @@ export default function WorkspacePage() {
       tables: sheetsToTables(sheets),
       createdAt: new Date().toISOString(),
     }
-    upsertBase(base)
+    await upsertBaseAsync(base)
     refreshBases()
     navigate(`/app/w/${workspaceId}/bases/${base.id}`)
   }
