@@ -122,9 +122,12 @@ export function DataProvider({
     const unsubs: Array<() => void> = []
     let pendingLoads = 0
     let initialLoadsDone = false
+    const completedListeners = new Set<number>()
+    let nextListenerId = 0
 
-    const markLoaded = () => {
-      if (initialLoadsDone) return
+    const markLoaded = (listenerId: number) => {
+      if (initialLoadsDone || completedListeners.has(listenerId)) return
+      completedListeners.add(listenerId)
       pendingLoads = Math.max(0, pendingLoads - 1)
       if (pendingLoads === 0) {
         initialLoadsDone = true
@@ -132,12 +135,20 @@ export function DataProvider({
       }
     }
 
-    const track = (handler: () => void) => {
+    const track = (handler: (listenerId: number) => void) => {
+      const listenerId = nextListenerId++
       pendingLoads += 1
-      handler()
+      handler(listenerId)
     }
 
-    track(() => {
+    const readyTimeout = window.setTimeout(() => {
+      if (!initialLoadsDone) {
+        initialLoadsDone = true
+        setReady(true)
+      }
+    }, 8000)
+
+    track((listenerId) => {
       unsubs.push(
         onSnapshot(
           doc(db, COL.users, userId),
@@ -145,92 +156,92 @@ export function DataProvider({
             if (snapshot.exists()) {
               setUsers([{ id: snapshot.id, ...snapshot.data() } as never])
             }
-            markLoaded()
+            markLoaded(listenerId)
           },
-          () => markLoaded(),
+          () => markLoaded(listenerId),
         ),
       )
     })
 
-    track(() => {
+    track((listenerId) => {
       unsubs.push(
         onSnapshot(
           query(collection(db, COL.workspaces), where('ownerId', '==', userId)),
           (snapshot) => {
             setWorkspaces(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded()
+            markLoaded(listenerId)
           },
-          () => markLoaded(),
+          () => markLoaded(listenerId),
         ),
       )
     })
 
-    track(() => {
+    track((listenerId) => {
       unsubs.push(
         onSnapshot(
           query(collection(db, COL.members), where('userId', '==', userId)),
           (snapshot) => {
             setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded()
+            markLoaded(listenerId)
           },
-          () => markLoaded(),
+          () => markLoaded(listenerId),
         ),
       )
     })
 
-    track(() => {
+    track((listenerId) => {
       unsubs.push(
         onSnapshot(
           query(collection(db, COL.members), where('email', '==', userEmail.toLowerCase())),
           (snapshot) => {
             setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded()
+            markLoaded(listenerId)
           },
-          () => markLoaded(),
+          () => markLoaded(listenerId),
         ),
       )
     })
 
-    track(() => {
+    track((listenerId) => {
       unsubs.push(
         onSnapshot(
           query(collection(db, COL.invites), where('email', '==', userEmail.toLowerCase())),
           (snapshot) => {
             setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded()
+            markLoaded(listenerId)
           },
-          () => markLoaded(),
+          () => markLoaded(listenerId),
         ),
       )
     })
 
-    track(() => {
+    track((listenerId) => {
       unsubs.push(
         onSnapshot(
           query(collection(db, COL.invites), where('userId', '==', userId)),
           (snapshot) => {
             setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded()
+            markLoaded(listenerId)
           },
-          () => markLoaded(),
+          () => markLoaded(listenerId),
         ),
       )
     })
 
-    track(() => {
+    track((listenerId) => {
       unsubs.push(
         onSnapshot(
           collection(db, COL.users),
           (snapshot) => {
             setUsers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded()
+            markLoaded(listenerId)
           },
-          () => markLoaded(),
+          () => markLoaded(listenerId),
         ),
       )
     })
 
-    track(() => {
+    track((listenerId) => {
       unsubs.push(
         onSnapshot(
           collection(db, COL.pendingPlans),
@@ -241,14 +252,17 @@ export function DataProvider({
               if (data.email && data.plan) plans[data.email] = data.plan
             })
             setPendingPlans(plans)
-            markLoaded()
+            markLoaded(listenerId)
           },
-          () => markLoaded(),
+          () => markLoaded(listenerId),
         ),
       )
     })
 
-    return () => unsubs.forEach((unsub) => unsub())
+    return () => {
+      window.clearTimeout(readyTimeout)
+      unsubs.forEach((unsub) => unsub())
+    }
   }, [userId, userEmail])
 
   useEffect(() => {

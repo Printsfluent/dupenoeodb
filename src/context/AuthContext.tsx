@@ -108,8 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let unsub = () => {}
     let cancelled = false
+    let authInitialized = false
 
     unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!authInitialized) return
       hydrateSession(firebaseUser)
     })
 
@@ -117,13 +119,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await initFirebasePersistence()
         await waitForAuthReady()
-        if (!cancelled) {
-          hydrateSession(auth.currentUser)
-          setLoading(false)
-        }
+        if (cancelled) return
+        authInitialized = true
+        hydrateSession(auth.currentUser)
+        setLoading(false)
       } catch (error) {
         console.error(error)
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          authInitialized = true
+          setLoading(false)
+        }
       }
     })()
 

@@ -35,7 +35,7 @@ export default function AppLayout() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [showAvatarPicker, setShowAvatarPicker] = useState(false)
   const { count: inviteCount, refresh: refreshInviteCount } = useInviteCount(user?.userId, user?.email)
-  const { online, localMode, cacheVersion } = useData()
+  const { online, localMode, cacheVersion, ready } = useData()
   const { theme } = useTheme()
 
   function refreshWorkspaces() {
@@ -48,9 +48,9 @@ export default function AppLayout() {
   }, [user, workspaceId, cacheVersion])
 
   useEffect(() => {
-    if (!user || workspaceId || workspaces.length === 0) return
+    if (!user || !ready || workspaceId || workspaces.length === 0) return
     navigate(`/app/w/${workspaces[0].id}`, { replace: true })
-  }, [user, workspaceId, workspaces, navigate])
+  }, [user, ready, workspaceId, workspaces, navigate])
 
   const filtered = workspaces.filter((w) =>
     w.name.toLowerCase().includes(search.toLowerCase()),
