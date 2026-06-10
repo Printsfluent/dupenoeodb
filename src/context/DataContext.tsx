@@ -13,7 +13,7 @@ import {
   query,
   where,
 } from 'firebase/firestore'
-import { db, isFirebaseConfigured } from '../lib/firebase'
+import { getFirestoreDb, isFirebaseConfigured } from '../lib/firebase'
 import { hydrateCacheFromLocalStorage, persistCacheToLocalStorage } from '../lib/localPersistence'
 import { COL } from '../lib/firestoreSync'
 import {
@@ -121,11 +121,12 @@ export function DataProvider({
     setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
     setReady(true)
 
+    const firestore = getFirestoreDb()
     const unsubs: Array<() => void> = []
 
     unsubs.push(
       onSnapshot(
-        doc(db, COL.users, userId),
+        doc(firestore, COL.users, userId),
         (snapshot) => {
           if (snapshot.exists()) {
             setUsers([{ id: snapshot.id, ...snapshot.data() } as never])
@@ -137,7 +138,7 @@ export function DataProvider({
 
     unsubs.push(
       onSnapshot(
-        query(collection(db, COL.workspaces), where('ownerId', '==', userId)),
+        query(collection(firestore, COL.workspaces), where('ownerId', '==', userId)),
         (snapshot) => {
           setWorkspaces(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
         },
@@ -147,7 +148,7 @@ export function DataProvider({
 
     unsubs.push(
       onSnapshot(
-        query(collection(db, COL.members), where('userId', '==', userId)),
+        query(collection(firestore, COL.members), where('userId', '==', userId)),
         (snapshot) => {
           setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
         },
@@ -157,7 +158,7 @@ export function DataProvider({
 
     unsubs.push(
       onSnapshot(
-        query(collection(db, COL.members), where('email', '==', userEmail.toLowerCase())),
+        query(collection(firestore, COL.members), where('email', '==', userEmail.toLowerCase())),
         (snapshot) => {
           setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
         },
@@ -167,7 +168,7 @@ export function DataProvider({
 
     unsubs.push(
       onSnapshot(
-        query(collection(db, COL.invites), where('email', '==', userEmail.toLowerCase())),
+        query(collection(firestore, COL.invites), where('email', '==', userEmail.toLowerCase())),
         (snapshot) => {
           setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
         },
@@ -177,7 +178,7 @@ export function DataProvider({
 
     unsubs.push(
       onSnapshot(
-        query(collection(db, COL.invites), where('userId', '==', userId)),
+        query(collection(firestore, COL.invites), where('userId', '==', userId)),
         (snapshot) => {
           setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
         },
@@ -187,7 +188,7 @@ export function DataProvider({
 
     unsubs.push(
       onSnapshot(
-        collection(db, COL.users),
+        collection(firestore, COL.users),
         (snapshot) => {
           setUsers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
         },
@@ -197,7 +198,7 @@ export function DataProvider({
 
     unsubs.push(
       onSnapshot(
-        collection(db, COL.pendingPlans),
+        collection(firestore, COL.pendingPlans),
         (snapshot) => {
           const plans: Record<string, PlanId> = {}
           snapshot.docs.forEach((item) => {
@@ -225,11 +226,12 @@ export function DataProvider({
     setWorkspaceIds(ids)
     if (ids.length === 0) return
 
+    const firestore = getFirestoreDb()
     const unsubs: Array<() => void> = []
 
     ids.forEach((workspaceId) => {
       unsubs.push(
-        onSnapshot(doc(db, COL.workspaces, workspaceId), (snapshot) => {
+        onSnapshot(doc(firestore, COL.workspaces, workspaceId), (snapshot) => {
           if (!snapshot.exists()) return
           setWorkspaces([{ id: snapshot.id, ...snapshot.data() } as never])
         }),
@@ -237,7 +239,7 @@ export function DataProvider({
 
       unsubs.push(
         onSnapshot(
-          query(collection(db, COL.members), where('workspaceId', '==', workspaceId)),
+          query(collection(firestore, COL.members), where('workspaceId', '==', workspaceId)),
           (snapshot) => {
             replaceMembersForWorkspace(
               workspaceId,
@@ -249,7 +251,7 @@ export function DataProvider({
 
       unsubs.push(
         onSnapshot(
-          query(collection(db, COL.teams), where('workspaceId', '==', workspaceId)),
+          query(collection(firestore, COL.teams), where('workspaceId', '==', workspaceId)),
           (snapshot) => {
             replaceTeamsForWorkspace(
               workspaceId,
@@ -261,7 +263,7 @@ export function DataProvider({
 
       unsubs.push(
         onSnapshot(
-          query(collection(db, COL.bases), where('workspaceId', '==', workspaceId)),
+          query(collection(firestore, COL.bases), where('workspaceId', '==', workspaceId)),
           (snapshot) => {
             replaceBasesForWorkspace(
               workspaceId,

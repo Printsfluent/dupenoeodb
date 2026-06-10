@@ -79,18 +79,6 @@ export function getFirestoreDb() {
   return dbInstance
 }
 
-export const auth = new Proxy({} as Auth, {
-  get(_target, prop) {
-    return Reflect.get(getFirebaseAuth(), prop, getFirebaseAuth())
-  },
-})
-
-export const db = new Proxy({} as Firestore, {
-  get(_target, prop) {
-    return Reflect.get(getFirestoreDb(), prop, getFirestoreDb())
-  },
-})
-
 let persistenceReady = false
 
 export async function initFirebasePersistence() {

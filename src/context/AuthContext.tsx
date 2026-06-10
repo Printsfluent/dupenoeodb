@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth'
 import type { PlanId, Session } from '../types'
 import {
-  auth,
+  getFirebaseAuth,
   initFirebasePersistence,
   isFirebaseConfigured,
   mapAuthError,
@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     let authInitialized = false
 
-    unsub = onAuthStateChanged(auth, (firebaseUser) => {
+    unsub = onAuthStateChanged(getFirebaseAuth(), (firebaseUser) => {
       if (!authInitialized) return
       hydrateSession(firebaseUser)
     })
@@ -118,8 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const finishAuthInit = () => {
       if (cancelled) return
       authInitialized = true
-      if (auth.currentUser) {
-        hydrateSession(auth.currentUser)
+      if (getFirebaseAuth().currentUser) {
+        hydrateSession(getFirebaseAuth().currentUser)
       } else if (cached) {
         setUser(cached)
       } else {
@@ -164,7 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return subscribeDataCache(() => {
-      if (auth.currentUser) hydrateSession(auth.currentUser)
+      if (getFirebaseAuth().currentUser) hydrateSession(getFirebaseAuth().currentUser)
     })
   }, [hydrateSession, localMode])
 
@@ -217,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const plan: PlanId = pendingPlan ?? (isFirstUser ? 'og' : 'free')
       if (pendingPlan) clearPendingPlanForEmail(trimmedEmail)
 
-      const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, password)
+      const credential = await createUserWithEmailAndPassword(getFirebaseAuth(), trimmedEmail, password)
       const profile = {
         id: credential.user.uid,
         name: name.trim(),
@@ -266,7 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const credential = await signInWithEmailAndPassword(auth, trimmedEmail, password)
+      const credential = await signInWithEmailAndPassword(getFirebaseAuth(), trimmedEmail, password)
       const profile = getUserById(credential.user.uid)
       const session = buildSession(credential.user, profile)
       setLocalSession(session)
@@ -312,9 +312,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (hydrated) setUser(hydrated)
       return
     }
-    if (!auth.currentUser) return
-    const profile = getUserById(auth.currentUser.uid)
-    const session = buildSession(auth.currentUser, profile)
+    const firebaseUser = getFirebaseAuth().currentUser
+    if (!firebaseUser) return
+    const profile = getUserById(firebaseUser.uid)
+    const session = buildSession(firebaseUser, profile)
     setLocalSession(session)
     setUser(session)
   }, [localMode])
@@ -322,7 +323,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     setLocalSession(null)
     setUser(null)
-    if (!localMode) await signOut(auth)
+    if (!localMode) await signOut(getFirebaseAuth())
   }, [localMode])
 
   return (
