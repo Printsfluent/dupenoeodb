@@ -32,7 +32,7 @@ import type { ParsedSheet } from '../lib/importSpreadsheet'
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { user } = useAuth()
-  const { cacheVersion, ready } = useData()
+  const { cacheVersion } = useData()
   const navigate = useNavigate()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [bases, setBases] = useState<Base[]>([])
@@ -48,7 +48,7 @@ export default function WorkspacePage() {
     : false
 
   useEffect(() => {
-    if (!user || !workspaceId || !ready) return
+    if (!user || !workspaceId) return
     const found = getUserWorkspaces(user.userId, user.email).find((w) => w.id === workspaceId)
     if (!found) {
       navigate('/app')
@@ -62,7 +62,7 @@ export default function WorkspacePage() {
     const repaired = repairWorkspaceForUser(found, { id: user.userId, email: user.email, name: user.name })
     setWorkspace(repaired)
     setBases(getWorkspaceBases(workspaceId))
-  }, [user, workspaceId, ready, navigate, cacheVersion])
+  }, [user, workspaceId, navigate, cacheVersion])
 
   function refreshBases() {
     if (workspaceId) setBases(getWorkspaceBases(workspaceId))
@@ -136,8 +136,9 @@ export default function WorkspacePage() {
 
   if (!workspace || !user) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8">
         <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-app-muted">Loading workspace…</p>
       </div>
     )
   }

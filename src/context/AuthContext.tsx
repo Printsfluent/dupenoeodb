@@ -115,25 +115,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hydrateSession(firebaseUser)
     })
 
+    const finishAuthInit = () => {
+      if (cancelled) return
+      authInitialized = true
+      if (auth.currentUser) {
+        hydrateSession(auth.currentUser)
+      } else if (cached) {
+        setUser(cached)
+      } else {
+        hydrateSession(null)
+      }
+      setLoading(false)
+    }
+
+    const loadingTimeout = window.setTimeout(() => {
+      console.warn('Auth init timed out — using cached session if available')
+      finishAuthInit()
+    }, 5000)
+
     void (async () => {
       try {
         await initFirebasePersistence()
         await waitForAuthReady()
-        if (cancelled) return
-        authInitialized = true
-        hydrateSession(auth.currentUser)
-        setLoading(false)
+        window.clearTimeout(loadingTimeout)
+        finishAuthInit()
       } catch (error) {
         console.error(error)
-        if (!cancelled) {
-          authInitialized = true
-          setLoading(false)
-        }
+        window.clearTimeout(loadingTimeout)
+        finishAuthInit()
       }
     })()
 
     return () => {
       cancelled = true
+      window.clearTimeout(loadingTimeout)
       unsub()
     }
   }, [hydrateSession, localMode])

@@ -118,151 +118,99 @@ export function DataProvider({
       return
     }
 
-    setReady(false)
+    setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+    setReady(true)
+
     const unsubs: Array<() => void> = []
-    let pendingLoads = 0
-    let initialLoadsDone = false
-    const completedListeners = new Set<number>()
-    let nextListenerId = 0
 
-    const markLoaded = (listenerId: number) => {
-      if (initialLoadsDone || completedListeners.has(listenerId)) return
-      completedListeners.add(listenerId)
-      pendingLoads = Math.max(0, pendingLoads - 1)
-      if (pendingLoads === 0) {
-        initialLoadsDone = true
-        setReady(true)
-      }
-    }
+    unsubs.push(
+      onSnapshot(
+        doc(db, COL.users, userId),
+        (snapshot) => {
+          if (snapshot.exists()) {
+            setUsers([{ id: snapshot.id, ...snapshot.data() } as never])
+          }
+        },
+        (error) => console.warn('Firestore users profile listener:', error),
+      ),
+    )
 
-    const track = (handler: (listenerId: number) => void) => {
-      const listenerId = nextListenerId++
-      pendingLoads += 1
-      handler(listenerId)
-    }
+    unsubs.push(
+      onSnapshot(
+        query(collection(db, COL.workspaces), where('ownerId', '==', userId)),
+        (snapshot) => {
+          setWorkspaces(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+        },
+        (error) => console.warn('Firestore workspaces listener:', error),
+      ),
+    )
 
-    const readyTimeout = window.setTimeout(() => {
-      if (!initialLoadsDone) {
-        initialLoadsDone = true
-        setReady(true)
-      }
-    }, 8000)
+    unsubs.push(
+      onSnapshot(
+        query(collection(db, COL.members), where('userId', '==', userId)),
+        (snapshot) => {
+          setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+        },
+        (error) => console.warn('Firestore members listener:', error),
+      ),
+    )
 
-    track((listenerId) => {
-      unsubs.push(
-        onSnapshot(
-          doc(db, COL.users, userId),
-          (snapshot) => {
-            if (snapshot.exists()) {
-              setUsers([{ id: snapshot.id, ...snapshot.data() } as never])
-            }
-            markLoaded(listenerId)
-          },
-          () => markLoaded(listenerId),
-        ),
-      )
-    })
+    unsubs.push(
+      onSnapshot(
+        query(collection(db, COL.members), where('email', '==', userEmail.toLowerCase())),
+        (snapshot) => {
+          setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+        },
+        (error) => console.warn('Firestore members email listener:', error),
+      ),
+    )
 
-    track((listenerId) => {
-      unsubs.push(
-        onSnapshot(
-          query(collection(db, COL.workspaces), where('ownerId', '==', userId)),
-          (snapshot) => {
-            setWorkspaces(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded(listenerId)
-          },
-          () => markLoaded(listenerId),
-        ),
-      )
-    })
+    unsubs.push(
+      onSnapshot(
+        query(collection(db, COL.invites), where('email', '==', userEmail.toLowerCase())),
+        (snapshot) => {
+          setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+        },
+        (error) => console.warn('Firestore invites email listener:', error),
+      ),
+    )
 
-    track((listenerId) => {
-      unsubs.push(
-        onSnapshot(
-          query(collection(db, COL.members), where('userId', '==', userId)),
-          (snapshot) => {
-            setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded(listenerId)
-          },
-          () => markLoaded(listenerId),
-        ),
-      )
-    })
+    unsubs.push(
+      onSnapshot(
+        query(collection(db, COL.invites), where('userId', '==', userId)),
+        (snapshot) => {
+          setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+        },
+        (error) => console.warn('Firestore invites user listener:', error),
+      ),
+    )
 
-    track((listenerId) => {
-      unsubs.push(
-        onSnapshot(
-          query(collection(db, COL.members), where('email', '==', userEmail.toLowerCase())),
-          (snapshot) => {
-            setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded(listenerId)
-          },
-          () => markLoaded(listenerId),
-        ),
-      )
-    })
+    unsubs.push(
+      onSnapshot(
+        collection(db, COL.users),
+        (snapshot) => {
+          setUsers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
+        },
+        (error) => console.warn('Firestore all users listener:', error),
+      ),
+    )
 
-    track((listenerId) => {
-      unsubs.push(
-        onSnapshot(
-          query(collection(db, COL.invites), where('email', '==', userEmail.toLowerCase())),
-          (snapshot) => {
-            setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded(listenerId)
-          },
-          () => markLoaded(listenerId),
-        ),
-      )
-    })
+    unsubs.push(
+      onSnapshot(
+        collection(db, COL.pendingPlans),
+        (snapshot) => {
+          const plans: Record<string, PlanId> = {}
+          snapshot.docs.forEach((item) => {
+            const data = item.data() as { email?: string; plan?: PlanId }
+            if (data.email && data.plan) plans[data.email] = data.plan
+          })
+          setPendingPlans(plans)
+        },
+        (error) => console.warn('Firestore pending plans listener:', error),
+      ),
+    )
 
-    track((listenerId) => {
-      unsubs.push(
-        onSnapshot(
-          query(collection(db, COL.invites), where('userId', '==', userId)),
-          (snapshot) => {
-            setInvites(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded(listenerId)
-          },
-          () => markLoaded(listenerId),
-        ),
-      )
-    })
-
-    track((listenerId) => {
-      unsubs.push(
-        onSnapshot(
-          collection(db, COL.users),
-          (snapshot) => {
-            setUsers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never))
-            markLoaded(listenerId)
-          },
-          () => markLoaded(listenerId),
-        ),
-      )
-    })
-
-    track((listenerId) => {
-      unsubs.push(
-        onSnapshot(
-          collection(db, COL.pendingPlans),
-          (snapshot) => {
-            const plans: Record<string, PlanId> = {}
-            snapshot.docs.forEach((item) => {
-              const data = item.data() as { email?: string; plan?: PlanId }
-              if (data.email && data.plan) plans[data.email] = data.plan
-            })
-            setPendingPlans(plans)
-            markLoaded(listenerId)
-          },
-          () => markLoaded(listenerId),
-        ),
-      )
-    })
-
-    return () => {
-      window.clearTimeout(readyTimeout)
-      unsubs.forEach((unsub) => unsub())
-    }
+    return () => unsubs.forEach((unsub) => unsub())
   }, [userId, userEmail])
 
   useEffect(() => {
