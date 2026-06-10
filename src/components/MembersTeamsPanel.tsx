@@ -706,7 +706,8 @@ export default function MembersTeamsPanel({
           onClose={() => setShowTableAccess(null)}
         >
           <p className="text-xs text-app-faint mb-4">
-            Select which tables this member can access. Admins always have access to all tables.
+            Optionally restrict this member to specific tables. For team-wide access, use Team
+            access on each table in the database view.
           </p>
           <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
             {allTables.length === 0 ? (

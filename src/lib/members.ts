@@ -4,7 +4,7 @@ import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 import { COL } from './firestoreSync'
 import { createId } from './id'
 import { pickWorkspaceColor } from './colors'
-import { getUsers, getWorkspaces } from './storage'
+import { getUsers, getWorkspaceBases, getWorkspaces, upsertBase } from './storage'
 import { getCache, replaceMembersForWorkspace } from './dataStore'
 import {
   ensureWorkspaceDataInCache,
@@ -190,15 +190,23 @@ export function canCreateInWorkspace(
   return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
 }
 
+/** Column/field schema changes — admins only. */
 export function canEditFieldsInWorkspace(
   workspace: { ownerId: string },
   userId: string,
   email: string,
   workspaceId: string,
 ): boolean {
-  if (hasFullWorkspaceAccess(workspace, userId, email, workspaceId)) return true
-  const member = getMemberForUser(workspaceId, userId, email)
-  return isActiveWorkspaceMember(member) && canEditRecords(member.role)
+  return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
+}
+
+export function canModifyTableSchemaInWorkspace(
+  workspace: { ownerId: string },
+  userId: string,
+  email: string,
+  workspaceId: string,
+): boolean {
+  return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
 }
 
 /** @deprecated Use hasFullWorkspaceAccess */
@@ -797,13 +805,64 @@ export function getUserMemberWorkspaceIds(userId: string, email: string): string
 export function memberCanAccessTable(
   member: WorkspaceMember | undefined,
   tableId: string,
-  canCreate: boolean,
+  options?: { tableTeamIds?: string[]; bypassForAdmin?: boolean },
 ): boolean {
-  if (canCreate) return true
+  if (options?.bypassForAdmin) return true
   if (!member || member.status === 'blocked' || member.role === 'no_access') return false
   if (isAdminRole(member.role)) return true
-  if (member.tableAccess.length === 0) return true
-  return member.tableAccess.includes(tableId)
+
+  const tableTeamIds = options?.tableTeamIds ?? []
+  if (tableTeamIds.length > 0) {
+    const inAssignedTeam = tableTeamIds.some((teamId) => member.teamIds.includes(teamId))
+    if (!inAssignedTeam) return false
+  }
+
+  if (member.tableAccess.length > 0) {
+    return member.tableAccess.includes(tableId)
+  }
+
+  return true
+}
+
+export function setTableTeamAccess(
+  workspaceId: string,
+  baseId: string,
+  tableId: string,
+  teamIds: string[],
+): { ok: boolean; error?: string } {
+  const base = getWorkspaceBases(workspaceId).find((item) => item.id === baseId)
+  if (!base) return { ok: false, error: 'Database not found' }
+
+  const workspaceTeams = getWorkspaceTeams(workspaceId)
+  const validTeamIds = [
+    ...new Set(teamIds.filter((id) => workspaceTeams.some((team) => team.id === id))),
+  ]
+
+  const table = base.tables.find((item) => item.id === tableId)
+  if (!table) return { ok: false, error: 'Table not found' }
+
+  void upsertBase({
+    ...base,
+    tables: base.tables.map((item) =>
+      item.id === tableId ? { ...item, teamIds: validTeamIds } : item,
+    ),
+  })
+
+  return { ok: true }
+}
+
+export function assignTableTeams(
+  workspace: { ownerId: string },
+  workspaceId: string,
+  baseId: string,
+  tableId: string,
+  teamIds: string[],
+  actor: { userId: string; email: string },
+): { ok: boolean; error?: string } {
+  if (!hasFullWorkspaceAccess(workspace, actor.userId, actor.email, workspaceId)) {
+    return { ok: false, error: 'You do not have permission to assign table teams' }
+  }
+  return setTableTeamAccess(workspaceId, baseId, tableId, teamIds)
 }
 
 export function ensureOwnerMember(

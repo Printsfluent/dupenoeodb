@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from 'react'
-import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star, Pencil } from 'lucide-react'
+import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star, Pencil, Users } from 'lucide-react'
 import type { Column, ColumnType, Row, Table } from '../types'
 import { createId } from '../lib/id'
 import EditableName from './EditableName'
@@ -19,6 +19,9 @@ interface SpreadsheetGridProps {
   readOnly?: boolean
   canEditFields?: boolean
   canModifySchema?: boolean
+  isWorkspaceAdmin?: boolean
+  onManageTableTeams?: () => void
+  tableTeamCount?: number
   onAddRow?: () => boolean
 }
 
@@ -40,6 +43,9 @@ export default function SpreadsheetGrid({
   readOnly = false,
   canEditFields = true,
   canModifySchema = true,
+  isWorkspaceAdmin = false,
+  onManageTableTeams,
+  tableTeamCount = 0,
   onAddRow,
 }: SpreadsheetGridProps) {
   const { theme } = useTheme()
@@ -110,15 +116,21 @@ export default function SpreadsheetGrid({
     })
   }
 
+  function canEditCell(col: Column): boolean {
+    if (readOnly) return false
+    if (col.editPermission === 'creators_only' && !isWorkspaceAdmin) return false
+    return true
+  }
+
   function activateCellEdit(row: Row, col: Column) {
-    if (readOnly) return
+    if (!canEditCell(col)) return
     const interaction = getCellInteraction(col.type)
     if (interaction === 'readonly' || interaction === 'inline-rating') return
     setEditingCell({ rowId: row.id, colId: col.id })
   }
 
   function handleCellClick(row: Row, col: Column, value: string) {
-    if (readOnly) return
+    if (!canEditCell(col)) return
     const interaction = getCellInteraction(col.type)
     if (interaction === 'toggle') {
       const checked = value === 'true' || value === '1' || value.toLowerCase() === 'yes'
@@ -338,7 +350,7 @@ export default function SpreadsheetGrid({
 
           return (
             <td key={col.id} className={`px-0 py-0 border-r ${cellBorder}`}>
-              {readOnly ? (
+              {!canEditCell(col) ? (
                 <div className="w-full text-left px-3 py-2 min-h-[36px]" title={col.description}>
                   <CellValueDisplay
                     type={col.type}
@@ -454,6 +466,16 @@ export default function SpreadsheetGrid({
             >
               <X className="w-3.5 h-3.5" />
               Clear view
+            </button>
+          )}
+          {canModifySchema && onManageTableTeams && (
+            <button
+              type="button"
+              onClick={onManageTableTeams}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors text-app-faint hover:text-app-muted hover:bg-app-surface-active"
+            >
+              <Users className="w-4 h-4" />
+              Team access{tableTeamCount > 0 ? ` (${tableTeamCount})` : ''}
             </button>
           )}
           {canModifySchema && (

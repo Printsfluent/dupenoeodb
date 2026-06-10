@@ -54,6 +54,8 @@ export interface Table {
   name: string
   columns: Column[]
   rows: Row[]
+  /** When set, only members in these teams (plus admins) can access the table. */
+  teamIds?: string[]
 }
 
 export interface WorkspaceSettings {

@@ -7,14 +7,18 @@ import SpreadsheetGrid from '../components/SpreadsheetGrid'
 import EditableName from '../components/EditableName'
 import NameModal from '../components/NameModal'
 import ImportDataModal from '../components/ImportDataModal'
+import TableTeamsModal from '../components/TableTeamsModal'
 import { getWorkspaceBases, getWorkspaces, upsertBase } from '../lib/storage'
 import {
+  assignTableTeams,
   canEditFieldsInWorkspace,
   canEditInWorkspace,
   getMemberForUser,
+  getWorkspaceTeams,
   hasFullWorkspaceAccess,
   memberCanAccessTable,
 } from '../lib/members'
+import { useToast } from '../context/ToastContext'
 import { repairWorkspaceForUser } from '../lib/storage'
 import { sheetsToTables } from '../lib/importSpreadsheet'
 import { createId } from '../lib/id'
@@ -31,6 +35,9 @@ export default function BasePage() {
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [showNewTable, setShowNewTable] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [showTableTeams, setShowTableTeams] = useState(false)
+  const [tableTeamIds, setTableTeamIds] = useState<string[]>([])
+  const toast = useToast()
 
   const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
   const workspace = useMemo(() => {
@@ -125,9 +132,14 @@ export default function BasePage() {
     )
   }
 
-  const visibleTables = hasFullAccess
-    ? base.tables
-    : base.tables.filter((t) => memberCanAccessTable(member, t.id, false))
+  const workspaceTeams = workspaceId ? getWorkspaceTeams(workspaceId) : []
+
+  const visibleTables = base.tables.filter((table) =>
+    memberCanAccessTable(member, table.id, {
+      tableTeamIds: table.teamIds,
+      bypassForAdmin: hasFullAccess,
+    }),
+  )
 
   const activeTable = visibleTables.find((t) => t.id === activeTableId)
     ?? visibleTables[0]
@@ -217,6 +229,16 @@ export default function BasePage() {
             readOnly={!canEdit}
             canEditFields={canEditFields}
             canModifySchema={hasFullAccess}
+            isWorkspaceAdmin={hasFullAccess}
+            onManageTableTeams={
+              hasFullAccess
+                ? () => {
+                    setTableTeamIds(activeTable.teamIds ?? [])
+                    setShowTableTeams(true)
+                  }
+                : undefined
+            }
+            tableTeamCount={activeTable.teamIds?.length ?? 0}
             onAddRow={() => {
               if (!user || !activeTable || !canEdit) return false
               const check = canAddRows(activeTable.rows.length, 1, user.plan)
@@ -251,6 +273,39 @@ export default function BasePage() {
         onImport={(sheets) => handleImportTables(sheets)}
         onClose={() => setShowImport(false)}
       />
+
+      {showTableTeams && activeTable && workspace && workspaceId && baseId && (
+        <TableTeamsModal
+          tableName={activeTable.name}
+          teams={workspaceTeams}
+          selectedTeamIds={tableTeamIds}
+          onChange={setTableTeamIds}
+          onClose={() => setShowTableTeams(false)}
+          onSave={() => {
+            if (!user) return
+            const result = assignTableTeams(
+              workspace,
+              workspaceId,
+              baseId,
+              activeTable.id,
+              tableTeamIds,
+              { userId: user.userId, email: user.email },
+            )
+            if (!result.ok) {
+              toast.error(result.error ?? 'Failed to save team access')
+              return
+            }
+            setBase({
+              ...base,
+              tables: base.tables.map((table) =>
+                table.id === activeTable.id ? { ...table, teamIds: tableTeamIds } : table,
+              ),
+            })
+            setShowTableTeams(false)
+            toast.success('Table team access updated')
+          }}
+        />
+      )}
     </div>
   )
 }
