@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from 'react'
-import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star } from 'lucide-react'
+import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star, Pencil } from 'lucide-react'
 import type { Column, ColumnType, Row, Table } from '../types'
 import { createId } from '../lib/id'
 import EditableName from './EditableName'
@@ -17,6 +17,7 @@ interface SpreadsheetGridProps {
   onChange: (table: Table) => void
   dark?: boolean
   readOnly?: boolean
+  canEditFields?: boolean
   canModifySchema?: boolean
   onAddRow?: () => boolean
 }
@@ -37,6 +38,7 @@ export default function SpreadsheetGrid({
   onChange,
   dark: darkProp,
   readOnly = false,
+  canEditFields = true,
   canModifySchema = true,
   onAddRow,
 }: SpreadsheetGridProps) {
@@ -292,6 +294,12 @@ export default function SpreadsheetGrid({
     setFieldMenu({ columnId: colId, rect: el.getBoundingClientRect() })
   }
 
+  function openEditField(colId: string) {
+    if (!canEditFields) return
+    setFieldMenu(null)
+    setFieldModal({ columnId: colId, mode: 'edit' })
+  }
+
   function renameTable(name: string) {
     onChange({ ...table, name })
   }
@@ -489,9 +497,15 @@ export default function SpreadsheetGrid({
                     ref={(el) => { headerRefs.current[col.id] = el }}
                     type="button"
                     onClick={() => openFieldMenu(col.id)}
+                    onDoubleClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      openEditField(col.id)
+                    }}
                     className={`w-full flex items-center gap-1 px-2 py-1.5 rounded text-left transition-colors ${
                       dark ? 'hover:bg-app-surface-active' : 'hover:bg-gray-100'
                     } ${col.hidden ? 'opacity-50' : ''}`}
+                    title={canEditFields ? `${col.name} — click for menu, double-click to edit field` : col.name}
                   >
                     <span className="flex-1 min-w-0 flex items-center gap-1">
                       <span className={`text-xs font-semibold uppercase tracking-wider truncate ${thText}`}>
@@ -499,6 +513,29 @@ export default function SpreadsheetGrid({
                       </span>
                       {col.isDisplayValue && <Star className="w-3 h-3 text-amber-400 shrink-0 fill-amber-400" />}
                     </span>
+                    {canEditFields && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openEditField(col.id)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            openEditField(col.id)
+                          }
+                        }}
+                        className={`p-0.5 rounded shrink-0 opacity-0 group-hover/col:opacity-100 transition-opacity ${
+                          dark ? 'hover:bg-app-surface-hover text-gray-400 hover:text-brand-400' : 'hover:bg-gray-200 text-gray-500 hover:text-brand-600'
+                        }`}
+                        title="Edit field"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </span>
+                    )}
                     <ChevronDown className={`w-3.5 h-3.5 shrink-0 ${thText}`} />
                   </button>
                 </th>
@@ -552,6 +589,7 @@ export default function SpreadsheetGrid({
           column={activeColumn}
           anchorRect={fieldMenu.rect}
           canDelete={table.columns.length > 1}
+          canEditFields={canEditFields}
           schemaEditable={canModifySchema}
           onClose={() => setFieldMenu(null)}
           onEditField={() => setFieldModal({ columnId: activeColumn.id, mode: 'edit' })}

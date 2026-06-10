@@ -11,6 +11,7 @@ interface FieldContextMenuProps {
   column: Column
   anchorRect: DOMRect
   canDelete: boolean
+  canEditFields?: boolean
   schemaEditable?: boolean
   onClose: () => void
   onEditField: () => void
@@ -68,6 +69,7 @@ export default function FieldContextMenu({
   column,
   anchorRect,
   canDelete,
+  canEditFields = true,
   schemaEditable = true,
   onClose,
   onEditField,
@@ -96,9 +98,12 @@ export default function FieldContextMenu({
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
     }
-    document.addEventListener('mousedown', handleClick)
+    const timer = window.setTimeout(() => {
+      document.addEventListener('mousedown', handleClick)
+    }, 0)
     document.addEventListener('keydown', handleKey)
     return () => {
+      window.clearTimeout(timer)
       document.removeEventListener('mousedown', handleClick)
       document.removeEventListener('keydown', handleKey)
     }
@@ -135,15 +140,18 @@ export default function FieldContextMenu({
         </button>
       </div>
 
-      {schemaEditable && (
+      {canEditFields && (
         <>
           <MenuItem icon={Pencil} label="Edit field" onClick={() => { onEditField(); onClose() }} />
-          <MenuItem icon={Copy} label="Duplicate field" onClick={() => { onDuplicateField(); onClose() }} />
           <MenuItem icon={AlignLeft} label="Edit field description" onClick={() => { onEditDescription(); onClose() }} />
           <MenuItem icon={Lock} label="Edit field permissions" onClick={() => { onEditPermissions(); onClose() }} />
-
           <Divider />
+        </>
+      )}
 
+      {schemaEditable && (
+        <>
+          <MenuItem icon={Copy} label="Duplicate field" onClick={() => { onDuplicateField(); onClose() }} />
           <MenuItem icon={EyeOff} label="Hide field" onClick={() => { onHideField(); onClose() }} />
           <MenuItem
             icon={Star}
@@ -151,7 +159,6 @@ export default function FieldContextMenu({
             onClick={() => { onSetDisplayValue(); onClose() }}
             disabled={column.isDisplayValue}
           />
-
           <Divider />
         </>
       )}

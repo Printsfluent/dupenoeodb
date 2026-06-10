@@ -75,7 +75,19 @@ export function canCreateInWorkspace(
 ): boolean {
   if (isWorkspaceOwner(workspaceId, userId, workspace.ownerId)) return true
   const member = getMemberForUser(workspaceId, userId, email)
-  return isActiveWorkspaceMember(member) && member.role === 'creator'
+  return (
+    isActiveWorkspaceMember(member) &&
+    (member.role === 'owner' || member.role === 'creator')
+  )
+}
+
+export function canEditFieldsInWorkspace(
+  workspace: { ownerId: string },
+  userId: string,
+  email: string,
+  workspaceId: string,
+): boolean {
+  return canEditInWorkspace(workspace, userId, email, workspaceId)
 }
 
 /** @deprecated Use canCreateInWorkspace */

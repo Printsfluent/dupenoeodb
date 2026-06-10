@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Table2, Upload } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { useData } from '../context/DataContext'
 import { useTheme } from '../context/ThemeContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
 import EditableName from '../components/EditableName'
@@ -11,6 +10,7 @@ import ImportDataModal from '../components/ImportDataModal'
 import { getWorkspaceBases, getWorkspaces, upsertBase } from '../lib/storage'
 import {
   canCreateInWorkspace,
+  canEditFieldsInWorkspace,
   canEditInWorkspace,
   getMemberForUser,
   memberCanAccessTable,
@@ -25,7 +25,6 @@ import type { ParsedSheet } from '../lib/importSpreadsheet'
 export default function BasePage() {
   const { workspaceId, baseId } = useParams<{ workspaceId: string; baseId: string }>()
   const { user } = useAuth()
-  const { cacheVersion } = useData()
   const { theme } = useTheme()
   const navigate = useNavigate()
   const [base, setBase] = useState<Base | null>(null)
@@ -33,7 +32,7 @@ export default function BasePage() {
   const [showNewTable, setShowNewTable] = useState(false)
   const [showImport, setShowImport] = useState(false)
 
-  const loadBase = useCallback(() => {
+  useEffect(() => {
     if (!user || !workspaceId || !baseId) return
     const found = getWorkspaceBases(workspaceId).find((b) => b.id === baseId)
     if (!found) {
@@ -42,9 +41,7 @@ export default function BasePage() {
     }
     setBase(found)
     setActiveTableId((prev) => prev ?? found.tables[0]?.id ?? null)
-  }, [user, workspaceId, baseId, navigate, cacheVersion])
-
-  useEffect(() => { loadBase() }, [loadBase])
+  }, [user, workspaceId, baseId, navigate])
 
   function saveBase(updated: Base) {
     upsertBase(updated)
@@ -114,6 +111,9 @@ export default function BasePage() {
     : false
   const canEdit = workspace && user
     ? canEditInWorkspace(workspace, user.userId, user.email, workspace.id)
+    : false
+  const canEditFields = workspace && user
+    ? canEditFieldsInWorkspace(workspace, user.userId, user.email, workspace.id)
     : false
   const member = workspace && user
     ? getMemberForUser(workspace.id, user.userId, user.email)
@@ -210,6 +210,7 @@ export default function BasePage() {
             table={activeTable}
             onChange={updateTable}
             readOnly={!canEdit}
+            canEditFields={canEditFields}
             canModifySchema={canCreate}
             onAddRow={() => {
               if (!user || !activeTable || !canEdit) return false

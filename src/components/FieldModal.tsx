@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import type { ColumnEditPermission, ColumnType, SelectOption } from '../types'
 import { isSelectFieldType, normalizeColumnType, getFieldTypeLabel } from '../lib/fieldTypes'
@@ -125,8 +126,8 @@ export default function FieldModal({
     })
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div
         className={`relative w-full rounded-xl border border-app-border bg-app-surface shadow-2xl ${
           showSelectOptions ? 'max-w-lg' : mode === 'edit' ? 'max-w-sm' : 'max-w-md'
@@ -239,6 +240,7 @@ export default function FieldModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
