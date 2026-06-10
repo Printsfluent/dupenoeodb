@@ -9,10 +9,10 @@ import NameModal from '../components/NameModal'
 import ImportDataModal from '../components/ImportDataModal'
 import { getWorkspaceBases, getWorkspaces, upsertBase } from '../lib/storage'
 import {
-  canCreateInWorkspace,
   canEditFieldsInWorkspace,
   canEditInWorkspace,
   getMemberForUser,
+  hasFullWorkspaceAccess,
   memberCanAccessTable,
 } from '../lib/members'
 import { repairWorkspaceForUser } from '../lib/storage'
@@ -62,7 +62,7 @@ export default function BasePage() {
   }
 
   function handleImportTables(sheets: ParsedSheet[]) {
-    if (!base || !user || !canCreate) return
+    if (!base || !user || !hasFullAccess) return
     const check = canAddTables(base.tables.length, sheets.length, user.plan)
     if (!check.ok) {
       alert(check.error)
@@ -75,7 +75,7 @@ export default function BasePage() {
   }
 
   function handleConfirmNewTable(name: string) {
-    if (!base || !user || !canCreate) return
+    if (!base || !user || !hasFullAccess) return
     const check = canAddTables(base.tables.length, 1, user.plan)
     if (!check.ok) {
       alert(check.error)
@@ -106,8 +106,8 @@ export default function BasePage() {
   const workspace = rawWorkspace && user
     ? repairWorkspaceForUser(rawWorkspace, { id: user.userId, email: user.email, name: user.name })
     : rawWorkspace
-  const canCreate = workspace && user
-    ? canCreateInWorkspace(workspace, user.userId, user.email, workspace.id)
+  const hasFullAccess = workspace && user
+    ? hasFullWorkspaceAccess(workspace, user.userId, user.email, workspace.id)
     : false
   const canEdit = workspace && user
     ? canEditInWorkspace(workspace, user.userId, user.email, workspace.id)
@@ -119,7 +119,7 @@ export default function BasePage() {
     ? getMemberForUser(workspace.id, user.userId, user.email)
     : undefined
 
-  const visibleTables = canCreate
+  const visibleTables = hasFullAccess
     ? base.tables
     : base.tables.filter((t) => memberCanAccessTable(member, t.id, false))
 
@@ -139,7 +139,7 @@ export default function BasePage() {
             Back
           </button>
           <span className="text-app-faint">/</span>
-          {canCreate ? (
+          {hasFullAccess ? (
             <EditableName
               value={base.name}
               onChange={renameBase}
@@ -169,7 +169,7 @@ export default function BasePage() {
               {table.name}
             </button>
           ))}
-          {canCreate && (
+          {hasFullAccess && (
             <>
               <button
                 type="button"
@@ -211,7 +211,7 @@ export default function BasePage() {
             onChange={updateTable}
             readOnly={!canEdit}
             canEditFields={canEditFields}
-            canModifySchema={canCreate}
+            canModifySchema={hasFullAccess}
             onAddRow={() => {
               if (!user || !activeTable || !canEdit) return false
               const check = canAddRows(activeTable.rows.length, 1, user.plan)

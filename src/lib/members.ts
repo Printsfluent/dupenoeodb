@@ -67,18 +67,39 @@ function isActiveWorkspaceMember(member: WorkspaceMember | undefined): member is
   return !!member && member.status === 'active' && member.role !== 'no_access'
 }
 
+/** True when this user created the workspace (logged-in account owner). */
+export function isWorkspaceAccountOwner(
+  workspace: { ownerId: string },
+  userId: string,
+): boolean {
+  return !!workspace.ownerId && workspace.ownerId === userId
+}
+
+/**
+ * Owner (workspace creator) and Creator (invited with full access) can do anything
+ * in the workspace — create, edit, invite, manage members, settings, etc.
+ */
+export function hasFullWorkspaceAccess(
+  workspace: { ownerId: string },
+  userId: string,
+  email: string,
+  workspaceId: string,
+): boolean {
+  if (isWorkspaceAccountOwner(workspace, userId)) return true
+  const member = getMemberForUser(workspaceId, userId, email)
+  return (
+    isActiveWorkspaceMember(member) &&
+    (member.role === 'owner' || member.role === 'creator')
+  )
+}
+
 export function canCreateInWorkspace(
   workspace: { ownerId: string },
   userId: string,
   email: string,
   workspaceId: string,
 ): boolean {
-  if (isWorkspaceOwner(workspaceId, userId, workspace.ownerId)) return true
-  const member = getMemberForUser(workspaceId, userId, email)
-  return (
-    isActiveWorkspaceMember(member) &&
-    (member.role === 'owner' || member.role === 'creator')
-  )
+  return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
 }
 
 export function canEditFieldsInWorkspace(
@@ -87,11 +108,13 @@ export function canEditFieldsInWorkspace(
   email: string,
   workspaceId: string,
 ): boolean {
-  return canEditInWorkspace(workspace, userId, email, workspaceId)
+  if (hasFullWorkspaceAccess(workspace, userId, email, workspaceId)) return true
+  const member = getMemberForUser(workspaceId, userId, email)
+  return isActiveWorkspaceMember(member) && member.role === 'editor'
 }
 
-/** @deprecated Use canCreateInWorkspace */
-export const hasWorkspaceFullAccess = canCreateInWorkspace
+/** @deprecated Use hasFullWorkspaceAccess */
+export const hasWorkspaceFullAccess = hasFullWorkspaceAccess
 
 export function canEditInWorkspace(
   workspace: { ownerId: string },
@@ -99,9 +122,9 @@ export function canEditInWorkspace(
   email: string,
   workspaceId: string,
 ): boolean {
-  if (isWorkspaceOwner(workspaceId, userId, workspace.ownerId)) return true
+  if (hasFullWorkspaceAccess(workspace, userId, email, workspaceId)) return true
   const member = getMemberForUser(workspaceId, userId, email)
-  return isActiveWorkspaceMember(member) && (member.role === 'creator' || member.role === 'editor')
+  return isActiveWorkspaceMember(member) && member.role === 'editor'
 }
 
 export function canViewInWorkspace(
@@ -122,9 +145,7 @@ export function canInviteToWorkspace(
   email: string,
   workspaceId: string,
 ): boolean {
-  if (isWorkspaceOwner(workspaceId, userId, workspace.ownerId)) return true
-  const member = getMemberForUser(workspaceId, userId, email)
-  return isActiveWorkspaceMember(member) && member.role === 'creator'
+  return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
 }
 
 export function canManageTeams(
@@ -133,7 +154,7 @@ export function canManageTeams(
   email: string,
   workspaceId: string,
 ): boolean {
-  return canInviteToWorkspace(workspace, userId, email, workspaceId)
+  return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
 }
 
 export function canManageMembers(
@@ -142,9 +163,18 @@ export function canManageMembers(
   email: string,
   workspaceId: string,
 ): boolean {
-  if (isWorkspaceOwner(workspaceId, userId, workspace.ownerId)) return true
+  return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
+}
+
+export function getWorkspaceRoleLabel(
+  workspace: { ownerId: string },
+  userId: string,
+  email: string,
+  workspaceId: string,
+): MemberRole {
+  if (isWorkspaceAccountOwner(workspace, userId)) return 'owner'
   const member = getMemberForUser(workspaceId, userId, email)
-  return member?.role === 'owner'
+  return member?.role ?? 'viewer'
 }
 
 export function ensureUserIsOwner(
@@ -374,6 +404,7 @@ export function deleteTeam(teamId: string) {
 export function setMemberRole(memberId: string, role: MemberRole) {
   const member = getAllMembers().find((m) => m.id === memberId)
   if (!member || member.role === 'owner') return
+  if (role === 'owner') return
   updateMember({ ...member, role })
 }
 

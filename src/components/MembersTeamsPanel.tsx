@@ -49,7 +49,7 @@ const roleColors: Record<MemberRole, string> = {
 }
 
 const roleDescriptions: Record<'creator' | 'editor' | 'viewer', string> = {
-  creator: 'Create bases, tables, fields, and invite members',
+  creator: 'Full access — same as owner: create, edit, invite, and manage members',
   editor: 'Edit records only — no structural changes',
   viewer: 'View data only — read-only access',
 }
@@ -255,7 +255,9 @@ export default function MembersTeamsPanel({
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className="font-medium text-white">{member.name}</span>
-                          {member.role === 'owner' && <Shield className="w-3 h-3 text-purple-400" />}
+                          {(member.role === 'owner' || member.userId === workspace.ownerId) && (
+                            <Shield className="w-3 h-3 text-purple-400" title="Workspace owner" />
+                          )}
                         </div>
                         <span className="text-xs text-gray-500">{member.email}</span>
                       </div>
@@ -282,7 +284,7 @@ export default function MembersTeamsPanel({
                       <span className="inline-flex px-2 py-1 rounded-lg text-xs font-medium border bg-amber-900/30 text-amber-300 border-amber-800">
                         Invite pending
                       </span>
-                    ) : canManageMembers && member.role !== 'owner' ? (
+                    ) : canManageMembers && member.role !== 'owner' && member.userId !== workspace.ownerId ? (
                       <select
                         value={member.status === 'blocked' ? 'no_access' : member.role}
                         onChange={(e) => handleRoleChange(member, e.target.value as MemberRole)}
@@ -317,7 +319,7 @@ export default function MembersTeamsPanel({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {member.role === 'owner' ? (
+                    {member.role === 'owner' || member.userId === workspace.ownerId ? (
                       <span className="text-xs text-gray-500">All tables</span>
                     ) : member.status === 'pending' ? (
                       <span className="text-xs text-gray-600">Awaiting acceptance</span>
@@ -340,7 +342,7 @@ export default function MembersTeamsPanel({
                   </td>
                   {canManageMembers && (
                     <td className="px-4 py-3 relative">
-                      {member.role !== 'owner' && (
+                      {member.role !== 'owner' && member.userId !== workspace.ownerId && (
                         <>
                           <button
                             type="button"
@@ -394,8 +396,9 @@ export default function MembersTeamsPanel({
       {showAddMember && canInvite && (
         <Modal title="Send Workspace Invite" onClose={() => setShowAddMember(false)}>
           <form onSubmit={handleAddMember} className="space-y-4">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 leading-relaxed">
               They&apos;ll receive an in-app notification to accept the invite. No email is sent.
+              Only you are the workspace Owner; invited users get the role you choose below.
             </p>
             {addError && <p className="text-sm text-red-400">{addError}</p>}
             <Field label="Email address">

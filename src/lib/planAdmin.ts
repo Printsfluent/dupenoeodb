@@ -1,11 +1,14 @@
 import type { PlanId, Workspace, WorkspaceMember } from '../types'
+import { hasFullWorkspaceAccess } from './members'
 import { assignUserPlan, getResolvedPlan } from './storage'
 
 export function canManageUserPlans(
   workspace: Pick<Workspace, 'ownerId'>,
   userId: string,
+  email: string,
+  workspaceId: string,
 ): boolean {
-  return workspace.ownerId === userId
+  return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
 }
 
 export function getMemberPlan(member: WorkspaceMember): PlanId {

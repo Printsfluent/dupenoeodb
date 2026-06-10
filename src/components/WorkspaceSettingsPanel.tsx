@@ -13,7 +13,8 @@ import { useNavigate } from 'react-router-dom'
 interface WorkspaceSettingsPanelProps {
   workspace: Workspace
   bases: Base[]
-  isOwner: boolean
+  hasFullAccess: boolean
+  isAccountOwner: boolean
   onUpdate: (workspace: Workspace) => void
 }
 
@@ -49,7 +50,8 @@ function CopyId({ label, value }: { label: string; value: string }) {
 export default function WorkspaceSettingsPanel({
   workspace,
   bases,
-  isOwner,
+  hasFullAccess,
+  isAccountOwner,
   onUpdate,
 }: WorkspaceSettingsPanelProps) {
   const { user, refreshProfile } = useAuth()
@@ -129,7 +131,7 @@ export default function WorkspaceSettingsPanel({
                   Workspace ID: {workspace.slug}
                 </span>
               </div>
-              {isOwner ? (
+              {hasFullAccess ? (
                 <input
                   id="ws-name"
                   value={name}
@@ -165,7 +167,7 @@ export default function WorkspaceSettingsPanel({
         )}
       </section>
 
-      {isOwner && (
+      {hasFullAccess && (
         <section className="rounded-xl border border-app-border bg-app-surface p-6">
           <h2 className="text-sm font-semibold text-white mb-1">User Plans</h2>
           <p className="text-xs text-gray-500 mb-4">
@@ -199,7 +201,7 @@ export default function WorkspaceSettingsPanel({
         </section>
       )}
 
-      {isOwner && (
+      {hasFullAccess && (
         <section className="rounded-xl border border-app-border bg-app-surface p-6">
           <h2 className="text-sm font-semibold text-white mb-4">Member Policy</h2>
           <label className="flex items-start gap-3 cursor-pointer">
@@ -219,7 +221,7 @@ export default function WorkspaceSettingsPanel({
         </section>
       )}
 
-      {!isOwner && (
+      {!isAccountOwner && (
         <section className="rounded-xl border border-red-900/40 bg-app-surface p-6">
           <h2 className="text-sm font-semibold text-red-400 mb-2">Danger Zone</h2>
           <div className="flex items-center justify-between gap-4">
