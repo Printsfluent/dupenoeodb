@@ -98,6 +98,15 @@ export default function AppLayout() {
           </button>
         </div>
 
+        {collapsed && (
+          <div className="p-2 border-b border-app-border flex flex-col items-center gap-2">
+            <NotificationBell
+              count={inviteCount}
+              onClick={() => setShowNotifications(true)}
+            />
+          </div>
+        )}
+
         {!collapsed && (
           <>
             <div className="p-3">
