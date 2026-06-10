@@ -167,6 +167,18 @@ export function canManageMembers(
   return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
 }
 
+/** Only the workspace owner (account that created it) can remove or block members. */
+export function canRemoveWorkspaceMembers(
+  workspace: { ownerId: string },
+  userId: string,
+  email: string,
+  workspaceId: string,
+): boolean {
+  if (isWorkspaceAccountOwner(workspace, userId)) return true
+  const member = getMemberForUser(workspaceId, userId, email)
+  return member?.role === 'owner' && member.status === 'active'
+}
+
 export function getWorkspaceRoleLabel(
   workspace: { ownerId: string },
   userId: string,
@@ -426,21 +438,41 @@ export function setMemberTableAccess(memberId: string, tableIds: string[]) {
   updateMember({ ...member, tableAccess: tableIds })
 }
 
-export function blockMember(memberId: string) {
+export function blockMember(
+  memberId: string,
+  actor?: { workspace: { ownerId: string }; userId: string; email: string; workspaceId: string },
+) {
+  if (actor && !canRemoveWorkspaceMembers(actor.workspace, actor.userId, actor.email, actor.workspaceId)) {
+    return
+  }
   const member = getAllMembers().find((m) => m.id === memberId)
   if (!member || member.role === 'owner') return
+  if (actor && member.userId === actor.workspace.ownerId) return
   updateMember({ ...member, status: 'blocked', role: 'no_access' })
 }
 
-export function unblockMember(memberId: string) {
+export function unblockMember(
+  memberId: string,
+  actor?: { workspace: { ownerId: string }; userId: string; email: string; workspaceId: string },
+) {
+  if (actor && !canRemoveWorkspaceMembers(actor.workspace, actor.userId, actor.email, actor.workspaceId)) {
+    return
+  }
   const member = getAllMembers().find((m) => m.id === memberId)
   if (!member || member.role === 'owner') return
   updateMember({ ...member, status: 'active', role: member.role === 'no_access' ? 'viewer' : member.role })
 }
 
-export function removeMember(memberId: string) {
+export function removeMember(
+  memberId: string,
+  actor?: { workspace: { ownerId: string }; userId: string; email: string; workspaceId: string },
+) {
+  if (actor && !canRemoveWorkspaceMembers(actor.workspace, actor.userId, actor.email, actor.workspaceId)) {
+    return
+  }
   const member = getAllMembers().find((m) => m.id === memberId)
   if (!member || member.role === 'owner') return
+  if (actor && member.userId === actor.workspace.ownerId) return
   cancelInviteByMemberId(memberId)
   updateMember({ ...member, status: 'left' })
   getAllTeams().forEach((team) => {

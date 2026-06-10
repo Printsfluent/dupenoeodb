@@ -27,6 +27,7 @@ interface MembersTeamsPanelProps {
   workspace: Workspace
   bases: Base[]
   canManageMembers: boolean
+  canRemoveMembers: boolean
   canInvite: boolean
   canManageTeams: boolean
   onRefresh: () => void
@@ -49,7 +50,7 @@ const roleColors: Record<MemberRole, string> = {
 }
 
 const roleDescriptions: Record<'creator' | 'editor' | 'viewer', string> = {
-  creator: 'Full access — same as owner: create, edit, invite, and manage members',
+  creator: 'Full access — create, edit, and invite members (only the owner can remove members)',
   editor: 'Edit records only — no structural changes',
   viewer: 'View data only — read-only access',
 }
@@ -58,6 +59,7 @@ export default function MembersTeamsPanel({
   workspace,
   bases,
   canManageMembers,
+  canRemoveMembers,
   canInvite,
   canManageTeams,
   onRefresh,
@@ -80,6 +82,16 @@ export default function MembersTeamsPanel({
   const [addError, setAddError] = useState('')
 
   const allTables = bases.flatMap((b) => b.tables.map((t) => ({ ...t, baseName: b.name })))
+
+  function memberActor() {
+    if (!user) return undefined
+    return {
+      workspace,
+      userId: user.userId,
+      email: user.email,
+      workspaceId: workspace.id,
+    }
+  }
 
   function refresh() {
     setMembers(getWorkspaceMembers(workspace.id))
@@ -239,7 +251,7 @@ export default function MembersTeamsPanel({
                 <th className="px-4 py-3 font-medium">Access</th>
                 <th className="px-4 py-3 font-medium">Plan</th>
                 <th className="px-4 py-3 font-medium">Tables</th>
-                {canManageMembers && <th className="px-4 py-3 font-medium w-10" />}
+                {canRemoveMembers && <th className="px-4 py-3 font-medium w-10" />}
               </tr>
             </thead>
             <tbody>
@@ -342,7 +354,7 @@ export default function MembersTeamsPanel({
                       </span>
                     )}
                   </td>
-                  {canManageMembers && (
+                  {canRemoveMembers && (
                     <td className="px-4 py-3 relative">
                       {member.role !== 'owner' && member.userId !== workspace.ownerId && (
                         <>
@@ -350,6 +362,7 @@ export default function MembersTeamsPanel({
                             type="button"
                             onClick={() => setMenuOpen(menuOpen === member.id ? null : member.id)}
                             className="p-1 text-gray-500 hover:text-gray-300"
+                            aria-label="Member actions"
                           >
                             <MoreVertical className="w-4 h-4" />
                           </button>
@@ -358,7 +371,11 @@ export default function MembersTeamsPanel({
                               {member.status === 'blocked' ? (
                                 <button
                                   type="button"
-                                  onClick={() => { unblockMember(member.id); setMenuOpen(null); refresh() }}
+                                  onClick={() => {
+                                    unblockMember(member.id, memberActor())
+                                    setMenuOpen(null)
+                                    refresh()
+                                  }}
                                   className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-app-surface-hover"
                                 >
                                   Unblock access
@@ -366,7 +383,11 @@ export default function MembersTeamsPanel({
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => { blockMember(member.id); setMenuOpen(null); refresh() }}
+                                  onClick={() => {
+                                    blockMember(member.id, memberActor())
+                                    setMenuOpen(null)
+                                    refresh()
+                                  }}
                                   className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-app-surface-hover"
                                 >
                                   Block access
@@ -374,7 +395,11 @@ export default function MembersTeamsPanel({
                               )}
                               <button
                                 type="button"
-                                onClick={() => { removeMember(member.id); setMenuOpen(null); refresh() }}
+                                onClick={() => {
+                                  removeMember(member.id, memberActor())
+                                  setMenuOpen(null)
+                                  refresh()
+                                }}
                                 className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-app-surface-hover"
                               >
                                 Remove member

@@ -19,6 +19,7 @@ import {
   repairWorkspaceForUser,
 } from '../lib/storage'
 import {
+  canRemoveWorkspaceMembers,
   getMemberForUser,
   hasFullWorkspaceAccess,
   isWorkspaceAccountOwner,
@@ -45,6 +46,9 @@ export default function WorkspacePage() {
     : false
   const isAccountOwner = workspace && user
     ? isWorkspaceAccountOwner(workspace, user.userId)
+    : false
+  const canRemoveMembers = workspace && user
+    ? canRemoveWorkspaceMembers(workspace, user.userId, user.email, workspace.id)
     : false
 
   useEffect(() => {
@@ -223,6 +227,7 @@ export default function WorkspacePage() {
             workspace={workspace}
             bases={bases}
             canManageMembers={hasFullAccess}
+            canRemoveMembers={canRemoveMembers}
             canInvite={hasFullAccess}
             canManageTeams={hasFullAccess}
             onRefresh={refreshBases}
