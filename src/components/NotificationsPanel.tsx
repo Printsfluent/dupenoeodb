@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { acceptWorkspaceInviteAsync, declineWorkspaceInvite } from '../lib/members'
+import { acceptWorkspaceInviteAsync, declineWorkspaceInviteAsync } from '../lib/members'
 import { usePendingInvites } from '../hooks/usePendingInvites'
 import WorkspaceInviteItem from './WorkspaceInviteItem'
 
@@ -64,12 +64,19 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
     }
   }
 
-  function handleDecline(inviteId: string) {
+  async function handleDecline(inviteId: string) {
     if (!user) return
     setActing(inviteId)
-    declineWorkspaceInvite(inviteId, { id: user.userId, email: user.email })
+    const result = await declineWorkspaceInviteAsync(inviteId, {
+      id: user.userId,
+      email: user.email,
+    })
     setActing(null)
-    refresh()
+    if (result.ok) {
+      refresh()
+    } else if (result.error) {
+      alert(result.error)
+    }
   }
 
   return (

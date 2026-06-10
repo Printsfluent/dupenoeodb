@@ -237,22 +237,24 @@ export function DataProvider({
     return () => unsubs.forEach((unsub) => unsub())
   }, [userId, userEmail])
 
+  const workspaceIdsKey = useMemo(
+    () => [...workspaceIds].sort().join('|'),
+    [workspaceIds],
+  )
+
   useEffect(() => {
     if (!userId || !userEmail) return
+    setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+  }, [userId, userEmail, cacheVersion])
 
-    if (!isFirebaseConfigured()) {
-      setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
-      return
-    }
-
-    const ids = computeWorkspaceIds(userId, userEmail)
-    setWorkspaceIds(ids)
-    if (ids.length === 0) return
+  useEffect(() => {
+    if (!userId || !userEmail || !isFirebaseConfigured()) return
+    if (workspaceIds.length === 0) return
 
     const firestore = getFirestoreDb()
     const unsubs: Array<() => void> = []
 
-    ids.forEach((workspaceId) => {
+    workspaceIds.forEach((workspaceId) => {
       unsubs.push(
         onSnapshot(doc(firestore, COL.workspaces, workspaceId), (snapshot) => {
           if (!snapshot.exists()) return
@@ -298,7 +300,7 @@ export function DataProvider({
     })
 
     return () => unsubs.forEach((unsub) => unsub())
-  }, [userId, userEmail, cacheVersion])
+  }, [userId, userEmail, workspaceIdsKey])
 
   const value = useMemo(
     () => ({

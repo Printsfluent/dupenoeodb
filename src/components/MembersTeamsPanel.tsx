@@ -14,6 +14,7 @@ import { useData } from '../context/DataContext'
 import {
   sendWorkspaceInvite,
   blockMember,
+  cancelWorkspaceInviteAsync,
   createTeam,
   getWorkspaceMembers,
   getWorkspaceTeams,
@@ -42,11 +43,11 @@ const roleLabels: Record<MemberRole, string> = {
 }
 
 const roleColors: Record<MemberRole, string> = {
-  owner: 'bg-purple-900/40 text-purple-300 border-purple-800',
-  creator: 'bg-blue-900/40 text-blue-300 border-blue-800',
-  editor: 'bg-emerald-900/40 text-emerald-300 border-emerald-800',
-  viewer: 'bg-gray-800 text-gray-300 border-gray-700',
-  no_access: 'bg-red-900/40 text-red-300 border-red-800',
+  owner: 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-800',
+  creator: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800',
+  editor: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
+  viewer: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-app-muted dark:border-gray-700',
+  no_access: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800',
 }
 
 const roleDescriptions: Record<'creator' | 'editor' | 'viewer', string> = {
@@ -74,6 +75,7 @@ export default function MembersTeamsPanel({
   const [showAddTeam, setShowAddTeam] = useState(false)
   const [showTableAccess, setShowTableAccess] = useState<WorkspaceMember | null>(null)
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
+  const [cancelingInviteId, setCancelingInviteId] = useState<string | null>(null)
 
   const [memberEmail, setMemberEmail] = useState('')
   const [memberTeamIds, setMemberTeamIds] = useState<string[]>([])
@@ -97,6 +99,19 @@ export default function MembersTeamsPanel({
     setMembers(getWorkspaceMembers(workspace.id))
     setTeams(getWorkspaceTeams(workspace.id))
     onRefresh()
+  }
+
+  async function handleCancelInvite(memberId: string) {
+    const actor = memberActor()
+    if (!actor) return
+    setCancelingInviteId(memberId)
+    const result = await cancelWorkspaceInviteAsync(memberId, actor)
+    setCancelingInviteId(null)
+    if (result.ok) {
+      refresh()
+    } else if (result.error) {
+      alert(result.error)
+    }
   }
 
   useEffect(() => {
@@ -172,12 +187,12 @@ export default function MembersTeamsPanel({
     <div className="max-w-5xl">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-faint" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search members or teams"
-            className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-app-surface border border-app-border text-sm text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-app-border-strong"
+            className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-app-surface border border-app-border text-sm text-app-muted placeholder:text-app-faint focus:outline-none focus:border-app-border-strong"
           />
         </div>
         {(canInvite || canManageTeams) && (
@@ -208,12 +223,12 @@ export default function MembersTeamsPanel({
 
       <div className="grid lg:grid-cols-[220px_1fr] gap-6">
         <div className="space-y-2">
-          <p className="text-[10px] font-semibold tracking-widest text-gray-500 uppercase px-1">Teams</p>
+          <p className="text-[10px] font-semibold tracking-widest text-app-faint uppercase px-1">Teams</p>
           <button
             type="button"
             onClick={() => setSelectedTeamId(null)}
             className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-              !selectedTeamId ? 'bg-app-surface-active text-white' : 'text-gray-400 hover:bg-app-surface-hover'
+              !selectedTeamId ? 'bg-app-surface-active text-app-text' : 'text-app-faint hover:bg-app-surface-hover'
             }`}
           >
             All members
@@ -224,7 +239,7 @@ export default function MembersTeamsPanel({
               type="button"
               onClick={() => setSelectedTeamId(team.id)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                selectedTeamId === team.id ? 'bg-app-surface-active text-white' : 'text-gray-400 hover:bg-app-surface-hover'
+                selectedTeamId === team.id ? 'bg-app-surface-active text-app-text' : 'text-app-faint hover:bg-app-surface-hover'
               }`}
             >
               <div
@@ -234,24 +249,24 @@ export default function MembersTeamsPanel({
                 {getInitials(team.name)}
               </div>
               <span className="truncate flex-1">{team.name}</span>
-              <span className="text-xs text-gray-600">{team.memberIds.length}</span>
+              <span className="text-xs text-app-faint">{team.memberIds.length}</span>
             </button>
           ))}
           {teams.length === 0 && (
-            <p className="text-xs text-gray-600 px-3 py-2">No teams yet</p>
+            <p className="text-xs text-app-faint px-3 py-2">No teams yet</p>
           )}
         </div>
 
         <div className="rounded-xl border border-app-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-app-surface border-b border-app-border text-left text-xs text-gray-500 uppercase tracking-wider">
+              <tr className="bg-app-surface border-b border-app-border text-left text-xs text-app-faint uppercase tracking-wider">
                 <th className="px-4 py-3 font-medium">Member</th>
                 <th className="px-4 py-3 font-medium">Teams</th>
                 <th className="px-4 py-3 font-medium">Access</th>
                 <th className="px-4 py-3 font-medium">Plan</th>
                 <th className="px-4 py-3 font-medium">Tables</th>
-                {canRemoveMembers && <th className="px-4 py-3 font-medium w-10" />}
+                {(canRemoveMembers || canInvite) && <th className="px-4 py-3 font-medium w-10" />}
               </tr>
             </thead>
             <tbody>
@@ -266,26 +281,26 @@ export default function MembersTeamsPanel({
                       />
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-white">{member.name}</span>
+                          <span className="font-medium text-app-text">{member.name}</span>
                           {(member.role === 'owner' || member.userId === workspace.ownerId) && (
                             <span title="Workspace owner">
                               <Shield className="w-3 h-3 text-purple-400" />
                             </span>
                           )}
                         </div>
-                        <span className="text-xs text-gray-500">{member.email}</span>
+                        <span className="text-xs text-app-faint">{member.email}</span>
                       </div>
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {member.teamIds.length === 0 ? (
-                        <span className="text-xs text-gray-600">—</span>
+                        <span className="text-xs text-app-faint">—</span>
                       ) : (
                         member.teamIds.map((tid) => {
                           const team = teams.find((t) => t.id === tid)
                           return team ? (
-                            <span key={tid} className="px-2 py-0.5 rounded text-xs bg-app-surface-active text-gray-400">
+                            <span key={tid} className="px-2 py-0.5 rounded text-xs bg-app-surface-active text-app-faint">
                               {team.name}
                             </span>
                           ) : null
@@ -320,7 +335,7 @@ export default function MembersTeamsPanel({
                       <select
                         value={getMemberPlan(member)}
                         onChange={(e) => handlePlanChange(member, e.target.value as PlanId)}
-                        className="px-2 py-1 rounded-lg text-xs font-medium border border-app-border-strong bg-app-input text-gray-300 cursor-pointer"
+                        className="px-2 py-1 rounded-lg text-xs font-medium border border-app-border-strong bg-app-input text-app-muted cursor-pointer"
                       >
                         {PLAN_OPTIONS.map((plan) => (
                           <option key={plan.id} value={plan.id}>
@@ -334,9 +349,9 @@ export default function MembersTeamsPanel({
                   </td>
                   <td className="px-4 py-3">
                     {member.role === 'owner' || member.userId === workspace.ownerId ? (
-                      <span className="text-xs text-gray-500">All tables</span>
+                      <span className="text-xs text-app-faint">All tables</span>
                     ) : member.status === 'pending' ? (
-                      <span className="text-xs text-gray-600">Awaiting acceptance</span>
+                      <span className="text-xs text-app-faint">Awaiting acceptance</span>
                     ) : canManageMembers ? (
                       <button
                         type="button"
@@ -349,19 +364,28 @@ export default function MembersTeamsPanel({
                           : `${member.tableAccess.length} table${member.tableAccess.length !== 1 ? 's' : ''}`}
                       </button>
                     ) : (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-app-faint">
                         {member.tableAccess.length} table{member.tableAccess.length !== 1 ? 's' : ''}
                       </span>
                     )}
                   </td>
-                  {canRemoveMembers && (
+                  {(canRemoveMembers || canInvite) && (
                     <td className="px-4 py-3 relative">
-                      {member.role !== 'owner' && member.userId !== workspace.ownerId && (
+                      {member.status === 'pending' && canInvite ? (
+                        <button
+                          type="button"
+                          disabled={cancelingInviteId === member.id}
+                          onClick={() => handleCancelInvite(member.id)}
+                          className="text-xs font-medium text-red-400 hover:text-red-300 disabled:opacity-50"
+                        >
+                          {cancelingInviteId === member.id ? 'Canceling…' : 'Cancel invite'}
+                        </button>
+                      ) : canRemoveMembers && member.role !== 'owner' && member.userId !== workspace.ownerId ? (
                         <>
                           <button
                             type="button"
                             onClick={() => setMenuOpen(menuOpen === member.id ? null : member.id)}
-                            className="p-1 text-gray-500 hover:text-gray-300"
+                            className="p-1 text-app-faint hover:text-app-muted"
                             aria-label="Member actions"
                           >
                             <MoreVertical className="w-4 h-4" />
@@ -376,7 +400,7 @@ export default function MembersTeamsPanel({
                                     setMenuOpen(null)
                                     refresh()
                                   }}
-                                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-app-surface-hover"
+                                  className="w-full text-left px-3 py-2 text-sm text-app-muted hover:bg-app-surface-hover"
                                 >
                                   Unblock access
                                 </button>
@@ -407,7 +431,7 @@ export default function MembersTeamsPanel({
                             </div>
                           )}
                         </>
-                      )}
+                      ) : null}
                     </td>
                   )}
                 </tr>
@@ -415,7 +439,7 @@ export default function MembersTeamsPanel({
             </tbody>
           </table>
           {filteredMembers.length === 0 && (
-            <p className="text-center text-sm text-gray-500 py-12">No members found</p>
+            <p className="text-center text-sm text-app-faint py-12">No members found</p>
           )}
         </div>
       </div>
@@ -423,7 +447,7 @@ export default function MembersTeamsPanel({
       {showAddMember && canInvite && (
         <Modal title="Send Workspace Invite" onClose={() => setShowAddMember(false)}>
           <form onSubmit={handleAddMember} className="space-y-4">
-            <p className="text-xs text-gray-500 leading-relaxed">
+            <p className="text-xs text-app-faint leading-relaxed">
               They&apos;ll receive an in-app notification to accept the invite. No email is sent.
               Only you are the workspace Owner; invited users get the role you choose below.
             </p>
@@ -440,7 +464,7 @@ export default function MembersTeamsPanel({
             </Field>
             <Field label="Add to team (optional)">
               {teams.length === 0 ? (
-                <p className="text-xs text-gray-500 py-2">No teams yet — create one first or skip this step.</p>
+                <p className="text-xs text-app-faint py-2">No teams yet — create one first or skip this step.</p>
               ) : (
                 <div className="space-y-1.5 max-h-36 overflow-y-auto rounded-lg border border-app-border p-2">
                   {teams.map((team) => (
@@ -466,7 +490,7 @@ export default function MembersTeamsPanel({
                       >
                         {getInitials(team.name)}
                       </span>
-                      <span className="text-sm text-gray-300">{team.name}</span>
+                      <span className="text-sm text-app-muted">{team.name}</span>
                     </label>
                   ))}
                 </div>
@@ -483,7 +507,7 @@ export default function MembersTeamsPanel({
                 <option value="viewer">Viewer</option>
               </select>
               {memberRole === 'creator' || memberRole === 'editor' || memberRole === 'viewer' ? (
-                <p className="text-xs text-gray-500 mt-1.5">{roleDescriptions[memberRole]}</p>
+                <p className="text-xs text-app-faint mt-1.5">{roleDescriptions[memberRole]}</p>
               ) : null}
             </Field>
             <ModalActions onCancel={() => setShowAddMember(false)} submitLabel="Send Invite" />
@@ -513,12 +537,12 @@ export default function MembersTeamsPanel({
           title={`Table access — ${showTableAccess.name}`}
           onClose={() => setShowTableAccess(null)}
         >
-          <p className="text-xs text-gray-500 mb-4">
+          <p className="text-xs text-app-faint mb-4">
             Select which tables this member can access. Only the workspace owner can assign table access.
           </p>
           <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
             {allTables.length === 0 ? (
-              <p className="text-sm text-gray-500">No tables in this workspace yet.</p>
+              <p className="text-sm text-app-faint">No tables in this workspace yet.</p>
             ) : (
               allTables.map((table) => (
                 <label
@@ -537,8 +561,8 @@ export default function MembersTeamsPanel({
                     className="rounded border-gray-600"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white truncate">{table.name}</p>
-                    <p className="text-xs text-gray-500">{table.baseName} · {table.id.slice(0, 8)}</p>
+                    <p className="text-sm text-app-text truncate">{table.name}</p>
+                    <p className="text-xs text-app-faint">{table.baseName} · {table.id.slice(0, 8)}</p>
                   </div>
                 </label>
               ))
@@ -548,7 +572,7 @@ export default function MembersTeamsPanel({
             <button
               type="button"
               onClick={() => setShowTableAccess(null)}
-              className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:bg-app-surface-active"
+              className="px-4 py-2 rounded-lg text-sm text-app-faint hover:bg-app-surface-active"
             >
               Cancel
             </button>
@@ -566,8 +590,7 @@ export default function MembersTeamsPanel({
   )
 }
 
-const inputClass =
-  'w-full px-3 py-2.5 rounded-lg bg-app-input border border-app-border text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500'
+const inputClass = 'app-input-field px-3 py-2.5'
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -575,8 +598,8 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
       <button type="button" className="absolute inset-0 bg-black/60" onClick={onClose} aria-label="Close" />
       <div className="relative w-full max-w-md rounded-xl border border-app-border bg-app-surface shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-app-border">
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
-          <button type="button" onClick={onClose} className="p-1 text-gray-500 hover:text-gray-300">
+          <h3 className="text-sm font-semibold text-app-text">{title}</h3>
+          <button type="button" onClick={onClose} className="p-1 text-app-faint hover:text-app-muted">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -589,7 +612,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-400 mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-app-faint mb-1.5">{label}</label>
       {children}
     </div>
   )
@@ -598,7 +621,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ModalActions({ onCancel, submitLabel }: { onCancel: () => void; submitLabel: string }) {
   return (
     <div className="flex justify-end gap-2 pt-2">
-      <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:bg-app-surface-active">
+      <button type="button" onClick={onCancel} className="px-4 py-2 app-btn-ghost">
         Cancel
       </button>
       <button type="submit" className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-brand-500 hover:bg-brand-600">

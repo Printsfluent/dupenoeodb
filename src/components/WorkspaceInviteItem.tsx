@@ -51,7 +51,7 @@ export default function WorkspaceInviteItem({
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-app-border text-app-muted text-xs font-medium hover:bg-app-surface-active disabled:opacity-50"
         >
           <XCircle className="w-3.5 h-3.5" />
-          Decline
+          Cancel invite
         </button>
       </div>
     </div>

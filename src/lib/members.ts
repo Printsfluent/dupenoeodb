@@ -1,4 +1,7 @@
-import type { Team, WorkspaceMember, MemberRole } from '../types'
+import { collection, getDocs, query, where } from 'firebase/firestore'
+import type { Team, WorkspaceMember, MemberRole, WorkspaceInvite } from '../types'
+import { getFirestoreDb, isFirebaseConfigured } from './firebase'
+import { COL } from './firestoreSync'
 import { createId } from './id'
 import { pickWorkspaceColor } from './colors'
 import { getUsers, getWorkspaces } from './storage'
@@ -8,6 +11,7 @@ import {
   deleteMemberDocs,
   persistMember,
   persistMembers,
+  persistInvite,
   persistTeam,
   persistTeams,
   deleteTeamDoc,
@@ -17,7 +21,6 @@ import {
   createWorkspaceInvite,
   getAllInvites,
   linkInvitesToUser,
-  updateInvite,
 } from './invites'
 
 const MEMBER_STATUS_RANK: Record<WorkspaceMember['status'], number> = {
@@ -408,72 +411,135 @@ function inviteBelongsToUser(
   return invite.email === normalizedEmail || invite.userId === user.id
 }
 
-export function acceptWorkspaceInvite(
-  inviteId: string,
-  user: { id: string; email: string; name: string },
-): { ok: boolean; error?: string; workspaceId?: string } {
-  const invite = getAllInvites().find(
-    (i) => i.id === inviteId && i.status === 'pending',
+function findInviteMember(invite: WorkspaceInvite): WorkspaceMember | undefined {
+  const byId = getAllMembers().find((member) => member.id === invite.memberId)
+  if (byId) return byId
+
+  const normalized = invite.email.toLowerCase()
+  return getAllMembers().find(
+    (member) =>
+      member.workspaceId === invite.workspaceId &&
+      member.email.toLowerCase() === normalized &&
+      member.status !== 'left',
   )
-  if (!invite) return { ok: false, error: 'Invite not found' }
-  if (!inviteBelongsToUser(invite, user)) {
-    return { ok: false, error: 'This invite is not for your account' }
+}
+
+export async function ensureWorkspaceMembersInCache(workspaceId: string) {
+  if (!isFirebaseConfigured()) return
+
+  try {
+    const snapshot = await getDocs(
+      query(collection(getFirestoreDb(), COL.members), where('workspaceId', '==', workspaceId)),
+    )
+    applyWorkspaceMembersFromFirestore(
+      workspaceId,
+      snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as WorkspaceMember)),
+    )
+  } catch (error) {
+    console.warn('ensureWorkspaceMembersInCache:', error)
   }
-
-  const member = getAllMembers().find((m) => m.id === invite.memberId)
-  if (!member || member.status !== 'pending') {
-    return { ok: false, error: 'Invite is no longer valid' }
-  }
-
-  updateMember({
-    ...member,
-    userId: user.id,
-    name: user.name,
-    status: 'active',
-    joinedAt: new Date().toISOString(),
-  })
-
-  if (member.teamIds.length > 0) {
-    getAllTeams().forEach((team) => {
-      if (member.teamIds.includes(team.id) && !team.memberIds.includes(member.id)) {
-        void persistTeam({ ...team, memberIds: [...team.memberIds, member.id] })
-      }
-    })
-  }
-
-  updateInvite({ ...invite, status: 'accepted', userId: user.id })
-
-  return { ok: true, workspaceId: invite.workspaceId }
 }
 
 export async function acceptWorkspaceInviteAsync(
   inviteId: string,
   user: { id: string; email: string; name: string },
 ): Promise<{ ok: boolean; error?: string; workspaceId?: string }> {
-  const result = acceptWorkspaceInvite(inviteId, user)
-  if (result.ok && result.workspaceId) {
-    await ensureWorkspaceInCache(result.workspaceId)
-  }
-  return result
-}
-
-export function declineWorkspaceInvite(
-  inviteId: string,
-  user: { id: string; email: string },
-): { ok: boolean; error?: string } {
   const invite = getAllInvites().find(
-    (i) => i.id === inviteId && i.status === 'pending',
+    (item) => item.id === inviteId && item.status === 'pending',
   )
   if (!invite) return { ok: false, error: 'Invite not found' }
   if (!inviteBelongsToUser(invite, user)) {
     return { ok: false, error: 'This invite is not for your account' }
   }
 
-  const member = getAllMembers().find((m) => m.id === invite.memberId)
-  if (member) {
-    updateMember({ ...member, status: 'left' })
+  const member = findInviteMember(invite)
+  if (!member || member.status !== 'pending') {
+    return { ok: false, error: 'Invite is no longer valid' }
   }
-  updateInvite({ ...invite, status: 'declined' })
+
+  const updatedMember: WorkspaceMember = {
+    ...member,
+    userId: user.id,
+    name: user.name,
+    status: 'active',
+    joinedAt: new Date().toISOString(),
+  }
+
+  const updatedInvite: WorkspaceInvite = {
+    ...invite,
+    status: 'accepted',
+    userId: user.id,
+    memberId: member.id,
+  }
+
+  await persistMember(updatedMember)
+
+  if (updatedMember.teamIds.length > 0) {
+    await Promise.all(
+      getAllTeams()
+        .filter(
+          (team) =>
+            updatedMember.teamIds.includes(team.id) &&
+            !team.memberIds.includes(updatedMember.id),
+        )
+        .map((team) =>
+          persistTeam({ ...team, memberIds: [...team.memberIds, updatedMember.id] }),
+        ),
+    )
+  }
+
+  await persistInvite(updatedInvite)
+  await ensureWorkspaceInCache(invite.workspaceId)
+  await ensureWorkspaceMembersInCache(invite.workspaceId)
+
+  return { ok: true, workspaceId: invite.workspaceId }
+}
+
+export async function declineWorkspaceInviteAsync(
+  inviteId: string,
+  user: { id: string; email: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const invite = getAllInvites().find(
+    (item) => item.id === inviteId && item.status === 'pending',
+  )
+  if (!invite) return { ok: false, error: 'Invite not found' }
+  if (!inviteBelongsToUser(invite, user)) {
+    return { ok: false, error: 'This invite is not for your account' }
+  }
+
+  const member = findInviteMember(invite)
+  if (member) {
+    await persistMember({ ...member, status: 'left' })
+  }
+  await persistInvite({ ...invite, status: 'declined' })
+
+  return { ok: true }
+}
+
+/** Revoke a pending invite before the invited person accepts (workspace owner/creator). */
+export async function cancelWorkspaceInviteAsync(
+  memberId: string,
+  actor: { workspace: { ownerId: string }; userId: string; email: string; workspaceId: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const member = getAllMembers().find((item) => item.id === memberId)
+  if (!member || member.workspaceId !== actor.workspaceId) {
+    return { ok: false, error: 'Invite not found' }
+  }
+  if (member.status !== 'pending') {
+    return { ok: false, error: 'Only pending invites can be canceled' }
+  }
+  if (!canInviteToWorkspace(actor.workspace, actor.userId, actor.email, actor.workspaceId)) {
+    return { ok: false, error: 'You do not have permission to cancel invites' }
+  }
+
+  const pendingInvites = getAllInvites().filter(
+    (invite) => invite.memberId === memberId && invite.status === 'pending',
+  )
+
+  await persistMember({ ...member, status: 'left' })
+  await Promise.all(
+    pendingInvites.map((invite) => persistInvite({ ...invite, status: 'declined' })),
+  )
 
   return { ok: true }
 }
