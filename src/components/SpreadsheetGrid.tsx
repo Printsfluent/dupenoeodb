@@ -308,6 +308,7 @@ export default function SpreadsheetGrid({
   }, [processedRows, view.groupColumnId])
 
   function openFieldMenu(colId: string) {
+    if (!schemaEditable) return
     const el = headerRefs.current[colId]
     if (!el) return
     setFieldMenu({ columnId: colId, rect: el.getBoundingClientRect() })
@@ -456,7 +457,7 @@ export default function SpreadsheetGrid({
           <span className={`font-semibold text-sm ${title}`}>{table.name}</span>
         )}
         <div className="flex items-center gap-2">
-          {hiddenCount > 0 && (
+          {hiddenCount > 0 && schemaEditable && (
             <button
               type="button"
               onClick={() => setView((v) => ({ ...v, showHidden: !v.showHidden }))}
@@ -516,25 +517,25 @@ export default function SpreadsheetGrid({
               <th className={`w-10 px-2 py-2.5 text-xs font-medium ${thText} border-r ${thBorder}`}>#</th>
               {visibleColumns.map((col) => (
                 <th key={col.id} className={`px-1 py-1 border-r ${thBorder} min-w-[160px] group/col`}>
-                  <button
-                    ref={(el) => { headerRefs.current[col.id] = el }}
-                    type="button"
-                    onClick={() => openFieldMenu(col.id)}
-                    onDoubleClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      openEditField(col.id)
-                    }}
-                    className={`w-full flex items-center gap-1 px-2 py-1.5 rounded text-left transition-colors hover:bg-app-surface-active ${col.hidden ? 'opacity-50' : ''}`}
-                    title={schemaEditable ? `${col.name} — click for menu, double-click to edit field` : col.name}
-                  >
-                    <span className="flex-1 min-w-0 flex items-center gap-1">
-                      <span className={`text-xs font-semibold uppercase tracking-wider truncate ${thText}`}>
-                        {col.name}
+                  {schemaEditable ? (
+                    <button
+                      ref={(el) => { headerRefs.current[col.id] = el }}
+                      type="button"
+                      onClick={() => openFieldMenu(col.id)}
+                      onDoubleClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        openEditField(col.id)
+                      }}
+                      className={`w-full flex items-center gap-1 px-2 py-1.5 rounded text-left transition-colors hover:bg-app-surface-active ${col.hidden ? 'opacity-50' : ''}`}
+                      title={`${col.name} — click for menu, double-click to edit field`}
+                    >
+                      <span className="flex-1 min-w-0 flex items-center gap-1">
+                        <span className={`text-xs font-semibold uppercase tracking-wider truncate ${thText}`}>
+                          {col.name}
+                        </span>
+                        {col.isDisplayValue && <Star className="w-3 h-3 text-amber-400 shrink-0 fill-amber-400" />}
                       </span>
-                      {col.isDisplayValue && <Star className="w-3 h-3 text-amber-400 shrink-0 fill-amber-400" />}
-                    </span>
-                    {schemaEditable && (
                       <span
                         role="button"
                         tabIndex={0}
@@ -554,9 +555,19 @@ export default function SpreadsheetGrid({
                       >
                         <Pencil className="w-3 h-3" />
                       </span>
-                    )}
-                    <ChevronDown className={`w-3.5 h-3.5 shrink-0 ${thText}`} />
-                  </button>
+                      <ChevronDown className={`w-3.5 h-3.5 shrink-0 ${thText}`} />
+                    </button>
+                  ) : (
+                    <div
+                      className={`w-full flex items-center gap-1 px-2 py-1.5 ${col.hidden ? 'opacity-50' : ''}`}
+                      title={col.description || col.name}
+                    >
+                      <span className={`text-xs font-semibold uppercase tracking-wider truncate ${thText}`}>
+                        {col.name}
+                      </span>
+                      {col.isDisplayValue && <Star className="w-3 h-3 text-amber-400 shrink-0 fill-amber-400" />}
+                    </div>
+                  )}
                 </th>
               ))}
               <th className="w-10" />
@@ -603,7 +614,7 @@ export default function SpreadsheetGrid({
         )}
       </div>
 
-      {fieldMenu && activeColumn && (
+      {schemaEditable && fieldMenu && activeColumn && (
         <FieldContextMenu
           column={activeColumn}
           anchorRect={fieldMenu.rect}
@@ -630,7 +641,7 @@ export default function SpreadsheetGrid({
         />
       )}
 
-      {fieldModal && modalColumn && (
+      {schemaEditable && fieldModal && modalColumn && (
         <FieldModal
           open
           mode={fieldModal.mode}
