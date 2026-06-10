@@ -1,5 +1,5 @@
 import { collection, getDocs, query, where } from 'firebase/firestore'
-import type { Team, WorkspaceMember, MemberRole, WorkspaceInvite } from '../types'
+import type { Base, Table, Team, WorkspaceMember, MemberRole, WorkspaceInvite } from '../types'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 import { COL } from './firestoreSync'
 import { createId } from './id'
@@ -831,6 +831,52 @@ export function memberCanAccessTable(
   }
 
   return true
+}
+
+export function getAccessibleTables<T extends Pick<Table, 'id' | 'teamIds'>>(
+  member: WorkspaceMember | undefined,
+  tables: T[],
+  bypassForAdmin = false,
+): T[] {
+  return tables.filter((table) =>
+    memberCanAccessTable(member, table.id, {
+      tableTeamIds: table.teamIds,
+      bypassForAdmin,
+    }),
+  )
+}
+
+/** True when the member can open at least one table in the database. */
+export function memberCanAccessBase(
+  member: WorkspaceMember | undefined,
+  base: { tables: Array<Pick<Table, 'id' | 'teamIds'>> },
+  options?: { bypassForAdmin?: boolean },
+): boolean {
+  if (options?.bypassForAdmin) return true
+  return getAccessibleTables(member, base.tables, false).length > 0
+}
+
+export function filterBasesForMember(
+  bases: Base[],
+  workspace: { ownerId: string },
+  workspaceId: string,
+  userId: string,
+  email: string,
+  member: WorkspaceMember | undefined,
+): Base[] {
+  const bypass = hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
+  if (bypass) return bases
+  return bases.filter((base) => memberCanAccessBase(member, base, { bypassForAdmin: false }))
+}
+
+export function filterTeamsForMember(
+  teams: Team[],
+  member: WorkspaceMember | undefined,
+  bypassForAdmin: boolean,
+): Team[] {
+  if (bypassForAdmin) return teams
+  if (!member) return []
+  return teams.filter((team) => member.teamIds.includes(team.id))
 }
 
 export function setTableTeamAccess(

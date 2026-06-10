@@ -20,6 +20,8 @@ import {
   repairWorkspaceForUser,
 } from '../lib/storage'
 import {
+  filterBasesForMember,
+  getAccessibleTables,
   getMemberForUser,
   hasFullWorkspaceAccess,
   isWorkspaceAccountOwner,
@@ -41,6 +43,9 @@ export default function WorkspacePage() {
   const [showCreateBase, setShowCreateBase] = useState(false)
   const [showImport, setShowImport] = useState(false)
 
+  const member = workspace && user
+    ? getMemberForUser(workspace.id, user.userId, user.email)
+    : undefined
   const hasFullAccess = workspace && user
     ? hasFullWorkspaceAccess(workspace, user.userId, user.email, workspace.id)
     : false
@@ -48,6 +53,9 @@ export default function WorkspacePage() {
     ? isWorkspaceAccountOwner(workspace, user.userId)
     : false
   const canRemoveMembers = hasFullAccess
+  const visibleBases = workspace && user
+    ? filterBasesForMember(bases, workspace, workspace.id, user.userId, user.email, member)
+    : bases
 
   useEffect(() => {
     if (!user || !workspaceId || !ready) return
@@ -169,13 +177,19 @@ export default function WorkspacePage() {
               </p>
             )}
 
-            {bases.length > 0 && (
+            {visibleBases.length > 0 && (
               <div className={hasFullAccess ? 'mt-12' : ''}>
                 <h2 className="text-sm font-semibold text-app-faint uppercase tracking-wider mb-4">
                   Your Databases
                 </h2>
                 <div className="space-y-2">
-                  {bases.map((base) => (
+                  {visibleBases.map((base) => {
+                    const accessibleTableCount = getAccessibleTables(
+                      member,
+                      base.tables,
+                      hasFullAccess,
+                    ).length
+                    return (
                     <div
                       key={base.id}
                       role="button"
@@ -202,7 +216,7 @@ export default function WorkspacePage() {
                           <p className="text-sm font-medium text-app-text">{base.name}</p>
                         )}
                         <p className="text-xs text-app-faint mt-0.5">
-                          {base.tables.length} table{base.tables.length !== 1 ? 's' : ''} · {base.id.slice(0, 8)}
+                          {accessibleTableCount} table{accessibleTableCount !== 1 ? 's' : ''} · {base.id.slice(0, 8)}
                         </p>
                       </div>
                       {hasFullAccess && (
@@ -216,9 +230,16 @@ export default function WorkspacePage() {
                         </button>
                       )}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
+            )}
+
+            {bases.length > 0 && visibleBases.length === 0 && (
+              <p className="text-sm text-app-faint mt-6">
+                You don&apos;t have access to any databases in this workspace yet.
+              </p>
             )}
           </div>
         )}

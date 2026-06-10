@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Database, Table2, LayoutGrid, FileText } from 'lucide-react'
 import { globalSearch, type SearchResult } from '../lib/globalSearch'
+import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 
 const typeIcons = {
@@ -18,12 +19,13 @@ interface CommandPaletteProps {
 
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { workspaceIds, cacheVersion } = useData()
   const [query, setQuery] = useState('')
 
   const results = useMemo(
-    () => globalSearch(query, workspaceIds),
-    [query, workspaceIds, cacheVersion],
+    () => globalSearch(query, workspaceIds, user?.userId, user?.email),
+    [query, workspaceIds, cacheVersion, user?.userId, user?.email],
   )
 
   useEffect(() => {

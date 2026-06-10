@@ -5,7 +5,12 @@ import { getInitials } from '../lib/colors'
 import { copyToClipboard } from '../lib/copy'
 import { assignUserPlan, getUsers, upsertWorkspace } from '../lib/storage'
 import { PLAN_OPTIONS } from '../lib/plans'
-import { memberLeaveWorkspace } from '../lib/members'
+import {
+  filterBasesForMember,
+  getAccessibleTables,
+  getMemberForUser,
+  memberLeaveWorkspace,
+} from '../lib/members'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import { useNavigate } from 'react-router-dom'
@@ -108,8 +113,16 @@ export default function WorkspaceSettingsPanel({
     else alert(result.error)
   }
 
-  const allTables = bases.flatMap((b) =>
-    b.tables.map((t) => ({ table: t, baseName: b.name, baseId: b.id })),
+  const member = user ? getMemberForUser(workspace.id, user.userId, user.email) : undefined
+  const visibleBases = user
+    ? filterBasesForMember(bases, workspace, workspace.id, user.userId, user.email, member)
+    : bases
+  const allTables = visibleBases.flatMap((b) =>
+    getAccessibleTables(member, b.tables, hasFullAccess).map((t) => ({
+      table: t,
+      baseName: b.name,
+      baseId: b.id,
+    })),
   )
 
   return (

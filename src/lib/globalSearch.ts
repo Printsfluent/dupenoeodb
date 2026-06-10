@@ -1,4 +1,10 @@
 import { getCache } from './dataStore'
+import {
+  getMemberForUser,
+  hasFullWorkspaceAccess,
+  memberCanAccessBase,
+  memberCanAccessTable,
+} from './members'
 
 export interface SearchResult {
   id: string
@@ -8,13 +14,39 @@ export interface SearchResult {
   href: string
 }
 
-export function globalSearch(query: string, workspaceIds: string[]): SearchResult[] {
+export function globalSearch(
+  query: string,
+  workspaceIds: string[],
+  userId?: string,
+  email?: string,
+): SearchResult[] {
   const q = query.trim().toLowerCase()
   if (!q || q.length < 2) return []
 
   const cache = getCache()
   const allowed = new Set(workspaceIds)
   const results: SearchResult[] = []
+
+  function canAccessDatabase(workspaceId: string, base: { tables: Array<{ id: string; teamIds?: string[] }> }) {
+    if (!userId || !email) return true
+    const workspace = cache.workspaces.find((item) => item.id === workspaceId)
+    if (!workspace) return false
+    const member = getMemberForUser(workspaceId, userId, email)
+    const bypass = hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
+    return memberCanAccessBase(member, base, { bypassForAdmin: bypass })
+  }
+
+  function canAccessTable(workspaceId: string, table: { id: string; teamIds?: string[] }) {
+    if (!userId || !email) return true
+    const workspace = cache.workspaces.find((item) => item.id === workspaceId)
+    if (!workspace) return false
+    const member = getMemberForUser(workspaceId, userId, email)
+    const bypass = hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
+    return memberCanAccessTable(member, table.id, {
+      tableTeamIds: table.teamIds,
+      bypassForAdmin: bypass,
+    })
+  }
 
   cache.workspaces
     .filter((ws) => allowed.has(ws.id) && ws.name.toLowerCase().includes(q))
@@ -29,7 +61,12 @@ export function globalSearch(query: string, workspaceIds: string[]): SearchResul
     })
 
   cache.bases
-    .filter((db) => allowed.has(db.workspaceId) && db.name.toLowerCase().includes(q))
+    .filter(
+      (db) =>
+        allowed.has(db.workspaceId) &&
+        db.name.toLowerCase().includes(q) &&
+        canAccessDatabase(db.workspaceId, db),
+    )
     .forEach((db) => {
       results.push({
         id: `db-${db.id}`,
@@ -41,10 +78,11 @@ export function globalSearch(query: string, workspaceIds: string[]): SearchResul
     })
 
   cache.bases
-    .filter((db) => allowed.has(db.workspaceId))
+    .filter((db) => allowed.has(db.workspaceId) && canAccessDatabase(db.workspaceId, db))
     .forEach((db) => {
       db.tables.forEach((table) => {
         if (!table.name.toLowerCase().includes(q)) return
+        if (!canAccessTable(db.workspaceId, table)) return
         results.push({
           id: `tbl-${table.id}`,
           type: 'table',
@@ -56,9 +94,10 @@ export function globalSearch(query: string, workspaceIds: string[]): SearchResul
     })
 
   cache.bases
-    .filter((db) => allowed.has(db.workspaceId))
+    .filter((db) => allowed.has(db.workspaceId) && canAccessDatabase(db.workspaceId, db))
     .forEach((db) => {
       db.tables.forEach((table) => {
+        if (!canAccessTable(db.workspaceId, table)) return
         table.rows.forEach((row) => {
           const cellText = Object.values(row.cells).join(' ').toLowerCase()
           if (!cellText.includes(q)) return

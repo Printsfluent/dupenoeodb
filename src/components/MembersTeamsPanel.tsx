@@ -16,6 +16,8 @@ import {
   blockMember,
   cancelWorkspaceInviteAsync,
   createTeam,
+  filterTeamsForMember,
+  getMemberForUser,
   getWorkspaceMembers,
   getWorkspaceTeams,
   isWorkspaceCreatorMember,
@@ -79,6 +81,8 @@ export default function MembersTeamsPanel({
   const [teamName, setTeamName] = useState('')
   const [addError, setAddError] = useState('')
 
+  const currentMember = user ? getMemberForUser(workspace.id, user.userId, user.email) : undefined
+  const visibleTeams = filterTeamsForMember(teams, currentMember, canManageTeams)
   const allTables = bases.flatMap((b) => b.tables.map((t) => ({ ...t, baseName: b.name })))
 
   function memberActor() {
@@ -120,6 +124,12 @@ export default function MembersTeamsPanel({
   useEffect(() => {
     refresh()
   }, [workspace.id, cacheVersion])
+
+  useEffect(() => {
+    if (selectedTeamId && !visibleTeams.some((team) => team.id === selectedTeamId)) {
+      setSelectedTeamId(null)
+    }
+  }, [selectedTeamId, visibleTeams])
 
   const filteredMembers = members.filter((m) => {
     const q = search.toLowerCase()
@@ -261,7 +271,7 @@ export default function MembersTeamsPanel({
           >
             All members
           </button>
-          {teams.map((team) => (
+          {visibleTeams.map((team) => (
             <button
               key={team.id}
               type="button"
@@ -280,8 +290,10 @@ export default function MembersTeamsPanel({
               <span className="text-xs text-app-faint">{team.memberIds.length}</span>
             </button>
           ))}
-          {teams.length === 0 && (
-            <p className="text-xs text-app-faint px-3 py-2">No teams yet</p>
+          {visibleTeams.length === 0 && (
+            <p className="text-xs text-app-faint px-3 py-2">
+              {canManageTeams ? 'No teams yet' : 'You are not assigned to any teams'}
+            </p>
           )}
         </div>
 

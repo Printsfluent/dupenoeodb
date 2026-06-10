@@ -13,9 +13,10 @@ import {
   assignTableTeams,
   canEditInWorkspace,
   canModifyTableSchemaInWorkspace,
+  getAccessibleTables,
   getMemberForUser,
   getWorkspaceTeams,
-  memberCanAccessTable,
+  memberCanAccessBase,
   migrateWorkspaceMemberRoles,
 } from '../lib/members'
 import { isTableStructureChange } from '../lib/tableSchema'
@@ -75,9 +76,21 @@ export default function BasePage() {
       navigate(`/app/w/${workspaceId}`)
       return
     }
+    const currentMember = getMemberForUser(workspaceId, user.userId, user.email)
+    const bypass = workspace
+      ? canModifyTableSchemaInWorkspace(workspace, user.userId, user.email, workspaceId)
+      : false
+    if (!memberCanAccessBase(currentMember, found, { bypassForAdmin: bypass })) {
+      navigate(`/app/w/${workspaceId}`)
+      return
+    }
+    const accessible = getAccessibleTables(currentMember, found.tables, bypass)
     setBase(found)
-    setActiveTableId((prev) => prev ?? found.tables[0]?.id ?? null)
-  }, [user, workspaceId, baseId, navigate, cacheVersion])
+    setActiveTableId((prev) => {
+      if (prev && accessible.some((table) => table.id === prev)) return prev
+      return accessible[0]?.id ?? null
+    })
+  }, [user, workspaceId, baseId, navigate, cacheVersion, workspace])
 
   function saveBase(updated: Base) {
     upsertBase(updated)
@@ -145,12 +158,7 @@ export default function BasePage() {
 
   const workspaceTeams = workspaceId ? getWorkspaceTeams(workspaceId) : []
 
-  const visibleTables = base.tables.filter((table) =>
-    memberCanAccessTable(member, table.id, {
-      tableTeamIds: table.teamIds,
-      bypassForAdmin: hasFullAccess,
-    }),
-  )
+  const visibleTables = getAccessibleTables(member, base.tables, hasFullAccess)
 
   const activeTable = visibleTables.find((t) => t.id === activeTableId)
     ?? visibleTables[0]
