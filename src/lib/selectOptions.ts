@@ -58,12 +58,17 @@ export const SELECT_COLOR_STYLES: Record<
   },
 }
 
+export function createSelectOption(label = '', colorIndex = 0): SelectOption {
+  return {
+    id: createId(),
+    label,
+    color: nextSelectColor(colorIndex),
+  }
+}
+
+/** @deprecated Prefer starting with an empty list and letting users add options */
 export function defaultSelectOptions(): SelectOption[] {
-  return [
-    { id: createId(), label: 'ACTIVE', color: 'green' },
-    { id: createId(), label: 'BANNED', color: 'red' },
-    { id: createId(), label: 'UNKNOWN', color: 'blue' },
-  ]
+  return []
 }
 
 export function nextSelectColor(index: number): SelectColorKey {

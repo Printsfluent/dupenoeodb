@@ -8,7 +8,7 @@ import FieldModal from './FieldModal'
 import CellValueDisplay from './CellValueDisplay'
 import CellValueEditor, { RatingInput, getCellInteraction } from './CellValueEditor'
 import { isSelectFieldType, normalizeColumnType } from '../lib/fieldTypes'
-import { defaultSelectOptions, getDefaultCellValue } from '../lib/selectOptions'
+import { createSelectOption, getDefaultCellValue } from '../lib/selectOptions'
 import { extractLinkHref, openLink } from '../lib/links'
 import { useTheme } from '../context/ThemeContext'
 
@@ -599,7 +599,7 @@ export default function SpreadsheetGrid({
                     ? value.options
                     : col.options?.length
                       ? col.options
-                      : defaultSelectOptions()
+                      : [createSelectOption('')]
                   next.colorCodeOptions = value.colorCodeOptions ?? true
                   next.alphabetizeOptions = value.alphabetizeOptions ?? false
                   next.defaultValue = value.defaultValue ?? ''

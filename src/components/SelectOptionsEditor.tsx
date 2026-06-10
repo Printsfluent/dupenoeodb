@@ -1,12 +1,10 @@
-import { GripVertical, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { GripVertical, Plus, Trash2 } from 'lucide-react'
 import type { ColumnType, SelectOption } from '../types'
 import {
+  createSelectOption,
   cycleSelectColor,
-  defaultSelectOptions,
-  nextSelectColor,
   sortSelectOptions,
 } from '../lib/selectOptions'
-import { createId } from '../lib/id'
 import SelectOptionBadge from './SelectOptionBadge'
 
 interface SelectOptionsEditorProps {
@@ -36,12 +34,10 @@ export default function SelectOptionsEditor({
   const displayOptions = sortSelectOptions(options, alphabetizeOptions)
 
   function addOption(label?: string) {
-    const next = {
-      id: createId(),
-      label: label ?? `Option ${options.length + 1}`,
-      color: nextSelectColor(options.length),
-    }
-    onOptionsChange([...options, next])
+    onOptionsChange([
+      ...options,
+      createSelectOption(label ?? `Option ${options.length + 1}`, options.length),
+    ])
   }
 
   function updateOption(id: string, patch: Partial<SelectOption>) {
@@ -53,18 +49,14 @@ export default function SelectOptionsEditor({
     if (defaultValue === id) onDefaultValueChange('')
   }
 
-  function autoSuggest() {
-    if (options.length === 0) {
-      onOptionsChange(defaultSelectOptions())
-      return
-    }
-    const samples = ['In progress', 'Done', 'Blocked', 'Review']
-    const label = samples[options.length % samples.length]
-    addOption(label)
-  }
-
   return (
     <div className="space-y-3">
+      <p className="text-xs text-gray-500 leading-relaxed">
+        {isMulti
+          ? 'Multi select — each cell can have one or more of these choices.'
+          : 'Single select — each cell can have only one of these choices.'}
+        {' '}Click a color swatch to change it.
+      </p>
       <div className="flex items-center justify-between gap-4">
         <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
           <input
@@ -87,6 +79,11 @@ export default function SelectOptionsEditor({
       </div>
 
       <div className="space-y-1.5 max-h-48 overflow-y-auto">
+        {displayOptions.length === 0 && (
+          <p className="text-xs text-gray-500 px-2 py-3 rounded-lg border border-dashed border-app-border text-center">
+            No options yet. Add your first choice below.
+          </p>
+        )}
         {displayOptions.map((option) => (
           <div
             key={option.id}
@@ -108,7 +105,8 @@ export default function SelectOptionsEditor({
             <input
               value={option.label}
               onChange={(e) => updateOption(option.id, { label: e.target.value })}
-              className="flex-1 min-w-0 bg-transparent text-sm text-white outline-none"
+              placeholder="Option label"
+              className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder:text-gray-600 outline-none"
             />
             <button
               type="button"
@@ -130,14 +128,6 @@ export default function SelectOptionsEditor({
         >
           <Plus className="w-3.5 h-3.5" />
           Add option
-        </button>
-        <button
-          type="button"
-          onClick={autoSuggest}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-app-border text-xs text-gray-300 hover:bg-app-surface-hover"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          Auto suggest
         </button>
       </div>
 

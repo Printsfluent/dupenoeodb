@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import type { ColumnEditPermission, ColumnType, SelectOption } from '../types'
 import { isSelectFieldType, normalizeColumnType, getFieldTypeLabel } from '../lib/fieldTypes'
-import { defaultSelectOptions } from '../lib/selectOptions'
+import { createSelectOption } from '../lib/selectOptions'
 import FieldTypePicker from './FieldTypePicker'
 import SelectOptionsEditor from './SelectOptionsEditor'
 
@@ -63,6 +63,7 @@ export default function FieldModal({
   const [colorCode, setColorCode] = useState(colorCodeOptions)
   const [alphabetize, setAlphabetize] = useState(alphabetizeOptions)
   const [defaultVal, setDefaultVal] = useState(defaultValue)
+  const [optionsError, setOptionsError] = useState('')
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -72,18 +73,20 @@ export default function FieldModal({
       setDesc(description)
       setPermission(editPermission)
       setFilter(filterValue)
-      setSelectOptions(options.length ? options : defaultSelectOptions())
+      setSelectOptions(options.length ? options : [])
       setColorCode(colorCodeOptions)
       setAlphabetize(alphabetizeOptions)
       setDefaultVal(defaultValue)
+      setOptionsError('')
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [open, fieldName, fieldType, description, editPermission, filterValue, options, colorCodeOptions, alphabetizeOptions, defaultValue])
 
   function handleTypeChange(next: ColumnType) {
     setType(next)
+    setOptionsError('')
     if (isSelectFieldType(next) && selectOptions.length === 0) {
-      setSelectOptions(defaultSelectOptions())
+      setSelectOptions([createSelectOption('')])
     }
   }
 
@@ -101,6 +104,14 @@ export default function FieldModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (mode === 'edit' && !name.trim()) return
+    if (showSelectOptions) {
+      const validOptions = selectOptions.filter((o) => o.label.trim())
+      if (validOptions.length === 0) {
+        setOptionsError('Add at least one option with a label.')
+        return
+      }
+      setOptionsError('')
+    }
     onConfirm({
       name: mode === 'edit' ? name.trim() : undefined,
       type: mode === 'edit' ? type : undefined,
@@ -118,7 +129,7 @@ export default function FieldModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div
         className={`relative w-full rounded-xl border border-app-border bg-app-surface shadow-2xl ${
-          showSelectOptions ? 'max-w-md' : mode === 'edit' ? 'max-w-sm' : 'max-w-md'
+          showSelectOptions ? 'max-w-lg' : mode === 'edit' ? 'max-w-sm' : 'max-w-md'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -149,6 +160,10 @@ export default function FieldModal({
                 <FieldTypePicker value={type} onChange={handleTypeChange} />
               </div>
               {showSelectOptions && (
+                <>
+                {optionsError && (
+                  <p className="text-sm text-red-400">{optionsError}</p>
+                )}
                 <SelectOptionsEditor
                   fieldType={type}
                   options={selectOptions}
@@ -160,6 +175,7 @@ export default function FieldModal({
                   onAlphabetizeChange={setAlphabetize}
                   onDefaultValueChange={setDefaultVal}
                 />
+                </>
               )}
             </>
           )}
