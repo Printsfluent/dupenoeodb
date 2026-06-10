@@ -10,7 +10,7 @@ import {
 
 export type Theme = 'light' | 'dark'
 
-const STORAGE_KEY = 'baseflow_theme'
+const STORAGE_KEY = 'sheetflow_theme'
 
 interface ThemeContextValue {
   theme: Theme

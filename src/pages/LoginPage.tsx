@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, LogIn } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import AuthLayout from '../components/AuthLayout'
+import { APP_NAME } from '../lib/brand'
 
 export default function LoginPage() {
   const { login, user } = useAuth()
@@ -32,7 +33,7 @@ export default function LoginPage() {
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Sign in to your BaseFlow workspace"
+      subtitle={`Sign in to your ${APP_NAME} workspace`}
       footer={
         <>
           Don&apos;t have an account?{' '}

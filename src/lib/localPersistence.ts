@@ -1,6 +1,8 @@
 import type { PlanId, Session } from '../types'
 import {
   getCache,
+  setActivityEvents,
+  setAppNotifications,
   setBases,
   setInvites,
   setMembers,
@@ -19,6 +21,8 @@ const KEYS = {
   teams: 'gridvault_teams',
   invites: 'gridvault_invites',
   pendingPlans: 'gridvault_pending_plans',
+  activity: 'gridvault_activity',
+  notifications: 'gridvault_notifications',
 } as const
 
 function read<T>(key: string, fallback: T): T {
@@ -42,6 +46,8 @@ export function hydrateCacheFromLocalStorage() {
   setTeams(read(KEYS.teams, []))
   setInvites(read(KEYS.invites, []))
   setPendingPlans(read<Record<string, PlanId>>(KEYS.pendingPlans, {}))
+  setActivityEvents(read(KEYS.activity, []))
+  setAppNotifications(read(KEYS.notifications, []))
 }
 
 export function persistCacheToLocalStorage() {
@@ -53,6 +59,8 @@ export function persistCacheToLocalStorage() {
   write(KEYS.teams, cache.teams)
   write(KEYS.invites, cache.invites)
   write(KEYS.pendingPlans, cache.pendingPlans)
+  write(KEYS.activity, cache.activityEvents)
+  write(KEYS.notifications, cache.appNotifications)
 }
 
 export function getLocalSession(): Session | null {

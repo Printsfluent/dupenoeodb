@@ -1,4 +1,6 @@
 import type {
+  ActivityEvent,
+  AppNotification,
   Base,
   PlanId,
   Team,
@@ -16,6 +18,8 @@ export interface DataCache {
   teams: Team[]
   invites: WorkspaceInvite[]
   pendingPlans: Record<string, PlanId>
+  activityEvents: ActivityEvent[]
+  appNotifications: AppNotification[]
 }
 
 const emptyCache = (): DataCache => ({
@@ -26,6 +30,8 @@ const emptyCache = (): DataCache => ({
   teams: [],
   invites: [],
   pendingPlans: {},
+  activityEvents: [],
+  appNotifications: [],
 })
 
 let cache: DataCache = emptyCache()
@@ -103,6 +109,30 @@ export function removePendingPlan(email: string) {
   if (!(key in cache.pendingPlans)) return
   const { [key]: _removed, ...rest } = cache.pendingPlans
   cache.pendingPlans = rest
+  notify()
+}
+
+export function setActivityEvents(events: ActivityEvent[], removedIds: string[] = []) {
+  cache.activityEvents = removeById(mergeById(cache.activityEvents, events), removedIds)
+  notify()
+}
+
+export function setAppNotifications(
+  notifications: AppNotification[],
+  removedIds: string[] = [],
+) {
+  cache.appNotifications = removeById(
+    mergeById(cache.appNotifications, notifications),
+    removedIds,
+  )
+  notify()
+}
+
+export function replaceActivityForWorkspace(workspaceId: string, events: ActivityEvent[]) {
+  cache.activityEvents = [
+    ...cache.activityEvents.filter((event) => event.workspaceId !== workspaceId),
+    ...events,
+  ]
   notify()
 }
 

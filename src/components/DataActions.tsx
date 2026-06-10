@@ -5,14 +5,14 @@ const actions = [
     id: 'create-base',
     icon: PlusSquare,
     iconColor: 'text-brand-400',
-    title: 'Create New Base',
-    desc: 'Start from scratch. Add tables inside your base.',
+    title: 'Create New Database',
+    desc: 'Start from scratch. Add tables inside your database.',
   },
   {
     id: 'import',
     icon: Download,
     iconColor: 'text-orange-400',
-    title: 'Import Base',
+    title: 'Import Database',
     desc: 'From CSV, TSV, or Excel files.',
   },
 ]

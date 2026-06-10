@@ -4,7 +4,7 @@
     <script>
       (function () {
         try {
-          var stored = localStorage.getItem('baseflow_theme');
+          var stored = localStorage.getItem('sheetflow_theme') || localStorage.getItem('baseflow_theme');
           var dark = stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches);
           if (dark) document.documentElement.classList.add('dark');
         } catch (e) {}
@@ -13,11 +13,11 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="BaseFlow — Build databases as spreadsheets. No coding required. Bring your own database or choose ours." />
+    <meta name="description" content="SheetFlow — Build databases as spreadsheets. No coding required. Workspaces, roles, and in-app invites." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <title>BaseFlow — Databases as Spreadsheets</title>
+    <title>SheetFlow — Databases as Spreadsheets</title>
   </head>
   <body>
     <div id="root"></div>

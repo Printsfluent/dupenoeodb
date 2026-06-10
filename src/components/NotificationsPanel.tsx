@@ -4,7 +4,10 @@ import { Bell, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { acceptWorkspaceInviteAsync, declineWorkspaceInviteAsync } from '../lib/members'
 import { usePendingInvites } from '../hooks/usePendingInvites'
+import { useAppNotifications } from '../hooks/useNotifications'
+import { markNotificationRead } from '../lib/notifications'
 import WorkspaceInviteItem from './WorkspaceInviteItem'
+import { useToast } from '../context/ToastContext'
 
 interface NotificationsPanelProps {
   onClose: () => void
@@ -38,8 +41,13 @@ export function NotificationBell({
 export default function NotificationsPanel({ onClose, onUpdate }: NotificationsPanelProps) {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
   const { invites, refresh: refreshInvites } = usePendingInvites(user?.userId, user?.email)
+  const notifications = useAppNotifications(user?.userId)
   const [acting, setActing] = useState<string | null>(null)
+
+  const unreadNotifications = notifications.filter((item) => !item.read)
+  const isEmpty = invites.length === 0 && notifications.length === 0
 
   function refresh() {
     refreshInvites()
@@ -60,7 +68,7 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
       onClose()
       navigate(`/app/w/${result.workspaceId}`)
     } else if (result.error) {
-      alert(result.error)
+      toast.error(result.error)
     }
   }
 
@@ -75,7 +83,16 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
     if (result.ok) {
       refresh()
     } else if (result.error) {
-      alert(result.error)
+      toast.error(result.error)
+    }
+  }
+
+  function openNotification(href?: string, notificationId?: string) {
+    if (notificationId) markNotificationRead(notificationId)
+    refresh()
+    if (href) {
+      onClose()
+      navigate(href)
     }
   }
 
@@ -96,7 +113,7 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
         </div>
 
         <div className="max-h-[400px] overflow-y-auto">
-          {invites.length === 0 ? (
+          {isEmpty ? (
             <div className="px-4 py-12 text-center">
               <Bell className="w-8 h-8 text-app-faint mx-auto mb-3" />
               <p className="text-sm text-app-muted">No new notifications</p>
@@ -114,6 +131,32 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
                   />
                 </li>
               ))}
+              {unreadNotifications.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => openNotification(item.href, item.id)}
+                    className="w-full text-left p-4 hover:bg-app-surface-hover"
+                  >
+                    <p className="text-sm font-medium text-app-text">{item.title}</p>
+                    <p className="text-xs text-app-faint mt-1">{item.body}</p>
+                  </button>
+                </li>
+              ))}
+              {notifications
+                .filter((item) => item.read)
+                .map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => openNotification(item.href)}
+                      className="w-full text-left p-4 opacity-60 hover:bg-app-surface-hover"
+                    >
+                      <p className="text-sm text-app-text">{item.title}</p>
+                      <p className="text-xs text-app-faint mt-1">{item.body}</p>
+                    </button>
+                  </li>
+                ))}
             </ul>
           )}
         </div>
@@ -122,4 +165,4 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
   )
 }
 
-export { useInviteCount } from '../hooks/usePendingInvites'
+export { useNotificationCount } from '../hooks/useNotifications'

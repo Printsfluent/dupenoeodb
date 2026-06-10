@@ -60,7 +60,7 @@ export function updateInvite(invite: WorkspaceInvite) {
 export function cancelInviteByMemberId(memberId: string) {
   getAllInvites().forEach((invite) => {
     if (invite.memberId === memberId && invite.status === 'pending') {
-      void persistInvite({ ...invite, status: 'declined' })
+      void persistInvite({ ...invite, status: 'revoked' })
     }
   })
 }

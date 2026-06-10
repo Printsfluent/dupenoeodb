@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ToastProvider } from './context/ToastContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './layouts/AppLayout'
 import LandingPage from './pages/LandingPage'
@@ -25,7 +26,8 @@ function AuthRedirect({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<AuthRedirect><LoginPage /></AuthRedirect>} />
@@ -44,7 +46,8 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </AuthProvider>
+        </AuthProvider>
+      </ToastProvider>
     </BrowserRouter>
   )
 }

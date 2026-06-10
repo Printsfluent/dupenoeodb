@@ -11,6 +11,8 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import type {
+  ActivityEvent,
+  AppNotification,
   Base,
   PlanId,
   Team,
@@ -26,6 +28,8 @@ import {
   replaceBasesForWorkspace,
   replaceTeamsForWorkspace,
   setBases,
+  setActivityEvents,
+  setAppNotifications,
   setInvites,
   setMembers,
   setPendingPlans,
@@ -42,6 +46,8 @@ export const COL = {
   teams: 'teams',
   invites: 'invites',
   pendingPlans: 'pendingPlans',
+  activity: 'activity',
+  notifications: 'notifications',
 } as const
 
 function pendingPlanDocId(email: string) {
@@ -349,6 +355,28 @@ export async function clearPendingPlanDoc(email: string) {
     await deleteDoc(doc(getFirestoreDb(), COL.pendingPlans, pendingPlanDocId(key)))
   } catch (error) {
     logSyncError('clearPendingPlan', error)
+  }
+}
+
+export async function persistActivityEvent(event: ActivityEvent) {
+  setActivityEvents([event])
+  if (skipCloudSync()) return
+  try {
+    await setDoc(doc(getFirestoreDb(), COL.activity, event.id), event, { merge: true })
+  } catch (error) {
+    logSyncError('persistActivityEvent', error)
+  }
+}
+
+export async function persistAppNotification(notification: AppNotification) {
+  setAppNotifications([notification])
+  if (skipCloudSync()) return
+  try {
+    await setDoc(doc(getFirestoreDb(), COL.notifications, notification.id), notification, {
+      merge: true,
+    })
+  } catch (error) {
+    logSyncError('persistAppNotification', error)
   }
 }
 

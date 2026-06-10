@@ -112,7 +112,7 @@ export default function WorkspacePage() {
   function handleDeleteBase(e: React.MouseEvent, baseId: string) {
     e.stopPropagation()
     if (!hasFullAccess) return
-    if (!confirm('Delete this base and all its data?')) return
+    if (!confirm('Delete this database and all its data?')) return
     deleteBase(baseId)
     refreshBases()
   }
@@ -168,14 +168,14 @@ export default function WorkspacePage() {
               <DataActions onAction={handleAction} />
             ) : (
               <p className="text-sm text-app-faint mb-6">
-                Open a base below to view or edit data based on your role.
+                Open a database below to view or edit data based on your role.
               </p>
             )}
 
             {bases.length > 0 && (
               <div className={hasFullAccess ? 'mt-12' : ''}>
                 <h2 className="text-sm font-semibold text-app-faint uppercase tracking-wider mb-4">
-                  Your Bases
+                  Your Databases
                 </h2>
                 <div className="space-y-2">
                   {bases.map((base) => (

@@ -12,7 +12,7 @@ import PlanBadge from './PlanBadge'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import {
-  sendWorkspaceInvite,
+  sendWorkspaceInviteToUser,
   blockMember,
   cancelWorkspaceInviteAsync,
   createTeam,
@@ -23,6 +23,10 @@ import {
   setMemberTableAccess,
   unblockMember,
 } from '../lib/members'
+import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '../lib/roles'
+import { searchSheetFlowUsers } from '../lib/userSearch'
+import { useToast } from '../context/ToastContext'
+import type { User } from '../types'
 
 interface MembersTeamsPanelProps {
   workspace: Workspace
@@ -34,26 +38,13 @@ interface MembersTeamsPanelProps {
   onRefresh: () => void
 }
 
-const roleLabels: Record<MemberRole, string> = {
-  owner: 'Owner',
-  creator: 'Creator',
-  editor: 'Editor',
-  viewer: 'Viewer',
-  no_access: 'No Access',
-}
-
 const roleColors: Record<MemberRole, string> = {
   owner: 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-800',
+  admin: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800',
   creator: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800',
   editor: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
   viewer: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-app-muted dark:border-gray-700',
   no_access: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800',
-}
-
-const roleDescriptions: Record<'creator' | 'editor' | 'viewer', string> = {
-  creator: 'Full access — create, edit, and invite members (only the owner can remove members)',
-  editor: 'Edit records only — no structural changes',
-  viewer: 'View data only — read-only access',
 }
 
 export default function MembersTeamsPanel({
@@ -67,6 +58,7 @@ export default function MembersTeamsPanel({
 }: MembersTeamsPanelProps) {
   const { user, refreshProfile } = useAuth()
   const { cacheVersion } = useData()
+  const toast = useToast()
   const [search, setSearch] = useState('')
   const [members, setMembers] = useState<WorkspaceMember[]>(() => getWorkspaceMembers(workspace.id))
   const [teams, setTeams] = useState<Team[]>(() => getWorkspaceTeams(workspace.id))
@@ -77,7 +69,8 @@ export default function MembersTeamsPanel({
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
   const [cancelingInviteId, setCancelingInviteId] = useState<string | null>(null)
 
-  const [memberEmail, setMemberEmail] = useState('')
+  const [userQuery, setUserQuery] = useState('')
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [memberTeamIds, setMemberTeamIds] = useState<string[]>([])
   const [memberRole, setMemberRole] = useState<MemberRole>('viewer')
   const [teamName, setTeamName] = useState('')
@@ -110,9 +103,16 @@ export default function MembersTeamsPanel({
     if (result.ok) {
       refresh()
     } else if (result.error) {
-      alert(result.error)
+      toast.error(result.error)
     }
   }
+
+  const memberUserIds = new Set(
+    members.filter((m) => m.userId && m.status !== 'left').map((m) => m.userId as string),
+  )
+  const userSuggestions = searchSheetFlowUsers(userQuery, {
+    excludeUserIds: user ? [user.userId, ...memberUserIds] : [...memberUserIds],
+  })
 
   useEffect(() => {
     refresh()
@@ -132,9 +132,13 @@ export default function MembersTeamsPanel({
     e.preventDefault()
     if (!user) return
     setAddError('')
-    const result = sendWorkspaceInvite(
+    if (!selectedUser) {
+      setAddError('Select a user to invite')
+      return
+    }
+    const result = sendWorkspaceInviteToUser(
       workspace.id,
-      memberEmail,
+      selectedUser.id,
       memberTeamIds,
       memberRole,
       { id: user.userId, name: user.name, email: user.email },
@@ -143,10 +147,12 @@ export default function MembersTeamsPanel({
       setAddError(result.error ?? 'Failed to send invite')
       return
     }
-    setMemberEmail('')
+    setUserQuery('')
+    setSelectedUser(null)
     setMemberTeamIds([])
     setMemberRole('viewer')
     setShowAddMember(false)
+    toast.success(`Invite sent to ${selectedUser.name}`)
     refresh()
   }
 
@@ -161,7 +167,8 @@ export default function MembersTeamsPanel({
 
   function handleRoleChange(member: WorkspaceMember, role: MemberRole) {
     if (!canManageMembers || member.role === 'owner') return
-    updateMemberRole(member.id, role)
+    if (!user) return
+    updateMemberRole(member.id, role, { id: user.userId, name: user.name })
     refresh()
   }
 
@@ -315,18 +322,24 @@ export default function MembersTeamsPanel({
                       </span>
                     ) : canManageMembers && member.role !== 'owner' && member.userId !== workspace.ownerId ? (
                       <select
-                        value={member.status === 'blocked' ? 'no_access' : member.role}
+                        value={
+                          member.status === 'blocked'
+                            ? 'no_access'
+                            : member.role === 'creator'
+                              ? 'admin'
+                              : member.role
+                        }
                         onChange={(e) => handleRoleChange(member, e.target.value as MemberRole)}
                         className={`px-2 py-1 rounded-lg text-xs font-medium border bg-transparent cursor-pointer ${roleColors[member.status === 'blocked' ? 'no_access' : member.role]}`}
                       >
-                        <option value="creator">Creator</option>
+                        <option value="admin">Admin</option>
                         <option value="editor">Editor</option>
                         <option value="viewer">Viewer</option>
                         <option value="no_access">No Access</option>
                       </select>
                     ) : (
                       <span className={`inline-flex px-2 py-1 rounded-lg text-xs font-medium border ${roleColors[member.role]}`}>
-                        {roleLabels[member.role]}
+                        {ROLE_LABELS[member.role]}
                       </span>
                     )}
                   </td>
@@ -452,15 +465,59 @@ export default function MembersTeamsPanel({
               Only you are the workspace Owner; invited users get the role you choose below.
             </p>
             {addError && <p className="text-sm text-red-400">{addError}</p>}
-            <Field label="Email address">
-              <input
-                type="email"
-                value={memberEmail}
-                onChange={(e) => setMemberEmail(e.target.value)}
-                placeholder="member@example.com"
-                required
-                className={inputClass}
-              />
+            <Field label="Find user">
+              {selectedUser ? (
+                <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-app-border bg-app-surface-active">
+                  <div>
+                    <p className="text-sm font-medium text-app-text">{selectedUser.name}</p>
+                    <p className="text-xs text-app-faint">{selectedUser.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedUser(null)
+                      setUserQuery('')
+                    }}
+                    className="text-xs text-app-faint hover:text-app-muted"
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    type="search"
+                    value={userQuery}
+                    onChange={(e) => setUserQuery(e.target.value)}
+                    placeholder="Search by name or email…"
+                    className={inputClass}
+                    autoComplete="off"
+                  />
+                  {userQuery.trim() && (
+                    <ul className="absolute z-10 left-0 right-0 mt-1 max-h-40 overflow-y-auto rounded-lg border border-app-border bg-app-surface shadow-lg">
+                      {userSuggestions.length === 0 ? (
+                        <li className="px-3 py-2 text-xs text-app-faint">No users found</li>
+                      ) : (
+                        userSuggestions.map((candidate) => (
+                          <li key={candidate.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedUser(candidate)
+                                setUserQuery('')
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-app-surface-hover"
+                            >
+                              <p className="text-sm text-app-text">{candidate.name}</p>
+                              <p className="text-xs text-app-faint">{candidate.email}</p>
+                            </button>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  )}
+                </div>
+              )}
             </Field>
             <Field label="Add to team (optional)">
               {teams.length === 0 ? (
@@ -502,12 +559,12 @@ export default function MembersTeamsPanel({
                 onChange={(e) => setMemberRole(e.target.value as MemberRole)}
                 className={inputClass}
               >
-                <option value="creator">Creator</option>
+                <option value="admin">Admin</option>
                 <option value="editor">Editor</option>
                 <option value="viewer">Viewer</option>
               </select>
-              {memberRole === 'creator' || memberRole === 'editor' || memberRole === 'viewer' ? (
-                <p className="text-xs text-app-faint mt-1.5">{roleDescriptions[memberRole]}</p>
+              {memberRole === 'admin' || memberRole === 'editor' || memberRole === 'viewer' ? (
+                <p className="text-xs text-app-faint mt-1.5">{ROLE_DESCRIPTIONS[memberRole]}</p>
               ) : null}
             </Field>
             <ModalActions onCancel={() => setShowAddMember(false)} submitLabel="Send Invite" />

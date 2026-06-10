@@ -21,6 +21,7 @@ import {
   getCache,
   replaceBasesForWorkspace,
   replaceTeamsForWorkspace,
+  setAppNotifications,
   setInvites,
   setMembers,
   setPendingPlans,
@@ -231,6 +232,18 @@ export function DataProvider({
           setPendingPlans(plans)
         },
         (error) => console.warn('Firestore pending plans listener:', error),
+      ),
+    )
+
+    unsubs.push(
+      onSnapshot(
+        query(collection(firestore, COL.notifications), where('userId', '==', userId)),
+        (snapshot) => {
+          setAppNotifications(
+            snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never),
+          )
+        },
+        (error) => console.warn('Firestore notifications listener:', error),
       ),
     )
 

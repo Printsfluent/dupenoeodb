@@ -18,7 +18,8 @@ import PlanBadge from '../components/PlanBadge'
 import { canCreateWorkspace } from '../lib/planLimits'
 import { ensureUserIsOwner } from '../lib/members'
 import { useData } from '../context/DataContext'
-import NotificationsPanel, { NotificationBell, useInviteCount } from '../components/NotificationsPanel'
+import NotificationsPanel, { NotificationBell, useNotificationCount } from '../components/NotificationsPanel'
+import CommandPalette from '../components/CommandPalette'
 import PendingInvitesBanner from '../components/PendingInvitesBanner'
 import ThemeToggle from '../components/ThemeToggle'
 import { useTheme } from '../context/ThemeContext'
@@ -35,8 +36,12 @@ export default function AppLayout() {
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
   const [showNotifications, setShowNotifications] = useState(false)
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showAvatarPicker, setShowAvatarPicker] = useState(false)
-  const { count: inviteCount, refresh: refreshInviteCount } = useInviteCount(user?.userId, user?.email)
+  const { count: notificationCount, refresh: refreshNotificationCount } = useNotificationCount(
+    user?.userId,
+    user?.email,
+  )
   const { online, localMode, cacheVersion } = useData()
   const { theme } = useTheme()
 
@@ -46,8 +51,19 @@ export default function AppLayout() {
 
   useEffect(() => {
     refreshWorkspaces()
-    refreshInviteCount()
+    refreshNotificationCount()
   }, [user, workspaceId, cacheVersion])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setShowCommandPalette(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const filtered = workspaces.filter((w) =>
     w.name.toLowerCase().includes(search.toLowerCase()),
@@ -76,7 +92,7 @@ export default function AppLayout() {
   }
 
   function handleDeleteWorkspace(id: string) {
-    if (!confirm('Delete this workspace and all its bases?')) return
+    if (!confirm('Delete this workspace and all its databases?')) return
     deleteWorkspace(id)
     if (!user) return
     const updated = getUserWorkspaces(user.userId, user.email)
@@ -107,7 +123,7 @@ export default function AppLayout() {
         {collapsed && (
           <div className="p-2 border-b border-app-border flex flex-col items-center gap-2">
             <NotificationBell
-              count={inviteCount}
+              count={notificationCount}
               onClick={() => setShowNotifications(true)}
             />
           </div>
@@ -121,7 +137,7 @@ export default function AppLayout() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search workspaces and bas..."
+                  placeholder="Search workspaces… (⌘K for global)"
                   className="w-full pl-9 pr-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-app-text placeholder:text-app-faint focus:outline-none focus:border-app-border-strong"
                 />
               </div>
@@ -232,7 +248,7 @@ export default function AppLayout() {
               </div>
               <ThemeToggle compact />
               <NotificationBell
-                count={inviteCount}
+                count={notificationCount}
                 onClick={() => setShowNotifications(true)}
               />
               <button
@@ -262,7 +278,7 @@ export default function AppLayout() {
         {user && (
           <PendingInvitesBanner
             onUpdate={() => {
-              refreshInviteCount()
+              refreshNotificationCount()
               refreshWorkspaces()
             }}
           />
@@ -274,11 +290,13 @@ export default function AppLayout() {
         <NotificationsPanel
           onClose={() => setShowNotifications(false)}
           onUpdate={() => {
-            refreshInviteCount()
+            refreshNotificationCount()
             refreshWorkspaces()
           }}
         />
       )}
+
+      <CommandPalette open={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
 
       {showAvatarPicker && user && (
         <AvatarPicker

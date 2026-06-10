@@ -1,2 +1,2 @@
-export const APP_NAME = 'BaseFlow'
-export const APP_DOMAIN = 'baseflow.io'
+export const APP_NAME = 'SheetFlow'
+export const APP_DOMAIN = 'sheetflow.app'

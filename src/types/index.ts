@@ -66,14 +66,16 @@ export interface Workspace {
   ownerId: string
   name: string
   color: string
+  logo?: string | null
   settings: WorkspaceSettings
   createdAt: string
 }
 
-export type MemberRole = 'owner' | 'creator' | 'editor' | 'viewer' | 'no_access'
+/** Spec: Owner, Admin, Editor, Viewer. `creator` is legacy alias for `admin`. */
+export type MemberRole = 'owner' | 'admin' | 'creator' | 'editor' | 'viewer' | 'no_access'
 export type MemberStatus = 'pending' | 'active' | 'blocked' | 'left'
 
-export type InviteStatus = 'pending' | 'accepted' | 'declined'
+export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'revoked'
 
 export interface WorkspaceInvite {
   id: string
@@ -101,6 +103,7 @@ export interface WorkspaceMember {
   teamIds: string[]
   tableAccess: string[]
   joinedAt: string
+  lastActiveAt?: string
 }
 
 export interface Team {
@@ -118,12 +121,86 @@ export interface Base {
   workspaceId: string
   userId: string
   name: string
+  description?: string
   tables: Table[]
   createdAt: string
 }
 
-/** @deprecated Use Base */
+/** SheetFlow spec name for a Base (database inside a workspace). */
+export type Database = Base
+
+/** @deprecated Use Base / Database */
 export type Project = Base
+
+export type ActivityAction =
+  | 'record_created'
+  | 'record_updated'
+  | 'record_deleted'
+  | 'member_invited'
+  | 'member_removed'
+  | 'role_changed'
+  | 'database_created'
+  | 'invite_accepted'
+
+export interface ActivityEvent {
+  id: string
+  workspaceId: string
+  action: ActivityAction
+  actorId: string
+  actorName: string
+  targetLabel: string
+  createdAt: string
+}
+
+export type NotificationType =
+  | 'workspace_invite'
+  | 'role_changed'
+  | 'mention'
+  | 'task_assigned'
+
+export interface AppNotification {
+  id: string
+  userId: string
+  type: NotificationType
+  title: string
+  body: string
+  href?: string
+  read: boolean
+  createdAt: string
+}
+
+export interface TablePermissions {
+  tableId: string
+  databaseId: string
+  workspaceId: string
+  viewerCanView: boolean
+  editorCanCreate: boolean
+  editorCanEdit: boolean
+  editorCanDelete: boolean
+}
+
+export interface ApiKey {
+  id: string
+  userId: string
+  workspaceId: string
+  label: string
+  keyPrefix: string
+  createdAt: string
+  revokedAt?: string | null
+}
+
+export type TableViewType = 'grid' | 'kanban' | 'calendar' | 'gallery'
+
+export interface SavedTableView {
+  id: string
+  tableId: string
+  databaseId: string
+  name: string
+  type: TableViewType
+  config: Record<string, unknown>
+  createdBy: string
+  createdAt: string
+}
 
 export type PlanId = 'free' | 'og'
 

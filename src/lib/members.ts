@@ -22,6 +22,9 @@ import {
   getAllInvites,
   linkInvitesToUser,
 } from './invites'
+import { logActivity } from './activity'
+import { createAppNotification } from './notifications'
+import { isAdminRole, normalizeMemberRole } from './roles'
 
 const MEMBER_STATUS_RANK: Record<WorkspaceMember['status'], number> = {
   active: 4,
@@ -32,6 +35,7 @@ const MEMBER_STATUS_RANK: Record<WorkspaceMember['status'], number> = {
 
 const MEMBER_ROLE_RANK: Record<MemberRole, number> = {
   owner: 5,
+  admin: 4,
   creator: 4,
   editor: 3,
   viewer: 2,
@@ -164,8 +168,7 @@ export function isWorkspaceAccountOwner(
 }
 
 /**
- * Owner (workspace creator) and Creator (invited with full access) can do anything
- * in the workspace — create, edit, invite, manage members, settings, etc.
+ * Owner and Admin can manage databases, invite members, and configure tables.
  */
 export function hasFullWorkspaceAccess(
   workspace: { ownerId: string },
@@ -175,10 +178,7 @@ export function hasFullWorkspaceAccess(
 ): boolean {
   if (isWorkspaceAccountOwner(workspace, userId)) return true
   const member = getMemberForUser(workspaceId, userId, email)
-  return (
-    isActiveWorkspaceMember(member) &&
-    (member.role === 'owner' || member.role === 'creator')
-  )
+  return isActiveWorkspaceMember(member) && isAdminRole(member.role)
 }
 
 export function canCreateInWorkspace(
@@ -331,31 +331,34 @@ export function createOwnerMember(
   }
 }
 
-export function sendWorkspaceInvite(
+/** In-app invite: pick an existing SheetFlow user (no email delivery). */
+export function sendWorkspaceInviteToUser(
   workspaceId: string,
-  email: string,
+  targetUserId: string,
   teamIds: string[],
   role: MemberRole,
   invitedBy: { id: string; name: string; email: string },
 ): { ok: boolean; error?: string; member?: WorkspaceMember } {
-  const trimmed = email.trim().toLowerCase()
-  if (!trimmed.includes('@')) return { ok: false, error: 'Enter a valid email' }
-  if (trimmed === invitedBy.email.toLowerCase()) {
+  if (targetUserId === invitedBy.id) {
     return { ok: false, error: 'You cannot invite yourself' }
   }
 
+  const targetUser = getUsers().find((u) => u.id === targetUserId)
+  if (!targetUser) return { ok: false, error: 'User not found' }
+
+  const trimmed = targetUser.email.trim().toLowerCase()
   const members = getAllMembers()
   const existing = members.find(
     (m) =>
       m.workspaceId === workspaceId &&
-      m.email === trimmed &&
+      (m.userId === targetUserId || m.email === trimmed) &&
       m.status !== 'left',
   )
   if (existing) {
     if (existing.status === 'pending') {
-      return { ok: false, error: 'Invite already sent to this email' }
+      return { ok: false, error: 'Invite already sent to this user' }
     }
-    return { ok: false, error: 'Member already in workspace' }
+    return { ok: false, error: 'User is already in this workspace' }
   }
 
   const workspace = getWorkspaces().find((w) => w.id === workspaceId)
@@ -365,20 +368,19 @@ export function sendWorkspaceInvite(
     return { ok: false, error: 'You do not have permission to invite members' }
   }
 
-  const inviteRole = role === 'owner' ? 'creator' : role
-  if (!['creator', 'editor', 'viewer'].includes(inviteRole)) {
+  const normalizedRole = normalizeMemberRole(role === 'owner' ? 'admin' : role)
+  if (!['admin', 'editor', 'viewer'].includes(normalizedRole)) {
     return { ok: false, error: 'Invalid role for invite' }
   }
 
-  const matchedUser = getUsers().find((u) => u.email === trimmed)
-  const memberRole = inviteRole as MemberRole
+  const memberRole: MemberRole = normalizedRole === 'admin' ? 'admin' : normalizedRole
 
   const member: WorkspaceMember = {
-    id: memberDocId(workspaceId, { userId: matchedUser?.id ?? null, email: trimmed }),
+    id: memberDocId(workspaceId, { userId: targetUserId, email: trimmed }),
     workspaceId,
-    userId: matchedUser?.id ?? null,
+    userId: targetUserId,
     email: trimmed,
-    name: matchedUser?.name ?? trimmed.split('@')[0],
+    name: targetUser.name,
     role: memberRole,
     status: 'pending',
     teamIds,
@@ -397,10 +399,42 @@ export function sendWorkspaceInvite(
     teamIds,
     invitedBy: invitedBy.id,
     invitedByName: invitedBy.name,
-    userId: matchedUser?.id ?? null,
+    userId: targetUserId,
+  })
+
+  createAppNotification({
+    userId: targetUserId,
+    type: 'workspace_invite',
+    title: `Invited to ${workspace.name}`,
+    body: `${invitedBy.name} invited you as ${memberRole}`,
+    href: '/app',
+  })
+
+  logActivity({
+    workspaceId,
+    action: 'member_invited',
+    actorId: invitedBy.id,
+    actorName: invitedBy.name,
+    targetLabel: targetUser.name,
   })
 
   return { ok: true, member }
+}
+
+/** @deprecated Use sendWorkspaceInviteToUser for in-app invites */
+export function sendWorkspaceInvite(
+  workspaceId: string,
+  email: string,
+  teamIds: string[],
+  role: MemberRole,
+  invitedBy: { id: string; name: string; email: string },
+): { ok: boolean; error?: string; member?: WorkspaceMember } {
+  const trimmed = email.trim().toLowerCase()
+  const matchedUser = getUsers().find((u) => u.email === trimmed)
+  if (!matchedUser) {
+    return { ok: false, error: 'User must have a SheetFlow account — search by name or email' }
+  }
+  return sendWorkspaceInviteToUser(workspaceId, matchedUser.id, teamIds, role, invitedBy)
 }
 
 function inviteBelongsToUser(
@@ -492,6 +526,15 @@ export async function acceptWorkspaceInviteAsync(
   await ensureWorkspaceMembersInCache(invite.workspaceId)
   await ensureWorkspaceDataInCache(invite.workspaceId)
 
+  const workspace = getWorkspaces().find((w) => w.id === invite.workspaceId)
+  logActivity({
+    workspaceId: invite.workspaceId,
+    action: 'invite_accepted',
+    actorId: user.id,
+    actorName: user.name,
+    targetLabel: workspace?.name ?? invite.workspaceName,
+  })
+
   return { ok: true, workspaceId: invite.workspaceId }
 }
 
@@ -538,7 +581,7 @@ export async function cancelWorkspaceInviteAsync(
 
   await persistMember({ ...member, status: 'left' })
   await Promise.all(
-    pendingInvites.map((invite) => persistInvite({ ...invite, status: 'declined' })),
+    pendingInvites.map((invite) => persistInvite({ ...invite, status: 'revoked' })),
   )
 
   return { ok: true }
@@ -583,11 +626,31 @@ export function deleteTeam(teamId: string) {
   })
 }
 
-export function setMemberRole(memberId: string, role: MemberRole) {
+export function setMemberRole(
+  memberId: string,
+  role: MemberRole,
+  actor?: { id: string; name: string },
+) {
   const member = getAllMembers().find((m) => m.id === memberId)
   if (!member || member.role === 'owner') return
   if (role === 'owner') return
-  updateMember({ ...member, role })
+  const nextRole = role === 'creator' ? 'admin' : role
+  updateMember({ ...member, role: nextRole })
+  if (member.userId && actor) {
+    createAppNotification({
+      userId: member.userId,
+      type: 'role_changed',
+      title: 'Your workspace role changed',
+      body: `You are now ${nextRole} in the workspace`,
+    })
+    logActivity({
+      workspaceId: member.workspaceId,
+      action: 'role_changed',
+      actorId: actor.id,
+      actorName: actor.name,
+      targetLabel: member.name,
+    })
+  }
 }
 
 export function setMemberTableAccess(memberId: string, tableIds: string[]) {
@@ -667,7 +730,7 @@ export function memberCanAccessTable(
 ): boolean {
   if (canCreate) return true
   if (!member || member.status === 'blocked' || member.role === 'no_access') return false
-  if (member.role === 'owner' || member.role === 'creator') return true
+  if (isAdminRole(member.role)) return true
   if (member.tableAccess.length === 0) return true
   return member.tableAccess.includes(tableId)
 }

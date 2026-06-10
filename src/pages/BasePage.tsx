@@ -208,7 +208,7 @@ export default function BasePage() {
       <main className="flex-1 overflow-hidden bg-app-bg">
         {visibleTables.length === 0 ? (
           <div className="flex items-center justify-center h-full text-app-faint text-sm">
-            You don&apos;t have access to any tables in this base.
+            You don&apos;t have access to any tables in this database.
           </div>
         ) : activeTable ? (
           <SpreadsheetGrid

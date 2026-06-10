@@ -4,12 +4,13 @@ import { Menu, X } from 'lucide-react'
 import Logo from './Logo'
 import ThemeToggle from './ThemeToggle'
 import { useAuth } from '../context/AuthContext'
+import { APP_NAME } from '../lib/brand'
 
 const links = [
   { label: 'Product', href: '#views' },
   { label: 'Features', href: '#features' },
   { label: 'Use Cases', href: '#usecases' },
-  { label: 'Why BaseFlow', href: '#why' },
+  { label: `Why ${APP_NAME}`, href: '#why' },
 ]
 
 export default function Navbar() {

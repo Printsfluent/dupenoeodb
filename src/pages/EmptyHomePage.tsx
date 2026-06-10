@@ -3,12 +3,12 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import { getUserWorkspaces } from '../lib/storage'
-import { useInviteCount } from '../components/NotificationsPanel'
+import { useNotificationCount } from '../components/NotificationsPanel'
 
 export default function EmptyHomePage() {
   const { user } = useAuth()
   const { ready, cacheVersion } = useData()
-  const { count: inviteCount } = useInviteCount(user?.userId, user?.email)
+  const { count: inviteCount } = useNotificationCount(user?.userId, user?.email)
 
   const workspaces = useMemo(
     () => (user ? getUserWorkspaces(user.userId, user.email) : []),
