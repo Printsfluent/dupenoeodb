@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  Search, UserPlus, Plus, MoreVertical, X, Shield, Table2,
+  Search, UserPlus, Plus, MoreVertical, X, Shield, Table2, Users,
 } from 'lucide-react'
 import type { Base, MemberRole, PlanId, Team, Workspace, WorkspaceMember } from '../types'
 import { getInitials, pickWorkspaceColor } from '../lib/colors'
@@ -18,12 +18,14 @@ import {
   createTeam,
   getWorkspaceMembers,
   getWorkspaceTeams,
+  isWorkspaceCreatorMember,
   removeMember,
+  assignMemberTeams,
   setMemberRole as updateMemberRole,
   setMemberTableAccess,
   unblockMember,
 } from '../lib/members'
-import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '../lib/roles'
+import { ROLE_DESCRIPTIONS, roleLabel } from '../lib/roles'
 import { searchSheetFlowUsers } from '../lib/userSearch'
 import { useToast } from '../context/ToastContext'
 import type { User } from '../types'
@@ -66,6 +68,7 @@ export default function MembersTeamsPanel({
   const [showAddMember, setShowAddMember] = useState(false)
   const [showAddTeam, setShowAddTeam] = useState(false)
   const [showTableAccess, setShowTableAccess] = useState<WorkspaceMember | null>(null)
+  const [showTeamAssign, setShowTeamAssign] = useState<WorkspaceMember | null>(null)
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
   const [cancelingInviteId, setCancelingInviteId] = useState<string | null>(null)
 
@@ -166,7 +169,7 @@ export default function MembersTeamsPanel({
   }
 
   function handleRoleChange(member: WorkspaceMember, role: MemberRole) {
-    if (!canManageMembers || member.role === 'owner') return
+    if (!canManageMembers || isWorkspaceCreatorMember(workspace, member)) return
     if (!user) return
     updateMemberRole(member.id, role, { id: user.userId, name: user.name })
     refresh()
@@ -176,6 +179,24 @@ export default function MembersTeamsPanel({
     if (!showTableAccess || !canManageMembers) return
     setMemberTableAccess(showTableAccess.id, tableIds)
     setShowTableAccess(null)
+    refresh()
+  }
+
+  function handleSaveTeamAssign(teamIds: string[]) {
+    if (!showTeamAssign || !user || (!canManageMembers && !canManageTeams)) return
+    const result = assignMemberTeams(
+      workspace,
+      workspace.id,
+      showTeamAssign.id,
+      teamIds,
+      { userId: user.userId, email: user.email },
+    )
+    if (!result.ok) {
+      toast.error(result.error ?? 'Failed to assign teams')
+      return
+    }
+    setShowTeamAssign(null)
+    toast.success('Teams updated')
     refresh()
   }
 
@@ -289,8 +310,8 @@ export default function MembersTeamsPanel({
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className="font-medium text-app-text">{member.name}</span>
-                          {(member.role === 'owner' || member.userId === workspace.ownerId) && (
-                            <span title="Workspace owner">
+                          {isWorkspaceCreatorMember(workspace, member) && (
+                            <span title="Workspace admin (creator)">
                               <Shield className="w-3 h-3 text-purple-400" />
                             </span>
                           )}
@@ -300,32 +321,63 @@ export default function MembersTeamsPanel({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {member.teamIds.length === 0 ? (
-                        <span className="text-xs text-app-faint">—</span>
-                      ) : (
-                        member.teamIds.map((tid) => {
-                          const team = teams.find((t) => t.id === tid)
-                          return team ? (
-                            <span key={tid} className="px-2 py-0.5 rounded text-xs bg-app-surface-active text-app-faint">
-                              {team.name}
-                            </span>
-                          ) : null
-                        })
-                      )}
-                    </div>
+                    {member.status === 'left' ? (
+                      <span className="text-xs text-app-faint">—</span>
+                    ) : canManageMembers || canManageTeams ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowTeamAssign(member)}
+                        className="text-left w-full group/teams"
+                      >
+                        {member.teamIds.length === 0 ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-brand-400 group-hover/teams:text-brand-300">
+                            <Users className="w-3.5 h-3.5" />
+                            Assign teams
+                          </span>
+                        ) : (
+                          <span className="inline-flex flex-wrap items-center gap-1">
+                            {member.teamIds.map((tid) => {
+                              const team = teams.find((t) => t.id === tid)
+                              return team ? (
+                                <span
+                                  key={tid}
+                                  className="px-2 py-0.5 rounded text-xs bg-app-surface-active text-app-faint group-hover/teams:bg-app-surface-hover"
+                                >
+                                  {team.name}
+                                </span>
+                              ) : null
+                            })}
+                          </span>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {member.teamIds.length === 0 ? (
+                          <span className="text-xs text-app-faint">—</span>
+                        ) : (
+                          member.teamIds.map((tid) => {
+                            const team = teams.find((t) => t.id === tid)
+                            return team ? (
+                              <span key={tid} className="px-2 py-0.5 rounded text-xs bg-app-surface-active text-app-faint">
+                                {team.name}
+                              </span>
+                            ) : null
+                          })
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {member.status === 'pending' ? (
                       <span className="inline-flex px-2 py-1 rounded-lg text-xs font-medium border bg-amber-900/30 text-amber-300 border-amber-800">
                         Invite pending
                       </span>
-                    ) : canManageMembers && member.role !== 'owner' && member.userId !== workspace.ownerId ? (
+                    ) : canManageMembers && !isWorkspaceCreatorMember(workspace, member) ? (
                       <select
                         value={
                           member.status === 'blocked'
                             ? 'no_access'
-                            : member.role === 'creator'
+                            : member.role === 'creator' || member.role === 'owner'
                               ? 'admin'
                               : member.role
                         }
@@ -339,7 +391,7 @@ export default function MembersTeamsPanel({
                       </select>
                     ) : (
                       <span className={`inline-flex px-2 py-1 rounded-lg text-xs font-medium border ${roleColors[member.role]}`}>
-                        {ROLE_LABELS[member.role]}
+                        {roleLabel(member.role)}
                       </span>
                     )}
                   </td>
@@ -361,7 +413,7 @@ export default function MembersTeamsPanel({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {member.role === 'owner' || member.userId === workspace.ownerId ? (
+                    {isWorkspaceCreatorMember(workspace, member) ? (
                       <span className="text-xs text-app-faint">All tables</span>
                     ) : member.status === 'pending' ? (
                       <span className="text-xs text-app-faint">Awaiting acceptance</span>
@@ -393,7 +445,7 @@ export default function MembersTeamsPanel({
                         >
                           {cancelingInviteId === member.id ? 'Canceling…' : 'Cancel invite'}
                         </button>
-                      ) : canRemoveMembers && member.role !== 'owner' && member.userId !== workspace.ownerId ? (
+                      ) : canRemoveMembers && !isWorkspaceCreatorMember(workspace, member) ? (
                         <>
                           <button
                             type="button"
@@ -462,7 +514,7 @@ export default function MembersTeamsPanel({
           <form onSubmit={handleAddMember} className="space-y-4">
             <p className="text-xs text-app-faint leading-relaxed">
               They&apos;ll receive an in-app notification to accept the invite. No email is sent.
-              Only you are the workspace Owner; invited users get the role you choose below.
+              Invites are sent in-app. Choose a role for the user you select below.
             </p>
             {addError && <p className="text-sm text-red-400">{addError}</p>}
             <Field label="Find user">
@@ -589,13 +641,72 @@ export default function MembersTeamsPanel({
         </Modal>
       )}
 
+      {showTeamAssign && (canManageMembers || canManageTeams) && (
+        <Modal
+          title={`Teams — ${showTeamAssign.name}`}
+          onClose={() => setShowTeamAssign(null)}
+        >
+          <p className="text-xs text-app-faint mb-4">
+            Assign this member to one or more teams. Changes apply immediately for active members.
+          </p>
+          <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
+            {teams.length === 0 ? (
+              <p className="text-sm text-app-faint">No teams yet. Create a team first.</p>
+            ) : (
+              teams.map((team) => (
+                <label
+                  key={team.id}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-app-surface-active cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={showTeamAssign.teamIds.includes(team.id)}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...showTeamAssign.teamIds, team.id]
+                        : showTeamAssign.teamIds.filter((id) => id !== team.id)
+                      setShowTeamAssign({ ...showTeamAssign, teamIds: next })
+                    }}
+                    className="rounded border-gray-600"
+                  />
+                  <span
+                    className="w-6 h-6 rounded text-[10px] font-bold flex items-center justify-center text-white shrink-0"
+                    style={{ backgroundColor: team.color }}
+                  >
+                    {getInitials(team.name)}
+                  </span>
+                  <span className="text-sm text-app-text">{team.name}</span>
+                </label>
+              ))
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowTeamAssign(null)}
+              className="px-4 py-2 rounded-lg text-sm text-app-faint hover:bg-app-surface-active"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSaveTeamAssign(showTeamAssign.teamIds)}
+              disabled={teams.length === 0}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 disabled:opacity-40"
+            >
+              Save teams
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {showTableAccess && canManageMembers && (
         <Modal
           title={`Table access — ${showTableAccess.name}`}
           onClose={() => setShowTableAccess(null)}
         >
           <p className="text-xs text-app-faint mb-4">
-            Select which tables this member can access. Only the workspace owner can assign table access.
+            Select which tables this member can access. Admins always have access to all tables.
           </p>
           <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
             {allTables.length === 0 ? (

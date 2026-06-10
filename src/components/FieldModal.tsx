@@ -37,7 +37,7 @@ interface FieldModalProps {
 
 const PERMISSIONS: { value: ColumnEditPermission; label: string }[] = [
   { value: 'everyone', label: 'Everyone with table access' },
-  { value: 'creators_only', label: 'Creators and owners only' },
+  { value: 'creators_only', label: 'Admins only' },
 ]
 
 export default function FieldModal({

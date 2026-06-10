@@ -99,7 +99,7 @@ export default function WorkspaceSettingsPanel({
   function handleLeave() {
     if (!user) return
     if (!workspace.settings.allowMembersToLeave) {
-      alert('The workspace owner has disabled leaving. Contact the owner to be removed.')
+      alert('The workspace admin has disabled leaving. Contact an admin to be removed.')
       return
     }
     if (!confirm('Leave this workspace? You will lose access unless re-invited.')) return
@@ -214,7 +214,7 @@ export default function WorkspaceSettingsPanel({
             <div>
               <p className="text-sm text-app-text">Allow members to leave on their own</p>
               <p className="text-xs text-app-faint mt-1">
-                When disabled, only you (the owner) can remove or block member access.
+                When disabled, only admins can remove or block member access.
               </p>
             </div>
           </label>
@@ -230,7 +230,7 @@ export default function WorkspaceSettingsPanel({
               <p className="text-xs text-app-faint mt-1">
                 {workspace.settings.allowMembersToLeave
                   ? 'You will no longer have access unless re-invited.'
-                  : 'Leaving is disabled by the workspace owner.'}
+                  : 'Leaving is disabled by the workspace admin.'}
               </p>
             </div>
             <button

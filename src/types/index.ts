@@ -71,7 +71,7 @@ export interface Workspace {
   createdAt: string
 }
 
-/** Spec: Owner, Admin, Editor, Viewer. `creator` is legacy alias for `admin`. */
+/** Admin, Editor, Viewer. `owner` and `creator` are legacy aliases for `admin`. */
 export type MemberRole = 'owner' | 'admin' | 'creator' | 'editor' | 'viewer' | 'no_access'
 export type MemberStatus = 'pending' | 'active' | 'blocked' | 'left'
 

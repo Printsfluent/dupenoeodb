@@ -24,7 +24,7 @@ import {
 } from './invites'
 import { logActivity } from './activity'
 import { createAppNotification } from './notifications'
-import { isAdminRole, normalizeMemberRole } from './roles'
+import { canEditRecords, isAdminRole, normalizeMemberRole } from './roles'
 
 const MEMBER_STATUS_RANK: Record<WorkspaceMember['status'], number> = {
   active: 4,
@@ -198,7 +198,7 @@ export function canEditFieldsInWorkspace(
 ): boolean {
   if (hasFullWorkspaceAccess(workspace, userId, email, workspaceId)) return true
   const member = getMemberForUser(workspaceId, userId, email)
-  return isActiveWorkspaceMember(member) && member.role === 'editor'
+  return isActiveWorkspaceMember(member) && canEditRecords(member.role)
 }
 
 /** @deprecated Use hasFullWorkspaceAccess */
@@ -212,7 +212,7 @@ export function canEditInWorkspace(
 ): boolean {
   if (hasFullWorkspaceAccess(workspace, userId, email, workspaceId)) return true
   const member = getMemberForUser(workspaceId, userId, email)
-  return isActiveWorkspaceMember(member) && member.role === 'editor'
+  return isActiveWorkspaceMember(member) && canEditRecords(member.role)
 }
 
 export function canViewInWorkspace(
@@ -254,16 +254,14 @@ export function canManageMembers(
   return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
 }
 
-/** Only the workspace owner (account that created it) can remove or block members. */
+/** Admins can remove, block, and moderate members (workspace creator is protected). */
 export function canRemoveWorkspaceMembers(
   workspace: { ownerId: string },
   userId: string,
   email: string,
   workspaceId: string,
 ): boolean {
-  if (isWorkspaceAccountOwner(workspace, userId)) return true
-  const member = getMemberForUser(workspaceId, userId, email)
-  return member?.role === 'owner' && member.status === 'active'
+  return hasFullWorkspaceAccess(workspace, userId, email, workspaceId)
 }
 
 export function getWorkspaceRoleLabel(
@@ -272,9 +270,16 @@ export function getWorkspaceRoleLabel(
   email: string,
   workspaceId: string,
 ): MemberRole {
-  if (isWorkspaceAccountOwner(workspace, userId)) return 'owner'
+  if (isWorkspaceAccountOwner(workspace, userId)) return 'admin'
   const member = getMemberForUser(workspaceId, userId, email)
-  return member?.role ?? 'viewer'
+  return member ? normalizeMemberRole(member.role) : 'viewer'
+}
+
+export function isWorkspaceCreatorMember(
+  workspace: { ownerId: string },
+  member: WorkspaceMember,
+): boolean {
+  return member.userId === workspace.ownerId
 }
 
 export function ensureUserIsOwner(
@@ -302,11 +307,15 @@ export function ensureUserIsOwner(
     return
   }
 
-  if (existing.role !== 'owner' || existing.status !== 'active' || existing.userId !== user.id) {
+  if (
+    normalizeMemberRole(existing.role) !== 'admin' ||
+    existing.status !== 'active' ||
+    existing.userId !== user.id
+  ) {
     updateMember({
       ...existing,
       userId: user.id,
-      role: 'owner',
+      role: 'admin',
       status: 'active',
       tableAccess: [],
     })
@@ -323,7 +332,7 @@ export function createOwnerMember(
     userId: user.id,
     email: user.email,
     name: user.name,
-    role: 'owner',
+    role: 'admin',
     status: 'active',
     teamIds: [],
     tableAccess: [],
@@ -632,9 +641,11 @@ export function setMemberRole(
   actor?: { id: string; name: string },
 ) {
   const member = getAllMembers().find((m) => m.id === memberId)
-  if (!member || member.role === 'owner') return
-  if (role === 'owner') return
-  const nextRole = role === 'creator' ? 'admin' : role
+  const workspace = member
+    ? getWorkspaces().find((w) => w.id === member.workspaceId)
+    : undefined
+  if (!member || !workspace || isWorkspaceCreatorMember(workspace, member)) return
+  const nextRole = normalizeMemberRole(role)
   updateMember({ ...member, role: nextRole })
   if (member.userId && actor) {
     createAppNotification({
@@ -655,8 +666,61 @@ export function setMemberRole(
 
 export function setMemberTableAccess(memberId: string, tableIds: string[]) {
   const member = getAllMembers().find((m) => m.id === memberId)
-  if (!member || member.role === 'owner') return
+  const workspace = member
+    ? getWorkspaces().find((w) => w.id === member.workspaceId)
+    : undefined
+  if (!member || !workspace || isWorkspaceCreatorMember(workspace, member)) return
   updateMember({ ...member, tableAccess: tableIds })
+}
+
+/** Assign teams to any workspace member (syncs team.memberIds). */
+export function setMemberTeams(
+  workspaceId: string,
+  memberId: string,
+  teamIds: string[],
+): { ok: boolean; error?: string } {
+  const member = getAllMembers().find((m) => m.id === memberId)
+  if (!member || member.workspaceId !== workspaceId) {
+    return { ok: false, error: 'Member not found' }
+  }
+  if (member.status === 'left') {
+    return { ok: false, error: 'Cannot assign teams to removed members' }
+  }
+
+  const workspaceTeams = getWorkspaceTeams(workspaceId)
+  const uniqueTeamIds = [
+    ...new Set(teamIds.filter((id) => workspaceTeams.some((team) => team.id === id))),
+  ]
+
+  updateMember({ ...member, teamIds: uniqueTeamIds })
+
+  workspaceTeams.forEach((team) => {
+    const shouldInclude = uniqueTeamIds.includes(team.id)
+    const hasMember = team.memberIds.includes(memberId)
+    if (shouldInclude && !hasMember) {
+      void persistTeam({ ...team, memberIds: [...team.memberIds, memberId] })
+    } else if (!shouldInclude && hasMember) {
+      void persistTeam({
+        ...team,
+        memberIds: team.memberIds.filter((id) => id !== memberId),
+      })
+    }
+  })
+
+  return { ok: true }
+}
+
+export function assignMemberTeams(
+  workspace: { ownerId: string },
+  workspaceId: string,
+  memberId: string,
+  teamIds: string[],
+  actor: { userId: string; email: string },
+): { ok: boolean; error?: string } {
+  if (!hasFullWorkspaceAccess(workspace, actor.userId, actor.email, workspaceId)) {
+    return { ok: false, error: 'You do not have permission to assign teams' }
+  }
+  return setMemberTeams(workspaceId, memberId, teamIds)
 }
 
 export function blockMember(
@@ -667,7 +731,7 @@ export function blockMember(
     return
   }
   const member = getAllMembers().find((m) => m.id === memberId)
-  if (!member || member.role === 'owner') return
+  if (!member) return
   if (actor && member.userId === actor.workspace.ownerId) return
   updateMember({ ...member, status: 'blocked', role: 'no_access' })
 }
@@ -680,8 +744,12 @@ export function unblockMember(
     return
   }
   const member = getAllMembers().find((m) => m.id === memberId)
-  if (!member || member.role === 'owner') return
-  updateMember({ ...member, status: 'active', role: member.role === 'no_access' ? 'viewer' : member.role })
+  if (!member) return
+  updateMember({
+    ...member,
+    status: 'active',
+    role: member.role === 'no_access' ? 'viewer' : normalizeMemberRole(member.role),
+  })
 }
 
 export function removeMember(
@@ -692,7 +760,7 @@ export function removeMember(
     return
   }
   const member = getAllMembers().find((m) => m.id === memberId)
-  if (!member || member.role === 'owner') return
+  if (!member) return
   if (actor && member.userId === actor.workspace.ownerId) return
   cancelInviteByMemberId(memberId)
   updateMember({ ...member, status: 'left' })
@@ -708,7 +776,10 @@ export function removeMember(
 
 export function memberLeaveWorkspace(workspaceId: string, userId: string) {
   const member = getMemberByUser(workspaceId, userId)
-  if (!member || member.role === 'owner') return { ok: false, error: 'Owners cannot leave' }
+  const workspace = getWorkspaces().find((w) => w.id === workspaceId)
+  if (!member || (workspace && isWorkspaceAccountOwner(workspace, userId))) {
+    return { ok: false, error: 'Workspace admins cannot leave — transfer or delete the workspace instead' }
+  }
   removeMember(member.id)
   return { ok: true }
 }
