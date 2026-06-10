@@ -1,12 +1,16 @@
 import { Paperclip, Star, User, MapPin, Braces } from 'lucide-react'
-import type { ColumnType } from '../types'
+import type { ColumnType, SelectOption } from '../types'
 import { normalizeColumnType } from '../lib/fieldTypes'
+import { findSelectOption, parseMultiSelectValue } from '../lib/selectOptions'
+import SelectOptionBadge from './SelectOptionBadge'
 import { formatDateTimeDisplay } from '../lib/dates'
 import { extractLinkHref } from '../lib/links'
 
 interface CellValueDisplayProps {
   type: ColumnType
   value: string
+  options?: SelectOption[]
+  colorCodeOptions?: boolean
   dark?: boolean
   emptyText: string
   cellText: string
@@ -15,6 +19,8 @@ interface CellValueDisplayProps {
 export default function CellValueDisplay({
   type,
   value,
+  options = [],
+  colorCodeOptions = true,
   dark,
   emptyText,
   cellText,
@@ -124,6 +130,34 @@ export default function CellValueDisplay({
 
     case 'geometry':
       return <span className={`${cellText} font-mono text-xs`}>{value}</span>
+
+    case 'singleSelect': {
+      const option = findSelectOption(options, value)
+      if (!option) return <span className={cellText}>{value}</span>
+      return colorCodeOptions ? (
+        <SelectOptionBadge label={option.label} color={option.color} dark={dark} />
+      ) : (
+        <span className={cellText}>{option.label}</span>
+      )
+    }
+
+    case 'multiSelect': {
+      const ids = parseMultiSelectValue(value)
+      if (!ids.length) return <span className={emptyText}>Empty</span>
+      return (
+        <span className="inline-flex flex-wrap gap-1">
+          {ids.map((id) => {
+            const option = findSelectOption(options, id)
+            if (!option) return <span key={id} className={cellText}>{id}</span>
+            return colorCodeOptions ? (
+              <SelectOptionBadge key={id} label={option.label} color={option.color} dark={dark} compact />
+            ) : (
+              <span key={id} className={`${cellText} text-xs`}>{option.label}</span>
+            )
+          })}
+        </span>
+      )
+    }
 
     default:
       if (value === 'Active' || value === 'Lead' || value === 'Churned') {

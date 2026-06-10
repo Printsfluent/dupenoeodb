@@ -7,7 +7,8 @@ import FieldContextMenu from './FieldContextMenu'
 import FieldModal from './FieldModal'
 import CellValueDisplay from './CellValueDisplay'
 import CellValueEditor, { RatingInput, getCellInteraction } from './CellValueEditor'
-import { normalizeColumnType } from '../lib/fieldTypes'
+import { isSelectFieldType, normalizeColumnType } from '../lib/fieldTypes'
+import { defaultSelectOptions, getDefaultCellValue } from '../lib/selectOptions'
 import { extractLinkHref, openLink } from '../lib/links'
 import { useTheme } from '../context/ThemeContext'
 
@@ -15,6 +16,8 @@ interface SpreadsheetGridProps {
   table: Table
   onChange: (table: Table) => void
   dark?: boolean
+  readOnly?: boolean
+  canModifySchema?: boolean
   onAddRow?: () => boolean
 }
 
@@ -29,7 +32,14 @@ interface ViewState {
   showHidden: boolean
 }
 
-export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAddRow }: SpreadsheetGridProps) {
+export default function SpreadsheetGrid({
+  table,
+  onChange,
+  dark: darkProp,
+  readOnly = false,
+  canModifySchema = true,
+  onAddRow,
+}: SpreadsheetGridProps) {
   const { theme } = useTheme()
   const dark = darkProp ?? theme === 'dark'
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null)
@@ -84,9 +94,13 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
     if (onAddRow && !onAddRow()) return
     const cells: Record<string, string> = {}
     table.columns.forEach((col) => {
-      cells[col.id] = normalizeColumnType(col.type) === 'autoNumber'
-        ? getNextAutoNumber(col.id)
-        : ''
+      if (normalizeColumnType(col.type) === 'autoNumber') {
+        cells[col.id] = getNextAutoNumber(col.id)
+      } else if (isSelectFieldType(col.type)) {
+        cells[col.id] = getDefaultCellValue(col)
+      } else {
+        cells[col.id] = ''
+      }
     })
     onChange({
       ...table,
@@ -95,12 +109,14 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
   }
 
   function activateCellEdit(row: Row, col: Column) {
+    if (readOnly) return
     const interaction = getCellInteraction(col.type)
     if (interaction === 'readonly' || interaction === 'inline-rating') return
     setEditingCell({ rowId: row.id, colId: col.id })
   }
 
   function handleCellClick(row: Row, col: Column, value: string) {
+    if (readOnly) return
     const interaction = getCellInteraction(col.type)
     if (interaction === 'toggle') {
       const checked = value === 'true' || value === '1' || value.toLowerCase() === 'yes'
@@ -316,10 +332,25 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
 
           return (
             <td key={col.id} className={`px-0 py-0 border-r ${cellBorder}`}>
-              {isEditing ? (
+              {readOnly ? (
+                <div className="w-full text-left px-3 py-2 min-h-[36px]" title={col.description}>
+                  <CellValueDisplay
+                    type={col.type}
+                    value={value}
+                    options={col.options}
+                    colorCodeOptions={col.colorCodeOptions}
+                    dark={dark}
+                    emptyText={emptyText}
+                    cellText={cellText}
+                  />
+                </div>
+              ) : isEditing ? (
                 <CellValueEditor
                   type={col.type}
                   value={value}
+                  options={col.options}
+                  colorCodeOptions={col.colorCodeOptions}
+                  alphabetizeOptions={col.alphabetizeOptions}
                   dark={dark}
                   onChange={(next) => updateCell(row.id, col.id, next)}
                   onDone={() => setEditingCell(null)}
@@ -356,6 +387,8 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
                   <CellValueDisplay
                     type={col.type}
                     value={value}
+                    options={col.options}
+                    colorCodeOptions={col.colorCodeOptions}
                     dark={dark}
                     emptyText={emptyText}
                     cellText={cellText}
@@ -366,15 +399,17 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
           )
         })}
         <td className="px-2 w-10">
-          <button
-            type="button"
-            onClick={() => deleteRow(row.id)}
-            className="p-1.5 text-gray-600 hover:text-red-400 opacity-40 group-hover:opacity-100 transition-all rounded"
-            aria-label="Delete row"
-            title="Delete row"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => deleteRow(row.id)}
+              className="p-1.5 text-gray-600 hover:text-red-400 opacity-40 group-hover:opacity-100 transition-all rounded"
+              aria-label="Delete row"
+              title="Delete row"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </td>
       </tr>
     )
@@ -383,14 +418,18 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
   return (
     <div className="flex flex-col h-full">
       <div className={`flex items-center justify-between px-4 py-3 border-b ${toolbar}`}>
-        <EditableName
-          value={table.name}
-          onChange={renameTable}
-          placeholder="Table name"
-          className={`font-semibold ${title}`}
-          inputClassName="text-sm font-semibold min-w-[160px]"
-          dark={dark}
-        />
+        {canModifySchema ? (
+          <EditableName
+            value={table.name}
+            onChange={renameTable}
+            placeholder="Table name"
+            className={`font-semibold ${title}`}
+            inputClassName="text-sm font-semibold min-w-[160px]"
+            dark={dark}
+          />
+        ) : (
+          <span className={`font-semibold text-sm ${title}`}>{table.name}</span>
+        )}
         <div className="flex items-center gap-2">
           {hiddenCount > 0 && (
             <button
@@ -416,22 +455,26 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
               Clear view
             </button>
           )}
-          <button
-            type="button"
-            onClick={addColumn}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${addColBtn}`}
-          >
-            <Columns3 className="w-4 h-4" />
-            Add column
-          </button>
-          <button
-            type="button"
-            onClick={addRow}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 rounded-lg transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add row
-          </button>
+          {canModifySchema && (
+            <button
+              type="button"
+              onClick={addColumn}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${addColBtn}`}
+            >
+              <Columns3 className="w-4 h-4" />
+              Add column
+            </button>
+          )}
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={addRow}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add row
+            </button>
+          )}
         </div>
       </div>
 
@@ -483,7 +526,7 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
         {processedRows.length === 0 && (
           <div className={`flex flex-col items-center justify-center py-16 ${thText}`}>
             <p className="text-sm">{table.rows.length === 0 ? 'No rows yet' : 'No rows match the current filter'}</p>
-            {table.rows.length === 0 ? (
+            {table.rows.length === 0 && !readOnly ? (
               <button
                 type="button"
                 onClick={addRow}
@@ -491,7 +534,7 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
               >
                 Add your first row
               </button>
-            ) : (
+            ) : table.rows.length > 0 ? (
               <button
                 type="button"
                 onClick={clearViewOverrides}
@@ -499,7 +542,7 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
               >
                 Clear filter
               </button>
-            )}
+            ) : null}
           </div>
         )}
       </div>
@@ -509,6 +552,7 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
           column={activeColumn}
           anchorRect={fieldMenu.rect}
           canDelete={table.columns.length > 1}
+          schemaEditable={canModifySchema}
           onClose={() => setFieldMenu(null)}
           onEditField={() => setFieldModal({ columnId: activeColumn.id, mode: 'edit' })}
           onDuplicateField={() => duplicateColumn(activeColumn.id)}
@@ -538,14 +582,35 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
           description={modalColumn.description}
           editPermission={modalColumn.editPermission}
           filterValue={view.filterColumnId === modalColumn.id ? view.filterValue : ''}
+          options={modalColumn.options}
+          colorCodeOptions={modalColumn.colorCodeOptions}
+          alphabetizeOptions={modalColumn.alphabetizeOptions}
+          defaultValue={modalColumn.defaultValue}
           onClose={() => setFieldModal(null)}
           onConfirm={(value) => {
             if (fieldModal.mode === 'edit') {
               const newType = value.type ?? modalColumn.type
               const newName = value.name ?? modalColumn.name
-              const updatedColumns = table.columns.map((col) =>
-                col.id === modalColumn.id ? { ...col, name: newName, type: newType } : col,
-              )
+              const updatedColumns = table.columns.map((col) => {
+                if (col.id !== modalColumn.id) return col
+                const next: Column = { ...col, name: newName, type: newType }
+                if (isSelectFieldType(newType)) {
+                  next.options = value.options?.length
+                    ? value.options
+                    : col.options?.length
+                      ? col.options
+                      : defaultSelectOptions()
+                  next.colorCodeOptions = value.colorCodeOptions ?? true
+                  next.alphabetizeOptions = value.alphabetizeOptions ?? false
+                  next.defaultValue = value.defaultValue ?? ''
+                } else {
+                  delete next.options
+                  delete next.colorCodeOptions
+                  delete next.alphabetizeOptions
+                  delete next.defaultValue
+                }
+                return next
+              })
               let updatedRows = table.rows
               if (normalizeColumnType(newType) === 'autoNumber') {
                 updatedRows = table.rows.map((row, index) => ({
@@ -555,6 +620,18 @@ export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAdd
                     [modalColumn.id]: row.cells[modalColumn.id] || String(index + 1),
                   },
                 }))
+              } else if (isSelectFieldType(newType) && value.defaultValue) {
+                const defaultCell = getDefaultCellValue({ type: newType, defaultValue: value.defaultValue })
+                if (defaultCell) {
+                  updatedRows = table.rows.map((row) => {
+                    const current = row.cells[modalColumn.id] ?? ''
+                    if (current.trim()) return row
+                    return {
+                      ...row,
+                      cells: { ...row.cells, [modalColumn.id]: defaultCell },
+                    }
+                  })
+                }
               }
               onChange({ ...table, columns: updatedColumns, rows: updatedRows })
             }

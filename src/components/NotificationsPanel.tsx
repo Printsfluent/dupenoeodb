@@ -1,14 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, X, UserPlus, Check, XCircle } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { useData } from '../context/DataContext'
-import {
-  acceptWorkspaceInvite,
-  declineWorkspaceInvite,
-} from '../lib/members'
-import { getPendingInvitesForUser, getPendingInviteCount } from '../lib/invites'
-import type { WorkspaceInvite } from '../types'
+import { acceptWorkspaceInvite, declineWorkspaceInvite } from '../lib/members'
+import { usePendingInvites } from '../hooks/usePendingInvites'
+import WorkspaceInviteItem from './WorkspaceInviteItem'
 
 interface NotificationsPanelProps {
   onClose: () => void
@@ -41,20 +37,12 @@ export function NotificationBell({
 
 export default function NotificationsPanel({ onClose, onUpdate }: NotificationsPanelProps) {
   const { user } = useAuth()
-  const { cacheVersion } = useData()
   const navigate = useNavigate()
-  const [invites, setInvites] = useState<WorkspaceInvite[]>([])
+  const { invites, refresh: refreshInvites } = usePendingInvites(user?.userId, user?.email)
   const [acting, setActing] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (user) {
-      setInvites(getPendingInvitesForUser(user.userId, user.email))
-    }
-  }, [user, cacheVersion])
-
   function refresh() {
-    if (!user) return
-    setInvites(getPendingInvitesForUser(user.userId, user.email))
+    refreshInvites()
     onUpdate()
   }
 
@@ -105,42 +93,16 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
               <p className="text-sm text-app-muted">No new notifications</p>
             </div>
           ) : (
-            <ul className="divide-y divide-[#2a2a2a]">
+            <ul className="divide-y divide-app-border">
               {invites.map((invite) => (
                 <li key={invite.id} className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center shrink-0">
-                      <UserPlus className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-app-text">Workspace invite</p>
-                      <p className="text-xs text-app-muted mt-1">
-                        <span className="text-app-text">{invite.invitedByName}</span> invited you to join{' '}
-                        <span className="text-app-text font-medium">{invite.workspaceName}</span> as{' '}
-                        <span className="capitalize">{invite.role}</span>
-                      </p>
-                      <div className="flex gap-2 mt-3">
-                        <button
-                          type="button"
-                          disabled={acting === invite.id}
-                          onClick={() => handleAccept(invite.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500 text-white text-xs font-medium hover:bg-brand-600 disabled:opacity-50"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          Accept
-                        </button>
-                        <button
-                          type="button"
-                          disabled={acting === invite.id}
-                          onClick={() => handleDecline(invite.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-app-border text-app-muted text-xs font-medium hover:bg-app-surface-active disabled:opacity-50"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          Decline
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <p className="text-sm font-medium text-app-text mb-2">Workspace invite</p>
+                  <WorkspaceInviteItem
+                    invite={invite}
+                    acting={acting === invite.id}
+                    onAccept={handleAccept}
+                    onDecline={handleDecline}
+                  />
                 </li>
               ))}
             </ul>
@@ -151,17 +113,4 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
   )
 }
 
-export function useInviteCount(userId: string | undefined, email: string | undefined) {
-  const { cacheVersion } = useData()
-  const [count, setCount] = useState(0)
-
-  useEffect(() => {
-    if (userId && email) {
-      setCount(getPendingInviteCount(userId, email))
-    } else {
-      setCount(0)
-    }
-  }, [userId, email, cacheVersion])
-
-  return { count, refresh: () => userId && email && setCount(getPendingInviteCount(userId, email)) }
-}
+export { useInviteCount } from '../hooks/usePendingInvites'

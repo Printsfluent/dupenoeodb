@@ -12,8 +12,10 @@ export default function EmptyHomePage() {
           Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
         </h1>
         <p className="mt-3 text-sm text-app-muted leading-relaxed">
-          Your workspace is empty. Create a new workspace from the sidebar, or accept a workspace invite
-          from the bell icon{inviteCount > 0 ? ` (${inviteCount} pending)` : ''}.
+          Your workspace is empty. Create a new workspace from the sidebar
+          {inviteCount > 0
+            ? ', or accept a pending invite from the banner at the top of the page.'
+            : '.'}
         </p>
       </div>
     </div>

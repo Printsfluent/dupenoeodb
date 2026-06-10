@@ -19,9 +19,11 @@ import {
   repairWorkspaceForUser,
 } from '../lib/storage'
 import {
+  canCreateInWorkspace,
+  canInviteToWorkspace,
   canManageMembers,
+  canManageTeams,
   getMemberForUser,
-  hasWorkspaceFullAccess,
 } from '../lib/members'
 import { sheetsToTables } from '../lib/importSpreadsheet'
 import { canCreateBase } from '../lib/planLimits'
@@ -40,8 +42,14 @@ export default function WorkspacePage() {
   const [showCreateBase, setShowCreateBase] = useState(false)
   const [showImport, setShowImport] = useState(false)
 
-  const hasFullAccess = workspace && user
-    ? hasWorkspaceFullAccess(workspace, user.userId, user.email, workspace.id)
+  const canCreate = workspace && user
+    ? canCreateInWorkspace(workspace, user.userId, user.email, workspace.id)
+    : false
+  const canInvite = workspace && user
+    ? canInviteToWorkspace(workspace, user.userId, user.email, workspace.id)
+    : false
+  const canManageTeamsAccess = workspace && user
+    ? canManageTeams(workspace, user.userId, user.email, workspace.id)
     : false
   const canManage = workspace && user
     ? canManageMembers(workspace, user.userId, user.email, workspace.id)
@@ -69,7 +77,7 @@ export default function WorkspacePage() {
   }
 
   function handleCreateBase() {
-    if (!hasFullAccess || !workspaceId || !user) return
+    if (!canCreate || !workspaceId || !user) return
     const check = canCreateBase(workspaceId, user.plan)
     if (!check.ok) {
       alert(check.error)
@@ -79,7 +87,7 @@ export default function WorkspacePage() {
   }
 
   function handleConfirmCreateBase(name: string) {
-    if (!user || !workspaceId || !hasFullAccess) return
+    if (!user || !workspaceId || !canCreate) return
     const check = canCreateBase(workspaceId, user.plan)
     if (!check.ok) {
       alert(check.error)
@@ -93,7 +101,7 @@ export default function WorkspacePage() {
   }
 
   function handleRenameBase(baseId: string, name: string) {
-    if (!hasFullAccess) return
+    if (!canCreate) return
     const base = bases.find((b) => b.id === baseId)
     if (!base) return
     upsertBase({ ...base, name })
@@ -102,14 +110,14 @@ export default function WorkspacePage() {
 
   function handleDeleteBase(e: React.MouseEvent, baseId: string) {
     e.stopPropagation()
-    if (!hasFullAccess) return
+    if (!canCreate) return
     if (!confirm('Delete this base and all its data?')) return
     deleteBase(baseId)
     refreshBases()
   }
 
   function handleImport(sheets: ParsedSheet[], baseName?: string) {
-    if (!user || !workspaceId || !baseName || !hasFullAccess) return
+    if (!user || !workspaceId || !baseName || !canCreate) return
     const check = canCreateBase(workspaceId, user.plan)
     if (!check.ok) {
       alert(check.error)
@@ -129,7 +137,7 @@ export default function WorkspacePage() {
   }
 
   function handleAction(actionId: string) {
-    if (!hasFullAccess) return
+    if (!canCreate) return
     if (actionId === 'create-base') handleCreateBase()
     if (actionId === 'import') setShowImport(true)
   }
@@ -155,16 +163,16 @@ export default function WorkspacePage() {
       <main className="flex-1 overflow-y-auto p-8">
         {activeTab === 'bases' && (
           <div className="max-w-3xl">
-            {hasFullAccess ? (
+            {canCreate ? (
               <DataActions onAction={handleAction} />
             ) : (
               <p className="text-sm text-gray-500 mb-6">
-                You have access to assigned tables in this workspace.
+                Open a base below to view or edit data based on your role.
               </p>
             )}
 
             {bases.length > 0 && (
-              <div className={hasFullAccess ? 'mt-12' : ''}>
+              <div className={canCreate ? 'mt-12' : ''}>
                 <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
                   Your Bases
                 </h2>
@@ -184,7 +192,7 @@ export default function WorkspacePage() {
                         <Table2 className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-                        {hasFullAccess ? (
+                        {canCreate ? (
                           <EditableName
                             value={base.name}
                             onChange={(name) => handleRenameBase(base.id, name)}
@@ -200,7 +208,7 @@ export default function WorkspacePage() {
                           {base.tables.length} table{base.tables.length !== 1 ? 's' : ''} · {base.id.slice(0, 8)}
                         </p>
                       </div>
-                      {hasFullAccess && (
+                      {canCreate && (
                         <button
                           type="button"
                           onClick={(e) => handleDeleteBase(e, base.id)}
@@ -222,7 +230,9 @@ export default function WorkspacePage() {
           <MembersTeamsPanel
             workspace={workspace}
             bases={bases}
-            isOwner={canManage}
+            canManageMembers={canManage}
+            canInvite={canInvite}
+            canManageTeams={canManageTeamsAccess}
             onRefresh={refreshBases}
           />
         )}

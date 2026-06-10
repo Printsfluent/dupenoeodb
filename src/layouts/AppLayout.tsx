@@ -18,6 +18,7 @@ import PlanBadge from '../components/PlanBadge'
 import { canCreateWorkspace } from '../lib/planLimits'
 import { useData } from '../context/DataContext'
 import NotificationsPanel, { NotificationBell, useInviteCount } from '../components/NotificationsPanel'
+import PendingInvitesBanner from '../components/PendingInvitesBanner'
 import ThemeToggle from '../components/ThemeToggle'
 import { useTheme } from '../context/ThemeContext'
 import type { Workspace } from '../types'
@@ -242,6 +243,14 @@ export default function AppLayout() {
           <div className="shrink-0 px-4 py-2 bg-amber-900/40 border-b border-amber-800/50 text-xs text-amber-200 text-center">
             You&apos;re offline. Cached data is available and changes will sync when you reconnect.
           </div>
+        )}
+        {user && (
+          <PendingInvitesBanner
+            onUpdate={() => {
+              refreshInviteCount()
+              refreshWorkspaces()
+            }}
+          />
         )}
         <Outlet />
       </div>

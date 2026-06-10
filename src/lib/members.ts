@@ -63,7 +63,11 @@ export function isWorkspaceOwner(_workspaceId: string, userId: string, ownerId: 
   return !!ownerId && ownerId === userId
 }
 
-export function hasWorkspaceFullAccess(
+function isActiveWorkspaceMember(member: WorkspaceMember | undefined): member is WorkspaceMember {
+  return !!member && member.status === 'active' && member.role !== 'no_access'
+}
+
+export function canCreateInWorkspace(
   workspace: { ownerId: string },
   userId: string,
   email: string,
@@ -71,8 +75,53 @@ export function hasWorkspaceFullAccess(
 ): boolean {
   if (isWorkspaceOwner(workspaceId, userId, workspace.ownerId)) return true
   const member = getMemberForUser(workspaceId, userId, email)
-  if (!member || member.status !== 'active' || member.role === 'no_access') return false
-  return member.role === 'owner' || member.role === 'creator'
+  return isActiveWorkspaceMember(member) && member.role === 'creator'
+}
+
+/** @deprecated Use canCreateInWorkspace */
+export const hasWorkspaceFullAccess = canCreateInWorkspace
+
+export function canEditInWorkspace(
+  workspace: { ownerId: string },
+  userId: string,
+  email: string,
+  workspaceId: string,
+): boolean {
+  if (isWorkspaceOwner(workspaceId, userId, workspace.ownerId)) return true
+  const member = getMemberForUser(workspaceId, userId, email)
+  return isActiveWorkspaceMember(member) && (member.role === 'creator' || member.role === 'editor')
+}
+
+export function canViewInWorkspace(
+  workspace: { ownerId: string },
+  userId: string,
+  email: string,
+  workspaceId: string,
+): boolean {
+  if (isWorkspaceOwner(workspaceId, userId, workspace.ownerId)) return true
+  const member = getMemberForUser(workspaceId, userId, email)
+  if (!member || member.status === 'blocked' || member.role === 'no_access') return false
+  return member.status === 'active'
+}
+
+export function canInviteToWorkspace(
+  workspace: { ownerId: string },
+  userId: string,
+  email: string,
+  workspaceId: string,
+): boolean {
+  if (isWorkspaceOwner(workspaceId, userId, workspace.ownerId)) return true
+  const member = getMemberForUser(workspaceId, userId, email)
+  return isActiveWorkspaceMember(member) && member.role === 'creator'
+}
+
+export function canManageTeams(
+  workspace: { ownerId: string },
+  userId: string,
+  email: string,
+  workspaceId: string,
+): boolean {
+  return canInviteToWorkspace(workspace, userId, email, workspaceId)
 }
 
 export function canManageMembers(
@@ -162,8 +211,17 @@ export function sendWorkspaceInvite(
   const workspace = getWorkspaces().find((w) => w.id === workspaceId)
   if (!workspace) return { ok: false, error: 'Workspace not found' }
 
+  if (!canInviteToWorkspace(workspace, invitedBy.id, invitedBy.email, workspaceId)) {
+    return { ok: false, error: 'You do not have permission to invite members' }
+  }
+
+  const inviteRole = role === 'owner' ? 'creator' : role
+  if (!['creator', 'editor', 'viewer'].includes(inviteRole)) {
+    return { ok: false, error: 'Invalid role for invite' }
+  }
+
   const matchedUser = getUsers().find((u) => u.email === trimmed)
-  const memberRole = role === 'owner' ? 'creator' : role
+  const memberRole = inviteRole as MemberRole
 
   const member: WorkspaceMember = {
     id: createId(),
@@ -360,12 +418,12 @@ export function getUserMemberWorkspaceIds(userId: string, email: string): string
 export function memberCanAccessTable(
   member: WorkspaceMember | undefined,
   tableId: string,
-  fullAccess: boolean,
+  canCreate: boolean,
 ): boolean {
-  if (fullAccess) return true
+  if (canCreate) return true
   if (!member || member.status === 'blocked' || member.role === 'no_access') return false
   if (member.role === 'owner' || member.role === 'creator') return true
-  if (member.tableAccess.length === 0) return false
+  if (member.tableAccess.length === 0) return true
   return member.tableAccess.includes(tableId)
 }
 

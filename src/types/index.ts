@@ -13,14 +13,22 @@ export type ColumnType =
   | 'geoData'
   | 'json'
   | 'user'
+  | 'singleSelect'
+  | 'multiSelect'
   /** @deprecated Use singleLineText */
   | 'text'
-  /** @deprecated Use singleLineText */
+  /** @deprecated Use singleSelect */
   | 'select'
   /** @deprecated Use dateTime */
   | 'date'
 
 export type ColumnEditPermission = 'everyone' | 'creators_only'
+
+export interface SelectOption {
+  id: string
+  label: string
+  color: string
+}
 
 export interface Column {
   id: string
@@ -30,6 +38,10 @@ export interface Column {
   hidden?: boolean
   isDisplayValue?: boolean
   editPermission?: ColumnEditPermission
+  options?: SelectOption[]
+  colorCodeOptions?: boolean
+  alphabetizeOptions?: boolean
+  defaultValue?: string
 }
 
 export interface Row {
@@ -58,7 +70,7 @@ export interface Workspace {
   createdAt: string
 }
 
-export type MemberRole = 'owner' | 'creator' | 'viewer' | 'no_access'
+export type MemberRole = 'owner' | 'creator' | 'editor' | 'viewer' | 'no_access'
 export type MemberStatus = 'pending' | 'active' | 'blocked' | 'left'
 
 export type InviteStatus = 'pending' | 'accepted' | 'declined'

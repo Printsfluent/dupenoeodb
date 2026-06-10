@@ -11,6 +11,7 @@ interface FieldContextMenuProps {
   column: Column
   anchorRect: DOMRect
   canDelete: boolean
+  schemaEditable?: boolean
   onClose: () => void
   onEditField: () => void
   onDuplicateField: () => void
@@ -67,6 +68,7 @@ export default function FieldContextMenu({
   column,
   anchorRect,
   canDelete,
+  schemaEditable = true,
   onClose,
   onEditField,
   onDuplicateField,
@@ -133,22 +135,26 @@ export default function FieldContextMenu({
         </button>
       </div>
 
-      <MenuItem icon={Pencil} label="Edit field" onClick={() => { onEditField(); onClose() }} />
-      <MenuItem icon={Copy} label="Duplicate field" onClick={() => { onDuplicateField(); onClose() }} />
-      <MenuItem icon={AlignLeft} label="Edit field description" onClick={() => { onEditDescription(); onClose() }} />
-      <MenuItem icon={Lock} label="Edit field permissions" onClick={() => { onEditPermissions(); onClose() }} />
+      {schemaEditable && (
+        <>
+          <MenuItem icon={Pencil} label="Edit field" onClick={() => { onEditField(); onClose() }} />
+          <MenuItem icon={Copy} label="Duplicate field" onClick={() => { onDuplicateField(); onClose() }} />
+          <MenuItem icon={AlignLeft} label="Edit field description" onClick={() => { onEditDescription(); onClose() }} />
+          <MenuItem icon={Lock} label="Edit field permissions" onClick={() => { onEditPermissions(); onClose() }} />
 
-      <Divider />
+          <Divider />
 
-      <MenuItem icon={EyeOff} label="Hide field" onClick={() => { onHideField(); onClose() }} />
-      <MenuItem
-        icon={Star}
-        label="Set as display value"
-        onClick={() => { onSetDisplayValue(); onClose() }}
-        disabled={column.isDisplayValue}
-      />
+          <MenuItem icon={EyeOff} label="Hide field" onClick={() => { onHideField(); onClose() }} />
+          <MenuItem
+            icon={Star}
+            label="Set as display value"
+            onClick={() => { onSetDisplayValue(); onClose() }}
+            disabled={column.isDisplayValue}
+          />
 
-      <Divider />
+          <Divider />
+        </>
+      )}
 
       <MenuItem icon={ArrowUpNarrowWide} label="Sort ascending" onClick={() => { onSortAscending(); onClose() }} />
       <MenuItem icon={ArrowDownNarrowWide} label="Sort descending" onClick={() => { onSortDescending(); onClose() }} />
@@ -158,20 +164,24 @@ export default function FieldContextMenu({
       <MenuItem icon={Filter} label="Filter by this field" onClick={() => { onFilter(); onClose() }} />
       <MenuItem icon={Group} label="Group by this field" onClick={() => { onGroup(); onClose() }} />
 
-      <Divider />
+      {schemaEditable && (
+        <>
+          <Divider />
 
-      <MenuItem icon={PanelRight} label="Insert right" onClick={() => { onInsertRight(); onClose() }} />
-      <MenuItem icon={PanelLeft} label="Insert left" onClick={() => { onInsertLeft(); onClose() }} />
+          <MenuItem icon={PanelRight} label="Insert right" onClick={() => { onInsertRight(); onClose() }} />
+          <MenuItem icon={PanelLeft} label="Insert left" onClick={() => { onInsertLeft(); onClose() }} />
 
-      <Divider />
+          <Divider />
 
-      <MenuItem
-        icon={Trash2}
-        label="Delete field"
-        onClick={() => { onDeleteField(); onClose() }}
-        danger
-        disabled={!canDelete}
-      />
+          <MenuItem
+            icon={Trash2}
+            label="Delete field"
+            onClick={() => { onDeleteField(); onClose() }}
+            danger
+            disabled={!canDelete}
+          />
+        </>
+      )}
     </div>
   )
 }

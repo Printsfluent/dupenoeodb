@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Type, AlignLeft, Hash, Percent, Paperclip, SquareCheck,
   Star, Palette, CalendarClock, Shapes, MapPin, Braces, User,
+  ListChecks, CircleChevronDown,
 } from 'lucide-react'
 import type { ColumnType } from '../types'
 
@@ -20,6 +21,8 @@ export const FIELD_TYPE_OPTIONS: FieldTypeOption[] = [
   { value: 'decimal', label: 'Decimal', icon: Percent, group: 'basic' },
   { value: 'attachment', label: 'Attachment', icon: Paperclip, group: 'basic' },
   { value: 'checkbox', label: 'Checkbox', icon: SquareCheck, group: 'basic' },
+  { value: 'singleSelect', label: 'Single select', icon: CircleChevronDown, group: 'basic' },
+  { value: 'multiSelect', label: 'Multi select', icon: ListChecks, group: 'basic' },
   { value: 'rating', label: 'Rating', icon: Star, group: 'advanced' },
   { value: 'colour', label: 'Colour', icon: Palette, group: 'advanced' },
   { value: 'dateTime', label: 'Date time', icon: CalendarClock, group: 'advanced' },
@@ -31,8 +34,13 @@ export const FIELD_TYPE_OPTIONS: FieldTypeOption[] = [
 
 const LEGACY_TYPE_MAP: Record<string, ColumnType> = {
   text: 'singleLineText',
-  select: 'singleLineText',
+  select: 'singleSelect',
   date: 'dateTime',
+}
+
+export function isSelectFieldType(type: ColumnType): boolean {
+  const normalized = normalizeColumnType(type)
+  return normalized === 'singleSelect' || normalized === 'multiSelect'
 }
 
 export function normalizeColumnType(type: ColumnType): ColumnType {

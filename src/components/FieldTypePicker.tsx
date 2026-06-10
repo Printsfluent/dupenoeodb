@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react'
 import type { ColumnType } from '../types'
 import { FIELD_TYPE_OPTIONS, normalizeColumnType } from '../lib/fieldTypes'
 
@@ -27,7 +28,8 @@ export default function FieldTypePicker({ value, onChange }: FieldTypePickerProp
               }`}
             >
               <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-gray-200' : 'text-gray-500'}`} />
-              <span>{option.label}</span>
+              <span className="flex-1">{option.label}</span>
+              {isSelected && <Check className="w-4 h-4 shrink-0 text-brand-400" />}
             </button>
           )
         })}

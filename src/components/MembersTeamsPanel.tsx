@@ -26,13 +26,16 @@ import {
 interface MembersTeamsPanelProps {
   workspace: Workspace
   bases: Base[]
-  isOwner: boolean
+  canManageMembers: boolean
+  canInvite: boolean
+  canManageTeams: boolean
   onRefresh: () => void
 }
 
 const roleLabels: Record<MemberRole, string> = {
   owner: 'Owner',
   creator: 'Creator',
+  editor: 'Editor',
   viewer: 'Viewer',
   no_access: 'No Access',
 }
@@ -40,14 +43,23 @@ const roleLabels: Record<MemberRole, string> = {
 const roleColors: Record<MemberRole, string> = {
   owner: 'bg-purple-900/40 text-purple-300 border-purple-800',
   creator: 'bg-blue-900/40 text-blue-300 border-blue-800',
+  editor: 'bg-emerald-900/40 text-emerald-300 border-emerald-800',
   viewer: 'bg-gray-800 text-gray-300 border-gray-700',
   no_access: 'bg-red-900/40 text-red-300 border-red-800',
+}
+
+const roleDescriptions: Record<'creator' | 'editor' | 'viewer', string> = {
+  creator: 'Create bases, tables, fields, and invite members',
+  editor: 'Edit records only — no structural changes',
+  viewer: 'View data only — read-only access',
 }
 
 export default function MembersTeamsPanel({
   workspace,
   bases,
-  isOwner,
+  canManageMembers,
+  canInvite,
+  canManageTeams,
   onRefresh,
 }: MembersTeamsPanelProps) {
   const { user, refreshProfile } = useAuth()
@@ -121,20 +133,20 @@ export default function MembersTeamsPanel({
   }
 
   function handleRoleChange(member: WorkspaceMember, role: MemberRole) {
-    if (!isOwner || member.role === 'owner') return
+    if (!canManageMembers || member.role === 'owner') return
     updateMemberRole(member.id, role)
     refresh()
   }
 
   function handleSaveTableAccess(tableIds: string[]) {
-    if (!showTableAccess || !isOwner) return
+    if (!showTableAccess || !canManageMembers) return
     setMemberTableAccess(showTableAccess.id, tableIds)
     setShowTableAccess(null)
     refresh()
   }
 
   function handlePlanChange(member: WorkspaceMember, plan: PlanId) {
-    if (!isOwner) return
+    if (!canManageMembers) return
     const result = updateMemberPlan(member, plan)
     if (!result.ok) {
       alert(result.error)
@@ -156,24 +168,28 @@ export default function MembersTeamsPanel({
             className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-app-surface border border-app-border text-sm text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-app-border-strong"
           />
         </div>
-        {isOwner && (
+        {(canInvite || canManageTeams) && (
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setShowAddTeam(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-brand-500/50 text-brand-400 text-sm font-medium hover:bg-brand-500/10"
-            >
-              <Plus className="w-4 h-4" />
-              New Team
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAddMember(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600"
-            >
-              <UserPlus className="w-4 h-4" />
-              Send Invite
-            </button>
+            {canManageTeams && (
+              <button
+                type="button"
+                onClick={() => setShowAddTeam(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-brand-500/50 text-brand-400 text-sm font-medium hover:bg-brand-500/10"
+              >
+                <Plus className="w-4 h-4" />
+                New Team
+              </button>
+            )}
+            {canInvite && (
+              <button
+                type="button"
+                onClick={() => setShowAddMember(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600"
+              >
+                <UserPlus className="w-4 h-4" />
+                Send Invite
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -223,7 +239,7 @@ export default function MembersTeamsPanel({
                 <th className="px-4 py-3 font-medium">Access</th>
                 <th className="px-4 py-3 font-medium">Plan</th>
                 <th className="px-4 py-3 font-medium">Tables</th>
-                {isOwner && <th className="px-4 py-3 font-medium w-10" />}
+                {canManageMembers && <th className="px-4 py-3 font-medium w-10" />}
               </tr>
             </thead>
             <tbody>
@@ -266,13 +282,14 @@ export default function MembersTeamsPanel({
                       <span className="inline-flex px-2 py-1 rounded-lg text-xs font-medium border bg-amber-900/30 text-amber-300 border-amber-800">
                         Invite pending
                       </span>
-                    ) : isOwner && member.role !== 'owner' ? (
+                    ) : canManageMembers && member.role !== 'owner' ? (
                       <select
                         value={member.status === 'blocked' ? 'no_access' : member.role}
                         onChange={(e) => handleRoleChange(member, e.target.value as MemberRole)}
                         className={`px-2 py-1 rounded-lg text-xs font-medium border bg-transparent cursor-pointer ${roleColors[member.status === 'blocked' ? 'no_access' : member.role]}`}
                       >
                         <option value="creator">Creator</option>
+                        <option value="editor">Editor</option>
                         <option value="viewer">Viewer</option>
                         <option value="no_access">No Access</option>
                       </select>
@@ -283,7 +300,7 @@ export default function MembersTeamsPanel({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {isOwner ? (
+                    {canManageMembers ? (
                       <select
                         value={getMemberPlan(member)}
                         onChange={(e) => handlePlanChange(member, e.target.value as PlanId)}
@@ -304,7 +321,7 @@ export default function MembersTeamsPanel({
                       <span className="text-xs text-gray-500">All tables</span>
                     ) : member.status === 'pending' ? (
                       <span className="text-xs text-gray-600">Awaiting acceptance</span>
-                    ) : isOwner ? (
+                    ) : canManageMembers ? (
                       <button
                         type="button"
                         onClick={() => setShowTableAccess(member)}
@@ -321,7 +338,7 @@ export default function MembersTeamsPanel({
                       </span>
                     )}
                   </td>
-                  {isOwner && (
+                  {canManageMembers && (
                     <td className="px-4 py-3 relative">
                       {member.role !== 'owner' && (
                         <>
@@ -374,7 +391,7 @@ export default function MembersTeamsPanel({
         </div>
       </div>
 
-      {showAddMember && isOwner && (
+      {showAddMember && canInvite && (
         <Modal title="Send Workspace Invite" onClose={() => setShowAddMember(false)}>
           <form onSubmit={handleAddMember} className="space-y-4">
             <p className="text-xs text-gray-500">
@@ -391,20 +408,39 @@ export default function MembersTeamsPanel({
                 className={inputClass}
               />
             </Field>
-            <Field label="Add to team">
-              <select
-                multiple
-                value={memberTeamIds}
-                onChange={(e) =>
-                  setMemberTeamIds(Array.from(e.target.selectedOptions, (o) => o.value))
-                }
-                className={`${inputClass} min-h-[80px]`}
-              >
-                {teams.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">Hold Cmd/Ctrl to select multiple teams</p>
+            <Field label="Add to team (optional)">
+              {teams.length === 0 ? (
+                <p className="text-xs text-gray-500 py-2">No teams yet — create one first or skip this step.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-36 overflow-y-auto rounded-lg border border-app-border p-2">
+                  {teams.map((team) => (
+                    <label
+                      key={team.id}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-app-surface-active cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={memberTeamIds.includes(team.id)}
+                        onChange={(e) => {
+                          setMemberTeamIds((prev) =>
+                            e.target.checked
+                              ? [...prev, team.id]
+                              : prev.filter((id) => id !== team.id),
+                          )
+                        }}
+                        className="rounded border-gray-600"
+                      />
+                      <span
+                        className="w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center text-white shrink-0"
+                        style={{ backgroundColor: team.color }}
+                      >
+                        {getInitials(team.name)}
+                      </span>
+                      <span className="text-sm text-gray-300">{team.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </Field>
             <Field label="Access level">
               <select
@@ -413,15 +449,19 @@ export default function MembersTeamsPanel({
                 className={inputClass}
               >
                 <option value="creator">Creator</option>
+                <option value="editor">Editor</option>
                 <option value="viewer">Viewer</option>
               </select>
+              {memberRole === 'creator' || memberRole === 'editor' || memberRole === 'viewer' ? (
+                <p className="text-xs text-gray-500 mt-1.5">{roleDescriptions[memberRole]}</p>
+              ) : null}
             </Field>
             <ModalActions onCancel={() => setShowAddMember(false)} submitLabel="Send Invite" />
           </form>
         </Modal>
       )}
 
-      {showAddTeam && isOwner && (
+      {showAddTeam && canManageTeams && (
         <Modal title="New Team" onClose={() => setShowAddTeam(false)}>
           <form onSubmit={handleAddTeam} className="space-y-4">
             <Field label="Team name">
@@ -438,7 +478,7 @@ export default function MembersTeamsPanel({
         </Modal>
       )}
 
-      {showTableAccess && isOwner && (
+      {showTableAccess && canManageMembers && (
         <Modal
           title={`Table access — ${showTableAccess.name}`}
           onClose={() => setShowTableAccess(null)}

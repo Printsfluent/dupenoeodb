@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
-import type { ColumnEditPermission, ColumnType } from '../types'
-import { normalizeColumnType, getFieldTypeLabel } from '../lib/fieldTypes'
+import type { ColumnEditPermission, ColumnType, SelectOption } from '../types'
+import { isSelectFieldType, normalizeColumnType, getFieldTypeLabel } from '../lib/fieldTypes'
+import { defaultSelectOptions } from '../lib/selectOptions'
 import FieldTypePicker from './FieldTypePicker'
+import SelectOptionsEditor from './SelectOptionsEditor'
 
 type FieldModalMode = 'edit' | 'description' | 'permissions' | 'filter'
 
@@ -14,12 +16,20 @@ interface FieldModalProps {
   description?: string
   editPermission?: ColumnEditPermission
   filterValue?: string
+  options?: SelectOption[]
+  colorCodeOptions?: boolean
+  alphabetizeOptions?: boolean
+  defaultValue?: string
   onConfirm: (value: {
     name?: string
     type?: ColumnType
     description?: string
     editPermission?: ColumnEditPermission
     filterValue?: string
+    options?: SelectOption[]
+    colorCodeOptions?: boolean
+    alphabetizeOptions?: boolean
+    defaultValue?: string
   }) => void
   onClose: () => void
 }
@@ -37,6 +47,10 @@ export default function FieldModal({
   description = '',
   editPermission = 'everyone',
   filterValue = '',
+  options = [],
+  colorCodeOptions = true,
+  alphabetizeOptions = false,
+  defaultValue = '',
   onConfirm,
   onClose,
 }: FieldModalProps) {
@@ -45,6 +59,10 @@ export default function FieldModal({
   const [desc, setDesc] = useState(description)
   const [permission, setPermission] = useState<ColumnEditPermission>(editPermission)
   const [filter, setFilter] = useState(filterValue)
+  const [selectOptions, setSelectOptions] = useState<SelectOption[]>(options)
+  const [colorCode, setColorCode] = useState(colorCodeOptions)
+  const [alphabetize, setAlphabetize] = useState(alphabetizeOptions)
+  const [defaultVal, setDefaultVal] = useState(defaultValue)
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -54,9 +72,20 @@ export default function FieldModal({
       setDesc(description)
       setPermission(editPermission)
       setFilter(filterValue)
+      setSelectOptions(options.length ? options : defaultSelectOptions())
+      setColorCode(colorCodeOptions)
+      setAlphabetize(alphabetizeOptions)
+      setDefaultVal(defaultValue)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
-  }, [open, fieldName, fieldType, description, editPermission, filterValue])
+  }, [open, fieldName, fieldType, description, editPermission, filterValue, options, colorCodeOptions, alphabetizeOptions, defaultValue])
+
+  function handleTypeChange(next: ColumnType) {
+    setType(next)
+    if (isSelectFieldType(next) && selectOptions.length === 0) {
+      setSelectOptions(defaultSelectOptions())
+    }
+  }
 
   if (!open) return null
 
@@ -67,6 +96,8 @@ export default function FieldModal({
     filter: `Filter by ${fieldName}`,
   }
 
+  const showSelectOptions = mode === 'edit' && isSelectFieldType(type)
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (mode === 'edit' && !name.trim()) return
@@ -76,6 +107,10 @@ export default function FieldModal({
       description: mode === 'description' ? desc : undefined,
       editPermission: mode === 'permissions' ? permission : undefined,
       filterValue: mode === 'filter' ? filter : undefined,
+      options: showSelectOptions ? selectOptions.filter((o) => o.label.trim()) : undefined,
+      colorCodeOptions: showSelectOptions ? colorCode : undefined,
+      alphabetizeOptions: showSelectOptions ? alphabetize : undefined,
+      defaultValue: showSelectOptions ? defaultVal : undefined,
     })
   }
 
@@ -83,7 +118,7 @@ export default function FieldModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div
         className={`relative w-full rounded-xl border border-app-border bg-app-surface shadow-2xl ${
-          mode === 'edit' ? 'max-w-sm' : 'max-w-md'
+          showSelectOptions ? 'max-w-md' : mode === 'edit' ? 'max-w-sm' : 'max-w-md'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -94,7 +129,7 @@ export default function FieldModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[80vh] overflow-y-auto">
           {mode === 'edit' && (
             <>
               <div>
@@ -111,8 +146,21 @@ export default function FieldModal({
                   Field type
                   <span className="ml-2 text-gray-600 font-normal">{getFieldTypeLabel(type)}</span>
                 </label>
-                <FieldTypePicker value={type} onChange={setType} />
+                <FieldTypePicker value={type} onChange={handleTypeChange} />
               </div>
+              {showSelectOptions && (
+                <SelectOptionsEditor
+                  fieldType={type}
+                  options={selectOptions}
+                  colorCodeOptions={colorCode}
+                  alphabetizeOptions={alphabetize}
+                  defaultValue={defaultVal}
+                  onOptionsChange={setSelectOptions}
+                  onColorCodeChange={setColorCode}
+                  onAlphabetizeChange={setAlphabetize}
+                  onDefaultValueChange={setDefaultVal}
+                />
+              )}
             </>
           )}
 
@@ -170,7 +218,7 @@ export default function FieldModal({
               type="submit"
               className="flex-1 py-2 rounded-lg bg-brand-500 text-sm font-medium text-white hover:bg-brand-600"
             >
-              {mode === 'filter' && !filter.trim() ? 'Clear filter' : 'Save'}
+              {mode === 'filter' && !filter.trim() ? 'Clear filter' : mode === 'edit' ? 'Update Field' : 'Save'}
             </button>
           </div>
         </form>

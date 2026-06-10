@@ -1,10 +1,14 @@
 import { Star } from 'lucide-react'
-import type { ColumnType } from '../types'
+import type { ColumnType, SelectOption } from '../types'
 import { normalizeColumnType } from '../lib/fieldTypes'
+import SelectCellEditor from './SelectCellEditor'
 
 interface CellValueEditorProps {
   type: ColumnType
   value: string
+  options?: SelectOption[]
+  colorCodeOptions?: boolean
+  alphabetizeOptions?: boolean
   onChange: (value: string) => void
   onDone?: () => void
   dark?: boolean
@@ -77,6 +81,9 @@ export function RatingInput({
 export default function CellValueEditor({
   type,
   value,
+  options = [],
+  colorCodeOptions = true,
+  alphabetizeOptions = false,
   onChange,
   onDone,
   dark,
@@ -260,6 +267,23 @@ export default function CellValueEditor({
         </div>
       )
 
+    case 'singleSelect':
+    case 'multiSelect':
+      return (
+        <div className={`relative min-h-[36px] px-2 py-1 ${dark ? 'bg-app-surface' : 'bg-white'}`}>
+          <SelectCellEditor
+            options={options}
+            value={value}
+            multiple={normalized === 'multiSelect'}
+            colorCodeOptions={colorCodeOptions}
+            alphabetizeOptions={alphabetizeOptions}
+            dark={dark}
+            onChange={onChange}
+            onDone={onDone}
+          />
+        </div>
+      )
+
     default:
       return (
         <input
@@ -276,10 +300,11 @@ export default function CellValueEditor({
   }
 }
 
-export function getCellInteraction(type: ColumnType): 'toggle' | 'inline-rating' | 'readonly' | 'edit' {
+export function getCellInteraction(type: ColumnType): 'toggle' | 'inline-rating' | 'readonly' | 'edit' | 'select' {
   const normalized = normalizeColumnType(type)
   if (normalized === 'checkbox') return 'toggle'
   if (normalized === 'rating') return 'inline-rating'
   if (normalized === 'autoNumber') return 'readonly'
+  if (normalized === 'singleSelect' || normalized === 'multiSelect') return 'select'
   return 'edit'
 }
