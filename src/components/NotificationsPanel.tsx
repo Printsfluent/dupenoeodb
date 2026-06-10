@@ -26,7 +26,7 @@ export function NotificationBell({
     <button
       type="button"
       onClick={onClick}
-      className="relative p-1.5 text-gray-500 hover:text-gray-300"
+      className="relative p-1.5 text-app-faint hover:text-app-muted"
       aria-label="Notifications"
     >
       <Bell className="w-4 h-4" />
@@ -90,10 +90,10 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
         onClick={onClose}
         aria-label="Close notifications"
       />
-      <div className="relative w-full max-w-sm rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a]">
-          <h3 className="text-sm font-semibold text-white">Notifications</h3>
-          <button type="button" onClick={onClose} className="p-1 text-gray-500 hover:text-gray-300">
+      <div className="relative w-full max-w-sm rounded-xl border border-app-border bg-app-surface shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
+          <h3 className="text-sm font-semibold text-app-text">Notifications</h3>
+          <button type="button" onClick={onClose} className="p-1 text-app-faint hover:text-app-muted">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -101,8 +101,8 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
         <div className="max-h-[400px] overflow-y-auto">
           {invites.length === 0 ? (
             <div className="px-4 py-12 text-center">
-              <Bell className="w-8 h-8 text-gray-600 mx-auto mb-3" />
-              <p className="text-sm text-gray-400">No new notifications</p>
+              <Bell className="w-8 h-8 text-app-faint mx-auto mb-3" />
+              <p className="text-sm text-app-muted">No new notifications</p>
             </div>
           ) : (
             <ul className="divide-y divide-[#2a2a2a]">
@@ -113,10 +113,10 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
                       <UserPlus className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white">Workspace invite</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        <span className="text-gray-300">{invite.invitedByName}</span> invited you to join{' '}
-                        <span className="text-white font-medium">{invite.workspaceName}</span> as{' '}
+                      <p className="text-sm font-medium text-app-text">Workspace invite</p>
+                      <p className="text-xs text-app-muted mt-1">
+                        <span className="text-app-text">{invite.invitedByName}</span> invited you to join{' '}
+                        <span className="text-app-text font-medium">{invite.workspaceName}</span> as{' '}
                         <span className="capitalize">{invite.role}</span>
                       </p>
                       <div className="flex gap-2 mt-3">
@@ -133,7 +133,7 @@ export default function NotificationsPanel({ onClose, onUpdate }: NotificationsP
                           type="button"
                           disabled={acting === invite.id}
                           onClick={() => handleDecline(invite.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2a2a2a] text-gray-400 text-xs font-medium hover:bg-[#2a2a2a] disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-app-border text-app-muted text-xs font-medium hover:bg-app-surface-active disabled:opacity-50"
                         >
                           <XCircle className="w-3.5 h-3.5" />
                           Decline

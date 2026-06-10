@@ -19,9 +19,9 @@ interface WorkspaceHeaderProps {
 
 export default function WorkspaceHeader({ workspaceName, activeTab, onTabChange, planId }: WorkspaceHeaderProps) {
   return (
-    <header className="shrink-0 border-b border-[#2a2a2a] bg-[#111111]">
+    <header className="shrink-0 border-b border-app-border bg-app-bg">
       <div className="flex items-center gap-3 px-6 h-14">
-        <h1 className="text-sm font-bold tracking-wide text-white uppercase">{workspaceName}</h1>
+        <h1 className="text-sm font-bold tracking-wide text-app-text uppercase">{workspaceName}</h1>
         <PlanBadge planId={planId} />
       </div>
 
@@ -37,7 +37,7 @@ export default function WorkspaceHeader({ workspaceName, activeTab, onTabChange,
               className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 isActive
                   ? 'border-brand-500 text-brand-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-300'
+                  : 'border-transparent text-app-faint hover:text-app-muted'
               }`}
             >
               <Icon className="w-4 h-4" />

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Table2, Upload } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
+import { useTheme } from '../context/ThemeContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
 import EditableName from '../components/EditableName'
 import NameModal from '../components/NameModal'
@@ -24,6 +25,7 @@ export default function BasePage() {
   const { workspaceId, baseId } = useParams<{ workspaceId: string; baseId: string }>()
   const { user } = useAuth()
   const { cacheVersion } = useData()
+  const { theme } = useTheme()
   const navigate = useNavigate()
   const [base, setBase] = useState<Base | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
@@ -122,28 +124,28 @@ export default function BasePage() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <header className="shrink-0 border-b border-[#2a2a2a] bg-[#111111]">
+      <header className="shrink-0 border-b border-app-border bg-app-bg">
         <div className="flex items-center h-12 px-4 gap-3">
           <button
             type="button"
             onClick={() => navigate(`/app/w/${workspaceId}`)}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm text-app-faint hover:text-app-muted transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
-          <span className="text-gray-700">/</span>
+          <span className="text-app-faint">/</span>
           {hasFullAccess ? (
             <EditableName
               value={base.name}
               onChange={renameBase}
               placeholder="Base name"
-              className="text-sm font-medium text-white"
+              className="text-sm font-medium text-app-text"
               inputClassName="text-sm"
-              dark
+              dark={theme === 'dark'}
             />
           ) : (
-            <span className="text-sm font-medium text-white">{base.name}</span>
+            <span className="text-sm font-medium text-app-text">{base.name}</span>
           )}
         </div>
 
@@ -156,7 +158,7 @@ export default function BasePage() {
               className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTableId === table.id
                   ? 'border-brand-500 text-brand-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-300'
+                  : 'border-transparent text-app-faint hover:text-app-muted'
               }`}
             >
               <Table2 className="w-3.5 h-3.5" />
@@ -168,7 +170,7 @@ export default function BasePage() {
               <button
                 type="button"
                 onClick={() => setShowImport(true)}
-                className="inline-flex items-center gap-1 px-3 py-2.5 text-sm text-gray-500 hover:text-brand-400 transition-colors"
+                className="inline-flex items-center gap-1 px-3 py-2.5 text-sm text-app-faint hover:text-brand-400 transition-colors"
               >
                 <Upload className="w-4 h-4" />
                 Import
@@ -184,7 +186,7 @@ export default function BasePage() {
                   }
                   setShowNewTable(true)
                 }}
-                className="inline-flex items-center gap-1 px-3 py-2.5 text-sm text-gray-500 hover:text-brand-400 transition-colors"
+                className="inline-flex items-center gap-1 px-3 py-2.5 text-sm text-app-faint hover:text-brand-400 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 New table
@@ -194,16 +196,15 @@ export default function BasePage() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden bg-[#111111]">
+      <main className="flex-1 overflow-hidden bg-app-bg">
         {visibleTables.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+          <div className="flex items-center justify-center h-full text-app-faint text-sm">
             You don&apos;t have access to any tables in this base.
           </div>
         ) : activeTable ? (
           <SpreadsheetGrid
             table={activeTable}
             onChange={updateTable}
-            dark
             onAddRow={() => {
               if (!user || !activeTable) return false
               const check = canAddRows(activeTable.rows.length, 1, user.plan)
@@ -215,7 +216,7 @@ export default function BasePage() {
             }}
           />
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+          <div className="flex items-center justify-center h-full text-app-faint text-sm">
             Select or create a table to get started
           </div>
         )}

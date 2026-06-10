@@ -40,7 +40,7 @@ export default function CellValueDisplay({
         <span className={`inline-flex items-center justify-center w-5 h-5 rounded border ${
           value === 'true' || value === '1' || value.toLowerCase() === 'yes'
             ? 'bg-brand-500 border-brand-500 text-white'
-            : dark ? 'border-[#3a3a3a] bg-[#1a1a1a]' : 'border-gray-300 bg-white'
+            : dark ? 'border-app-border-strong bg-app-surface' : 'border-gray-300 bg-white'
         }`}>
           {(value === 'true' || value === '1' || value.toLowerCase() === 'yes') && (
             <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
@@ -68,7 +68,7 @@ export default function CellValueDisplay({
       return (
         <span className="inline-flex items-center gap-2">
           <span
-            className="w-4 h-4 rounded border border-[#3a3a3a] shrink-0"
+            className="w-4 h-4 rounded border border-app-border-strong shrink-0"
             style={{ backgroundColor: value.startsWith('#') ? value : `#${value}` }}
           />
           <span className={cellText}>{value}</span>
@@ -86,7 +86,7 @@ export default function CellValueDisplay({
     case 'user':
       return (
         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${
-          dark ? 'bg-[#2a2a2a] text-gray-300' : 'bg-gray-100 text-gray-700'
+          dark ? 'bg-app-surface-active text-gray-300' : 'bg-gray-100 text-gray-700'
         }`}>
           <User className="w-3 h-3" />
           {value}
@@ -132,7 +132,7 @@ export default function CellValueDisplay({
             value === 'Active' ? 'bg-green-900/50 text-green-400'
               : value === 'Lead' ? 'bg-blue-900/50 text-blue-400'
                 : value === 'Churned' ? 'bg-red-900/50 text-red-400'
-                  : dark ? 'bg-[#2a2a2a] text-gray-400' : 'bg-gray-100 text-gray-600'
+                  : dark ? 'bg-app-surface-active text-gray-400' : 'bg-gray-100 text-gray-600'
           }`}>
             {value}
           </span>

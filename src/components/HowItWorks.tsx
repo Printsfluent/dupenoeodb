@@ -23,10 +23,10 @@ export default function HowItWorks() {
     <section className="py-20 sm:py-28">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">
             How It Works — A Quick Overview
           </h2>
-          <p className="mt-4 text-lg text-gray-600">
+          <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">
             BaseFlow provides an intuitive spreadsheet interface for creating online databases,
             either from scratch or by connecting to any Postgres/MySQL. Access your data through
             interactive UIs like Kanban, Form, and Gallery, or via API and SQL.
@@ -47,8 +47,8 @@ export default function HowItWorks() {
                 <div className="text-xs font-bold text-brand-500 uppercase tracking-wider mb-2">
                   Step {i + 1}
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{step.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{step.desc}</p>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{step.title}</h3>
+                <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">{step.desc}</p>
               </div>
             )
           })}

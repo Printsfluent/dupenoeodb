@@ -50,7 +50,7 @@ function MenuItem({
           ? 'text-red-400 hover:bg-red-900/20 disabled:opacity-40'
           : disabled
             ? 'text-gray-600 cursor-not-allowed'
-            : 'text-gray-200 hover:bg-[#2a2a2a]'
+            : 'text-gray-200 hover:bg-app-surface-active'
       }`}
     >
       <Icon className={`w-4 h-4 shrink-0 ${danger ? 'text-red-400' : disabled ? 'text-gray-600' : 'text-gray-400'}`} />
@@ -60,7 +60,7 @@ function MenuItem({
 }
 
 function Divider() {
-  return <div className="my-1 border-t border-[#2a2a2a]" />
+  return <div className="my-1 border-t border-app-border" />
 }
 
 export default function FieldContextMenu({
@@ -116,10 +116,10 @@ export default function FieldContextMenu({
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 w-60 rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] shadow-2xl py-1"
+      className="fixed z-50 w-60 rounded-lg border border-app-border bg-app-surface shadow-2xl py-1"
       style={{ top, left }}
     >
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[#2a2a2a]">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-app-border">
         <span className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase truncate">
           Field ID: {column.id}
         </span>

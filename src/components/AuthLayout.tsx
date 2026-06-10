@@ -1,4 +1,5 @@
 import Logo from './Logo'
+import ThemeToggle from './ThemeToggle'
 
 interface AuthLayoutProps {
   title: string
@@ -31,15 +32,18 @@ export default function AuthLayout({ title, subtitle, children, footer }: AuthLa
         </p>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center px-6 py-12 sm:px-12 lg:px-16 bg-white">
+      <div className="flex-1 flex flex-col justify-center px-6 py-12 sm:px-12 lg:px-16 bg-white dark:bg-gray-950 relative">
+        <div className="absolute top-4 right-4">
+          <ThemeToggle />
+        </div>
         <div className="lg:hidden mb-8">
           <Logo to="/" />
         </div>
         <div className="w-full max-w-md mx-auto">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{title}</h1>
-          <p className="mt-2 text-gray-600">{subtitle}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{title}</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">{subtitle}</p>
           <div className="mt-8">{children}</div>
-          <p className="mt-6 text-center text-sm text-gray-600">{footer}</p>
+          <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">{footer}</p>
         </div>
       </div>
     </div>

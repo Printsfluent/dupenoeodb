@@ -94,8 +94,8 @@ export default function ImportDataModal({
         onClick={handleClose}
         aria-label="Close"
       />
-      <div className="relative w-full max-w-lg rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#2a2a2a]">
+      <div className="relative w-full max-w-lg rounded-xl border border-app-border bg-app-surface shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-app-border">
           <h3 className="text-sm font-semibold text-white">{title}</h3>
           <button
             type="button"
@@ -115,7 +115,7 @@ export default function ImportDataModal({
             className={`relative rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
               dragOver
                 ? 'border-brand-500 bg-brand-500/10'
-                : 'border-[#2a2a2a] bg-[#111] hover:border-[#3a3a3a]'
+                : 'border-app-border bg-app-input hover:border-app-border-strong'
             }`}
           >
             <input
@@ -151,7 +151,7 @@ export default function ImportDataModal({
                   type="button"
                   onClick={() => inputRef.current?.click()}
                   disabled={loading}
-                  className="px-4 py-2 rounded-lg bg-[#2a2a2a] text-sm text-gray-300 hover:bg-[#333] transition-colors disabled:opacity-50"
+                  className="px-4 py-2 rounded-lg bg-app-surface-active text-sm text-gray-300 hover:bg-app-surface-hover transition-colors disabled:opacity-50"
                 >
                   {loading ? 'Reading file...' : 'Browse files'}
                 </button>
@@ -178,12 +178,12 @@ export default function ImportDataModal({
                     value={baseName}
                     onChange={(e) => setBaseName(e.target.value)}
                     placeholder="Name for imported base"
-                    className="w-full px-3 py-2.5 rounded-lg bg-[#111] border border-[#2a2a2a] text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
+                    className="w-full px-3 py-2.5 rounded-lg bg-app-input border border-app-border text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
                   />
                 </div>
               )}
 
-              <div className="rounded-lg bg-[#111] border border-[#2a2a2a] p-3 max-h-32 overflow-y-auto">
+              <div className="rounded-lg bg-app-input border border-app-border p-3 max-h-32 overflow-y-auto">
                 <p className="text-xs font-medium text-gray-500 mb-2">Preview</p>
                 <ul className="space-y-1">
                   {sheets.map((sheet) => (
@@ -203,7 +203,7 @@ export default function ImportDataModal({
             <button
               type="button"
               onClick={handleClose}
-              className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-[#2a2a2a] transition-colors"
+              className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-app-surface-active transition-colors"
             >
               Cancel
             </button>

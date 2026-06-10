@@ -37,7 +37,7 @@ function CopyId({ label, value }: { label: string; value: string }) {
       <button
         type="button"
         onClick={handleCopy}
-        className="p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-[#2a2a2a] shrink-0"
+        className="p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-app-surface-active shrink-0"
         title="Copy ID"
       >
         {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
@@ -112,7 +112,7 @@ export default function WorkspaceSettingsPanel({
 
   return (
     <div className="max-w-2xl space-y-8">
-      <section className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+      <section className="rounded-xl border border-app-border bg-app-surface p-6">
         <h2 className="text-sm font-semibold text-white mb-4">Workspace Appearance</h2>
         <div className="flex items-start gap-4">
           <div
@@ -135,7 +135,7 @@ export default function WorkspaceSettingsPanel({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onBlur={saveName}
-                  className="w-full px-3 py-2.5 rounded-lg bg-[#111] border border-[#2a2a2a] text-white focus:outline-none focus:border-brand-500"
+                  className="w-full px-3 py-2.5 rounded-lg bg-app-input border border-app-border text-white focus:outline-none focus:border-brand-500"
                 />
               ) : (
                 <p className="text-white">{workspace.name}</p>
@@ -147,7 +147,7 @@ export default function WorkspaceSettingsPanel({
         </div>
       </section>
 
-      <section className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+      <section className="rounded-xl border border-app-border bg-app-surface p-6">
         <h2 className="text-sm font-semibold text-white mb-4">Tables & IDs</h2>
         {allTables.length === 0 ? (
           <p className="text-sm text-gray-500">No tables yet. Create a base to see table IDs here.</p>
@@ -166,7 +166,7 @@ export default function WorkspaceSettingsPanel({
       </section>
 
       {isOwner && (
-        <section className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+        <section className="rounded-xl border border-app-border bg-app-surface p-6">
           <h2 className="text-sm font-semibold text-white mb-1">User Plans</h2>
           <p className="text-xs text-gray-500 mb-4">
             Upgrade or downgrade any account. Changes apply immediately across all workspaces.
@@ -184,7 +184,7 @@ export default function WorkspaceSettingsPanel({
                   <select
                     value={account.plan ?? 'free'}
                     onChange={(e) => handleUserPlanChange(account.id, account.email, e.target.value as PlanId)}
-                    className="px-2 py-1.5 rounded-lg text-xs font-medium border border-[#3a3a3a] bg-[#111] text-gray-300 cursor-pointer shrink-0"
+                    className="px-2 py-1.5 rounded-lg text-xs font-medium border border-app-border-strong bg-app-input text-gray-300 cursor-pointer shrink-0"
                   >
                     {PLAN_OPTIONS.map((plan) => (
                       <option key={plan.id} value={plan.id}>
@@ -200,7 +200,7 @@ export default function WorkspaceSettingsPanel({
       )}
 
       {isOwner && (
-        <section className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+        <section className="rounded-xl border border-app-border bg-app-surface p-6">
           <h2 className="text-sm font-semibold text-white mb-4">Member Policy</h2>
           <label className="flex items-start gap-3 cursor-pointer">
             <input
@@ -220,7 +220,7 @@ export default function WorkspaceSettingsPanel({
       )}
 
       {!isOwner && (
-        <section className="rounded-xl border border-red-900/40 bg-[#1a1a1a] p-6">
+        <section className="rounded-xl border border-red-900/40 bg-app-surface p-6">
           <h2 className="text-sm font-semibold text-red-400 mb-2">Danger Zone</h2>
           <div className="flex items-center justify-between gap-4">
             <div>

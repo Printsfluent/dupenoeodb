@@ -1,9 +1,23 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
+        app: {
+          bg: 'var(--app-bg)',
+          surface: 'var(--app-surface)',
+          'surface-hover': 'var(--app-surface-hover)',
+          'surface-active': 'var(--app-surface-active)',
+          'surface-muted': 'var(--app-surface-muted)',
+          input: 'var(--app-input)',
+          border: 'var(--app-border)',
+          'border-strong': 'var(--app-border-strong)',
+          text: 'var(--app-text)',
+          muted: 'var(--app-text-muted)',
+          faint: 'var(--app-text-faint)',
+        },
         brand: {
           50: '#eef7ff',
           100: '#d9ecff',

@@ -67,7 +67,7 @@ export default function FeaturesOverview() {
           {categories.map((cat) => (
             <div
               key={cat.title}
-              className="p-6 rounded-2xl border border-gray-100 bg-white hover:shadow-md transition-shadow"
+              className="p-6 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 dark:bg-gray-900 dark:border-gray-800 hover:shadow-md transition-shadow"
             >
               <h3 className="text-sm font-bold text-gray-900 mb-4">{cat.title}</h3>
               <div className="flex flex-wrap gap-2">

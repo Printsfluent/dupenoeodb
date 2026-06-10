@@ -47,7 +47,7 @@ export default function UseCases() {
             return (
               <div
                 key={item.title}
-                className="group p-6 rounded-2xl border border-gray-100 bg-white hover:shadow-lg hover:border-brand-100 transition-all"
+                className="group p-6 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg hover:border-brand-100 transition-all"
               >
                 <div className={`w-12 h-12 rounded-xl ${item.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                   <Icon className="w-6 h-6" />

@@ -33,7 +33,7 @@ export default function DataActions({ onAction }: DataActionsProps) {
               key={action.id}
               type="button"
               onClick={() => onAction(action.id)}
-              className="text-left p-5 rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#3a3a3a] hover:bg-[#1e1e1e] cursor-pointer transition-all"
+              className="text-left p-5 rounded-xl border border-app-border bg-app-surface hover:border-app-border-strong hover:bg-app-surface-hover cursor-pointer transition-all"
             >
               <Icon className={`w-6 h-6 mb-4 ${action.iconColor}`} />
               <h3 className="text-sm font-semibold text-white mb-1">{action.title}</h3>

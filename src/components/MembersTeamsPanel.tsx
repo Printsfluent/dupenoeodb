@@ -153,7 +153,7 @@ export default function MembersTeamsPanel({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search members or teams"
-            className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-sm text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-[#3a3a3a]"
+            className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-app-surface border border-app-border text-sm text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-app-border-strong"
           />
         </div>
         {isOwner && (
@@ -185,7 +185,7 @@ export default function MembersTeamsPanel({
             type="button"
             onClick={() => setSelectedTeamId(null)}
             className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-              !selectedTeamId ? 'bg-[#2a2a2a] text-white' : 'text-gray-400 hover:bg-[#1e1e1e]'
+              !selectedTeamId ? 'bg-app-surface-active text-white' : 'text-gray-400 hover:bg-app-surface-hover'
             }`}
           >
             All members
@@ -196,7 +196,7 @@ export default function MembersTeamsPanel({
               type="button"
               onClick={() => setSelectedTeamId(team.id)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                selectedTeamId === team.id ? 'bg-[#2a2a2a] text-white' : 'text-gray-400 hover:bg-[#1e1e1e]'
+                selectedTeamId === team.id ? 'bg-app-surface-active text-white' : 'text-gray-400 hover:bg-app-surface-hover'
               }`}
             >
               <div
@@ -214,10 +214,10 @@ export default function MembersTeamsPanel({
           )}
         </div>
 
-        <div className="rounded-xl border border-[#2a2a2a] overflow-hidden">
+        <div className="rounded-xl border border-app-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[#1a1a1a] border-b border-[#2a2a2a] text-left text-xs text-gray-500 uppercase tracking-wider">
+              <tr className="bg-app-surface border-b border-app-border text-left text-xs text-gray-500 uppercase tracking-wider">
                 <th className="px-4 py-3 font-medium">Member</th>
                 <th className="px-4 py-3 font-medium">Teams</th>
                 <th className="px-4 py-3 font-medium">Access</th>
@@ -228,7 +228,7 @@ export default function MembersTeamsPanel({
             </thead>
             <tbody>
               {filteredMembers.map((member) => (
-                <tr key={member.id} className="border-b border-[#2a2a2a] hover:bg-[#1a1a1a]/50">
+                <tr key={member.id} className="border-b border-app-border hover:bg-app-surface/50">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <UserAvatar
@@ -253,7 +253,7 @@ export default function MembersTeamsPanel({
                         member.teamIds.map((tid) => {
                           const team = teams.find((t) => t.id === tid)
                           return team ? (
-                            <span key={tid} className="px-2 py-0.5 rounded text-xs bg-[#2a2a2a] text-gray-400">
+                            <span key={tid} className="px-2 py-0.5 rounded text-xs bg-app-surface-active text-gray-400">
                               {team.name}
                             </span>
                           ) : null
@@ -287,7 +287,7 @@ export default function MembersTeamsPanel({
                       <select
                         value={getMemberPlan(member)}
                         onChange={(e) => handlePlanChange(member, e.target.value as PlanId)}
-                        className="px-2 py-1 rounded-lg text-xs font-medium border border-[#3a3a3a] bg-[#111] text-gray-300 cursor-pointer"
+                        className="px-2 py-1 rounded-lg text-xs font-medium border border-app-border-strong bg-app-input text-gray-300 cursor-pointer"
                       >
                         {PLAN_OPTIONS.map((plan) => (
                           <option key={plan.id} value={plan.id}>
@@ -333,12 +333,12 @@ export default function MembersTeamsPanel({
                             <MoreVertical className="w-4 h-4" />
                           </button>
                           {menuOpen === member.id && (
-                            <div className="absolute right-4 top-full z-20 mt-1 py-1 rounded-lg bg-[#2a2a2a] border border-[#3a3a3a] shadow-xl min-w-[140px]">
+                            <div className="absolute right-4 top-full z-20 mt-1 py-1 rounded-lg bg-app-surface-active border border-app-border-strong shadow-xl min-w-[140px]">
                               {member.status === 'blocked' ? (
                                 <button
                                   type="button"
                                   onClick={() => { unblockMember(member.id); setMenuOpen(null); refresh() }}
-                                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-[#333]"
+                                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-app-surface-hover"
                                 >
                                   Unblock access
                                 </button>
@@ -346,7 +346,7 @@ export default function MembersTeamsPanel({
                                 <button
                                   type="button"
                                   onClick={() => { blockMember(member.id); setMenuOpen(null); refresh() }}
-                                  className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-[#333]"
+                                  className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-app-surface-hover"
                                 >
                                   Block access
                                 </button>
@@ -354,7 +354,7 @@ export default function MembersTeamsPanel({
                               <button
                                 type="button"
                                 onClick={() => { removeMember(member.id); setMenuOpen(null); refresh() }}
-                                className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-[#333]"
+                                className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-app-surface-hover"
                               >
                                 Remove member
                               </button>
@@ -453,7 +453,7 @@ export default function MembersTeamsPanel({
               allTables.map((table) => (
                 <label
                   key={table.id}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#2a2a2a] cursor-pointer"
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-app-surface-active cursor-pointer"
                 >
                   <input
                     type="checkbox"
@@ -478,7 +478,7 @@ export default function MembersTeamsPanel({
             <button
               type="button"
               onClick={() => setShowTableAccess(null)}
-              className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:bg-[#2a2a2a]"
+              className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:bg-app-surface-active"
             >
               Cancel
             </button>
@@ -497,14 +497,14 @@ export default function MembersTeamsPanel({
 }
 
 const inputClass =
-  'w-full px-3 py-2.5 rounded-lg bg-[#111] border border-[#2a2a2a] text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500'
+  'w-full px-3 py-2.5 rounded-lg bg-app-input border border-app-border text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500'
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button type="button" className="absolute inset-0 bg-black/60" onClick={onClose} aria-label="Close" />
-      <div className="relative w-full max-w-md rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#2a2a2a]">
+      <div className="relative w-full max-w-md rounded-xl border border-app-border bg-app-surface shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-app-border">
           <h3 className="text-sm font-semibold text-white">{title}</h3>
           <button type="button" onClick={onClose} className="p-1 text-gray-500 hover:text-gray-300">
             <X className="w-4 h-4" />
@@ -528,7 +528,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ModalActions({ onCancel, submitLabel }: { onCancel: () => void; submitLabel: string }) {
   return (
     <div className="flex justify-end gap-2 pt-2">
-      <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:bg-[#2a2a2a]">
+      <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:bg-app-surface-active">
         Cancel
       </button>
       <button type="submit" className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-brand-500 hover:bg-brand-600">

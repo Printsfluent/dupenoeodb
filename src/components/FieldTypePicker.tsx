@@ -10,7 +10,7 @@ export default function FieldTypePicker({ value, onChange }: FieldTypePickerProp
   const selected = normalizeColumnType(value)
 
   return (
-    <div className="rounded-lg border border-[#2a2a2a] bg-[#111] overflow-hidden">
+    <div className="rounded-lg border border-app-border bg-app-input overflow-hidden">
       <div className="max-h-64 overflow-y-auto py-1">
         {FIELD_TYPE_OPTIONS.map((option) => {
           const Icon = option.icon
@@ -22,8 +22,8 @@ export default function FieldTypePicker({ value, onChange }: FieldTypePickerProp
               onClick={() => onChange(option.value)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors ${
                 isSelected
-                  ? 'bg-[#2a2a2a] text-white'
-                  : 'text-gray-300 hover:bg-[#1e1e1e]'
+                  ? 'bg-app-surface-active text-white'
+                  : 'text-gray-300 hover:bg-app-surface-hover'
               }`}
             >
               <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-gray-200' : 'text-gray-500'}`} />

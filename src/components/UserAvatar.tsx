@@ -26,7 +26,7 @@ export default function UserAvatar({
   if (emoji) {
     return (
       <div
-        className={`${sizeClass} rounded-full flex items-center justify-center shrink-0 bg-[#2a2a2a] ${className}`}
+        className={`${sizeClass} rounded-full flex items-center justify-center shrink-0 bg-app-surface-active ${className}`}
         aria-hidden
       >
         <span className="leading-none select-none">{emoji}</span>

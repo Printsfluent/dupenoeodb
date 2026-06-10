@@ -177,9 +177,9 @@ export default function WorkspacePage() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') navigate(`/app/w/${workspaceId}/bases/${base.id}`)
                       }}
-                      className="group flex items-center gap-4 px-4 py-3 rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#3a3a3a] hover:bg-[#1e1e1e] cursor-pointer transition-all"
+                      className="group flex items-center gap-4 px-4 py-3 rounded-xl border border-app-border bg-app-surface hover:border-app-border-strong hover:bg-app-surface-hover cursor-pointer transition-all"
                     >
-                      <div className="w-9 h-9 rounded-lg bg-[#2a2a2a] flex items-center justify-center text-brand-400">
+                      <div className="w-9 h-9 rounded-lg bg-app-surface-active flex items-center justify-center text-brand-400">
                         <Table2 className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>

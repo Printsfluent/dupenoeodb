@@ -18,6 +18,8 @@ import PlanBadge from '../components/PlanBadge'
 import { canCreateWorkspace } from '../lib/planLimits'
 import { useData } from '../context/DataContext'
 import NotificationsPanel, { NotificationBell, useInviteCount } from '../components/NotificationsPanel'
+import ThemeToggle from '../components/ThemeToggle'
+import { useTheme } from '../context/ThemeContext'
 import type { Workspace } from '../types'
 
 export default function AppLayout() {
@@ -34,6 +36,7 @@ export default function AppLayout() {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false)
   const { count: inviteCount, refresh: refreshInviteCount } = useInviteCount(user?.userId, user?.email)
   const { online, localMode, cacheVersion } = useData()
+  const { theme } = useTheme()
 
   function refreshWorkspaces() {
     if (user) setWorkspaces(getUserWorkspaces(user.userId, user.email))
@@ -83,16 +86,16 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen flex bg-[#111111] text-white">
+    <div className="min-h-screen flex bg-app-bg text-app-text">
       <aside
-        className={`${collapsed ? 'w-16' : 'w-64'} shrink-0 border-r border-[#2a2a2a] flex flex-col transition-all duration-200`}
+        className={`${collapsed ? 'w-16' : 'w-64'} shrink-0 border-r border-app-border bg-app-surface flex flex-col transition-all duration-200`}
       >
-        <div className="h-14 flex items-center justify-between px-4 border-b border-[#2a2a2a]">
-          <Logo to="/app" light compact={collapsed} />
+        <div className="h-14 flex items-center justify-between px-4 border-b border-app-border">
+          <Logo to="/app" light={theme === 'dark'} compact={collapsed} />
           <button
             type="button"
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+            className="p-1 text-app-faint hover:text-app-muted transition-colors"
             aria-label="Toggle sidebar"
           >
             <ChevronsRight className={`w-4 h-4 transition-transform ${collapsed ? '' : 'rotate-180'}`} />
@@ -103,12 +106,12 @@ export default function AppLayout() {
           <>
             <div className="p-3">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-faint" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search workspaces and bas..."
-                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-sm text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-[#3a3a3a]"
+                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-app-text placeholder:text-app-faint focus:outline-none focus:border-app-border-strong"
                 />
               </div>
             </div>
@@ -127,8 +130,8 @@ export default function AppLayout() {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 pr-9 rounded-lg text-sm transition-colors ${
                         isActive
-                          ? 'bg-[#2a2a2a] text-white'
-                          : 'text-gray-400 hover:bg-[#1e1e1e] hover:text-gray-200'
+                          ? 'bg-app-surface-active text-app-text'
+                          : 'text-app-muted hover:bg-app-surface-hover hover:text-app-text'
                       }`
                     }
                   >
@@ -143,7 +146,7 @@ export default function AppLayout() {
                   <button
                     type="button"
                     onClick={() => setMenuOpen(menuOpen === workspace.id ? null : workspace.id)}
-                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-600 hover:text-gray-400 transition-opacity ${
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 text-app-faint hover:text-app-muted transition-opacity ${
                       menuOpen === workspace.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}
                     aria-label="Workspace options"
@@ -151,11 +154,11 @@ export default function AppLayout() {
                     <MoreVertical className="w-4 h-4" />
                   </button>
                   {menuOpen === workspace.id && (
-                    <div className="absolute right-2 top-full z-20 mt-1 py-1 rounded-lg bg-[#2a2a2a] border border-[#3a3a3a] shadow-xl min-w-[120px]">
+                    <div className="absolute right-2 top-full z-20 mt-1 py-1 rounded-lg bg-app-surface-active border border-app-border-strong shadow-xl min-w-[120px]">
                       <button
                         type="button"
                         onClick={() => handleDeleteWorkspace(workspace.id)}
-                        className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-[#333]"
+                        className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-app-surface-hover"
                       >
                         Delete
                       </button>
@@ -165,7 +168,7 @@ export default function AppLayout() {
               ))}
             </div>
 
-            <div className="p-3 border-t border-[#2a2a2a]">
+            <div className="p-3 border-t border-app-border">
               {showNewWorkspace ? (
                 <form onSubmit={handleCreateWorkspace} className="space-y-2">
                   <input
@@ -173,7 +176,7 @@ export default function AppLayout() {
                     value={newWorkspaceName}
                     onChange={(e) => setNewWorkspaceName(e.target.value)}
                     placeholder="Workspace name"
-                    className="w-full px-3 py-2 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
+                    className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-app-text placeholder:text-app-faint focus:outline-none focus:border-brand-500"
                   />
                   <div className="flex gap-2">
                     <button type="submit" className="flex-1 py-1.5 rounded-lg bg-brand-500 text-xs font-medium hover:bg-brand-600">
@@ -182,7 +185,7 @@ export default function AppLayout() {
                     <button
                       type="button"
                       onClick={() => { setShowNewWorkspace(false); setNewWorkspaceName('') }}
-                      className="flex-1 py-1.5 rounded-lg border border-[#2a2a2a] text-xs text-gray-400 hover:bg-[#1e1e1e]"
+                      className="flex-1 py-1.5 rounded-lg border border-app-border text-xs text-app-muted hover:bg-app-surface-hover"
                     >
                       Cancel
                     </button>
@@ -200,7 +203,7 @@ export default function AppLayout() {
               )}
             </div>
 
-            <div className="p-3 border-t border-[#2a2a2a] flex items-center gap-3">
+            <div className="p-3 border-t border-app-border flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setShowAvatarPicker(true)}
@@ -213,9 +216,10 @@ export default function AppLayout() {
                 />
               </button>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{user?.name}</p>
+                <p className="text-sm font-medium text-app-text truncate">{user?.name}</p>
                 {user && <PlanBadge planId={user.plan} className="mt-1" />}
               </div>
+              <ThemeToggle compact />
               <NotificationBell
                 count={inviteCount}
                 onClick={() => setShowNotifications(true)}
@@ -223,7 +227,7 @@ export default function AppLayout() {
               <button
                 type="button"
                 onClick={() => { logout(); navigate('/') }}
-                className="p-1.5 text-gray-500 hover:text-gray-300"
+                className="p-1.5 text-app-faint hover:text-app-muted"
                 aria-label="Sign out"
               >
                 <LogOut className="w-4 h-4" />

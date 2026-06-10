@@ -9,6 +9,7 @@ import CellValueDisplay from './CellValueDisplay'
 import CellValueEditor, { RatingInput, getCellInteraction } from './CellValueEditor'
 import { normalizeColumnType } from '../lib/fieldTypes'
 import { extractLinkHref, openLink } from '../lib/links'
+import { useTheme } from '../context/ThemeContext'
 
 interface SpreadsheetGridProps {
   table: Table
@@ -28,7 +29,9 @@ interface ViewState {
   showHidden: boolean
 }
 
-export default function SpreadsheetGrid({ table, onChange, dark = false, onAddRow }: SpreadsheetGridProps) {
+export default function SpreadsheetGrid({ table, onChange, dark: darkProp, onAddRow }: SpreadsheetGridProps) {
+  const { theme } = useTheme()
+  const dark = darkProp ?? theme === 'dark'
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null)
   const [fieldMenu, setFieldMenu] = useState<{ columnId: string; rect: DOMRect } | null>(null)
   const [fieldModal, setFieldModal] = useState<{
@@ -277,18 +280,18 @@ export default function SpreadsheetGrid({ table, onChange, dark = false, onAddRo
     onChange({ ...table, name })
   }
 
-  const toolbar = dark ? 'border-[#2a2a2a] bg-[#1a1a1a]' : 'border-gray-200 bg-white'
+  const toolbar = dark ? 'border-app-border bg-app-surface' : 'border-gray-200 bg-white'
   const title = dark ? 'text-white' : 'text-gray-900'
   const addColBtn = dark
-    ? 'text-gray-400 hover:text-brand-400 hover:bg-[#2a2a2a]'
+    ? 'text-gray-400 hover:text-brand-400 hover:bg-app-surface-active'
     : 'text-gray-600 hover:text-brand-600 hover:bg-brand-50'
-  const thead = dark ? 'bg-[#1a1a1a] border-[#2a2a2a]' : 'bg-gray-50 border-gray-200'
+  const thead = dark ? 'bg-app-surface border-app-border' : 'bg-gray-50 border-gray-200'
   const thText = dark ? 'text-gray-500' : 'text-gray-400'
-  const thBorder = dark ? 'border-[#2a2a2a]' : 'border-gray-100'
-  const rowHover = dark ? 'hover:bg-[#1a1a1a]' : 'hover:bg-brand-50/20'
-  const rowBorder = dark ? 'border-[#2a2a2a]' : 'border-gray-100'
+  const thBorder = dark ? 'border-app-border' : 'border-gray-100'
+  const rowHover = dark ? 'hover:bg-app-surface' : 'hover:bg-brand-50/20'
+  const rowBorder = dark ? 'border-app-border' : 'border-gray-100'
   const cellBorder = dark ? 'border-[#222]' : 'border-gray-50'
-  const cellHover = dark ? 'hover:bg-[#1e1e1e]' : 'hover:bg-brand-50/50'
+  const cellHover = dark ? 'hover:bg-app-surface-hover' : 'hover:bg-brand-50/50'
   const cellText = dark ? 'text-gray-200' : 'text-gray-800'
   const emptyText = dark ? 'text-gray-600' : 'text-gray-300'
   const activeColumn = fieldMenu
@@ -394,7 +397,7 @@ export default function SpreadsheetGrid({ table, onChange, dark = false, onAddRo
               type="button"
               onClick={() => setView((v) => ({ ...v, showHidden: !v.showHidden }))}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                dark ? 'text-gray-400 hover:bg-[#2a2a2a]' : 'text-gray-600 hover:bg-gray-100'
+                dark ? 'text-gray-400 hover:bg-app-surface-active' : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
               <Eye className="w-3.5 h-3.5" />
@@ -406,7 +409,7 @@ export default function SpreadsheetGrid({ table, onChange, dark = false, onAddRo
               type="button"
               onClick={clearViewOverrides}
               className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                dark ? 'text-gray-400 hover:bg-[#2a2a2a]' : 'text-gray-600 hover:bg-gray-100'
+                dark ? 'text-gray-400 hover:bg-app-surface-active' : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
               <X className="w-3.5 h-3.5" />
@@ -444,7 +447,7 @@ export default function SpreadsheetGrid({ table, onChange, dark = false, onAddRo
                     type="button"
                     onClick={() => openFieldMenu(col.id)}
                     className={`w-full flex items-center gap-1 px-2 py-1.5 rounded text-left transition-colors ${
-                      dark ? 'hover:bg-[#2a2a2a]' : 'hover:bg-gray-100'
+                      dark ? 'hover:bg-app-surface-active' : 'hover:bg-gray-100'
                     } ${col.hidden ? 'opacity-50' : ''}`}
                   >
                     <span className="flex-1 min-w-0 flex items-center gap-1">
@@ -463,7 +466,7 @@ export default function SpreadsheetGrid({ table, onChange, dark = false, onAddRo
           <tbody>
             {groupedRows
               ? groupedRows.flatMap(([group, rows]) => [
-                <tr key={`group-${group}`} className={dark ? 'bg-[#151515]' : 'bg-gray-50'}>
+                <tr key={`group-${group}`} className={dark ? 'bg-app-surface-muted' : 'bg-gray-50'}>
                   <td
                     colSpan={visibleColumns.length + 2}
                     className={`px-3 py-2 text-xs font-semibold uppercase tracking-wider ${thText}`}

@@ -82,12 +82,12 @@ export default function FieldModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div
-        className={`relative w-full rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] shadow-2xl ${
+        className={`relative w-full rounded-xl border border-app-border bg-app-surface shadow-2xl ${
           mode === 'edit' ? 'max-w-sm' : 'max-w-md'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
           <h3 className="text-sm font-semibold text-white">{titles[mode]}</h3>
           <button type="button" onClick={onClose} className="p-1 text-gray-500 hover:text-gray-300">
             <X className="w-4 h-4" />
@@ -103,7 +103,7 @@ export default function FieldModal({
                   ref={inputRef as React.RefObject<HTMLInputElement>}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#111] border border-[#2a2a2a] text-sm text-white focus:outline-none focus:border-brand-500"
+                  className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-white focus:outline-none focus:border-brand-500"
                 />
               </div>
               <div>
@@ -125,7 +125,7 @@ export default function FieldModal({
                 onChange={(e) => setDesc(e.target.value)}
                 rows={4}
                 placeholder="Describe what this field is for..."
-                className="w-full px-3 py-2 rounded-lg bg-[#111] border border-[#2a2a2a] text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500 resize-none"
+                className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500 resize-none"
               />
             </div>
           )}
@@ -136,7 +136,7 @@ export default function FieldModal({
               <select
                 value={permission}
                 onChange={(e) => setPermission(e.target.value as ColumnEditPermission)}
-                className="w-full px-3 py-2 rounded-lg bg-[#111] border border-[#2a2a2a] text-sm text-white focus:outline-none focus:border-brand-500"
+                className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-white focus:outline-none focus:border-brand-500"
               >
                 {PERMISSIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -153,7 +153,7 @@ export default function FieldModal({
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 placeholder="Leave empty to clear filter"
-                className="w-full px-3 py-2 rounded-lg bg-[#111] border border-[#2a2a2a] text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
+                className="w-full px-3 py-2 rounded-lg bg-app-input border border-app-border text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
               />
             </div>
           )}
@@ -162,7 +162,7 @@ export default function FieldModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2 rounded-lg border border-[#2a2a2a] text-sm text-gray-400 hover:bg-[#2a2a2a]"
+              className="flex-1 py-2 rounded-lg border border-app-border text-sm text-gray-400 hover:bg-app-surface-active"
             >
               Cancel
             </button>

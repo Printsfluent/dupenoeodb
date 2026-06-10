@@ -50,7 +50,7 @@ export default function LoginPage() {
         )}
 
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="email" className="auth-label">
             Email
           </label>
           <input
@@ -60,12 +60,12 @@ export default function LoginPage() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             required
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            className="auth-input"
           />
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="password" className="auth-label">
             Password
           </label>
           <div className="relative">
@@ -76,7 +76,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               required
-              className="w-full px-4 py-3 pr-11 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              className="auth-input pr-11"
             />
             <button
               type="button"

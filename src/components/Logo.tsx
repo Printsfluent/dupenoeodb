@@ -13,7 +13,7 @@ export default function Logo({ to = '/', light = false, compact = false }: LogoP
     <>
       <BrandLogo size={32} className="shrink-0" />
       {!compact && (
-        <span className={`text-lg font-bold tracking-tight ${light ? 'text-white' : 'text-gray-900'}`}>
+        <span className={`text-lg font-bold tracking-tight ${light ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
           {APP_NAME}
         </span>
       )}

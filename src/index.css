@@ -3,12 +3,50 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --app-bg: #f4f4f5;
+    --app-surface: #ffffff;
+    --app-surface-hover: #f4f4f5;
+    --app-surface-active: #e4e4e7;
+    --app-surface-muted: #fafafa;
+    --app-input: #ffffff;
+    --app-border: #e4e4e7;
+    --app-border-strong: #d4d4d8;
+    --app-text: #18181b;
+    --app-text-muted: #52525b;
+    --app-text-faint: #71717a;
+  }
+
+  .dark {
+    --app-bg: #111111;
+    --app-surface: #1a1a1a;
+    --app-surface-hover: #1e1e1e;
+    --app-surface-active: #2a2a2a;
+    --app-surface-muted: #151515;
+    --app-input: #111111;
+    --app-border: #2a2a2a;
+    --app-border-strong: #3a3a3a;
+    --app-text: #ffffff;
+    --app-text-muted: #a1a1aa;
+    --app-text-faint: #71717a;
+  }
+
   html {
     scroll-behavior: smooth;
   }
 
   body {
-    @apply font-sans text-gray-900 antialiased;
+    @apply font-sans antialiased bg-white text-gray-900 dark:bg-app-bg dark:text-app-text;
+  }
+}
+
+@layer components {
+  .auth-input {
+    @apply w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent;
+  }
+
+  .auth-label {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5;
   }
 }
 

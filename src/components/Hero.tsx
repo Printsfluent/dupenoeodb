@@ -16,12 +16,12 @@ export default function Hero() {
           {APP_NAME} Cloud
         </div>
 
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 max-w-4xl mx-auto leading-tight animate-slide-up">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-white max-w-4xl mx-auto leading-tight animate-slide-up">
           Build Databases As Spreadsheets{' '}
           <span className="text-gradient">No-Coding Required</span>
         </h1>
 
-        <p className="mt-6 text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed animate-slide-up" style={{ animationDelay: '0.1s' }}>
+        <p className="mt-6 text-lg sm:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed animate-slide-up" style={{ animationDelay: '0.1s' }}>
           {APP_NAME} lets you build no-code database solutions with the ease of spreadsheets.
           Bring your own database or choose ours. Millions of rows? Not a problem.
           Your data. Your rules. You are in control.
@@ -37,7 +37,7 @@ export default function Hero() {
           </Link>
           <Link
             to="/login"
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition-colors"
+            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 font-semibold hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
           >
             Sign in
           </Link>

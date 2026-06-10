@@ -15,7 +15,7 @@ export default function PlanBadge({ planId, className = '' }: PlanBadgeProps) {
       className={`px-2.5 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase ${
         isOg
           ? 'bg-gradient-to-r from-amber-900/50 to-orange-900/40 text-amber-300 border border-amber-700/50'
-          : 'bg-[#2a2a2a] text-gray-400'
+          : 'bg-app-surface-active text-gray-400'
       } ${className}`}
     >
       {plan.label}
