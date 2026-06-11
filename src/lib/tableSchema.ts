@@ -41,6 +41,7 @@ export function isTableStructureChange(before: Table, after: Table): boolean {
 export function normalizeBase(base: Base): Base {
   return {
     ...base,
+    icon: normalizeTableIcon(base.icon) ?? null,
     tables: (base.tables ?? []).map((table) => normalizeTable(table)),
   }
 }

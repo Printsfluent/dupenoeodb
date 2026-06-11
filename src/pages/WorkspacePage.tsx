@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Table2, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
+import TableIcon from '../components/TableIcon'
+import TableIconPicker from '../components/TableIconPicker'
+import { normalizeTableIcon, suggestTableIconFromName } from '../lib/tableIcons'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import WorkspaceHeader, { type WorkspaceTab } from '../components/WorkspaceHeader'
@@ -42,6 +45,9 @@ export default function WorkspacePage() {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('bases')
   const [showCreateBase, setShowCreateBase] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [newBaseName, setNewBaseName] = useState('')
+  const [showNewBaseIconPicker, setShowNewBaseIconPicker] = useState(false)
+  const [iconPickerBaseId, setIconPickerBaseId] = useState<string | null>(null)
 
   const member = workspace && user
     ? getMemberForUser(workspace.id, user.userId, user.email)
@@ -56,6 +62,9 @@ export default function WorkspacePage() {
   const visibleBases = workspace && user
     ? filterBasesForMember(bases, workspace, workspace.id, user.userId, user.email, member)
     : bases
+  const iconPickerBase = iconPickerBaseId
+    ? visibleBases.find((base) => base.id === iconPickerBaseId)
+    : undefined
 
   useEffect(() => {
     if (!user || !workspaceId || !ready) return
@@ -92,18 +101,38 @@ export default function WorkspacePage() {
     setShowCreateBase(true)
   }
 
-  async function handleConfirmCreateBase(name: string) {
+  function handleConfirmCreateBase(name: string) {
     if (!user || !workspaceId || !hasFullAccess) return
     const check = canCreateBase(workspaceId, user.plan)
     if (!check.ok) {
       alert(check.error)
       return
     }
-    const base = createBase(workspaceId, user.userId, name)
-    await upsertBaseAsync(base)
-    refreshBases()
+    setNewBaseName(name)
     setShowCreateBase(false)
-    navigate(`/app/w/${workspaceId}/bases/${base.id}`)
+    setShowNewBaseIconPicker(true)
+  }
+
+  async function handleCreateBaseWithIcon(icon: string | null) {
+    if (!user || !workspaceId || !hasFullAccess || !newBaseName.trim()) return
+    const base = createBase(workspaceId, user.userId, newBaseName.trim())
+    const withIcon = {
+      ...base,
+      icon: normalizeTableIcon(icon ?? suggestTableIconFromName(newBaseName)) ?? null,
+    }
+    await upsertBaseAsync(withIcon)
+    refreshBases()
+    setNewBaseName('')
+    setShowNewBaseIconPicker(false)
+    navigate(`/app/w/${workspaceId}/bases/${withIcon.id}`)
+  }
+
+  function handleUpdateBaseIcon(baseId: string, icon: string | null) {
+    if (!hasFullAccess) return
+    const base = bases.find((item) => item.id === baseId)
+    if (!base) return
+    upsertBase({ ...base, icon: normalizeTableIcon(icon) ?? null })
+    refreshBases()
   }
 
   function handleRenameBase(baseId: string, name: string) {
@@ -134,6 +163,7 @@ export default function WorkspacePage() {
       workspaceId,
       userId: user.userId,
       name: baseName,
+      icon: normalizeTableIcon(suggestTableIconFromName(baseName)) ?? null,
       tables: sheetsToTables(sheets),
       createdAt: new Date().toISOString(),
     }
@@ -200,8 +230,23 @@ export default function WorkspacePage() {
                       }}
                       className="group flex items-center gap-4 px-4 py-3 rounded-xl border border-app-border bg-app-surface hover:border-app-border-strong hover:bg-app-surface-hover cursor-pointer transition-all"
                     >
-                      <div className="w-9 h-9 rounded-lg bg-app-surface-active flex items-center justify-center text-brand-400">
-                        <Table2 className="w-4 h-4" />
+                      <div
+                        className="w-9 h-9 rounded-lg bg-app-surface-active flex items-center justify-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {hasFullAccess ? (
+                          <button
+                            type="button"
+                            onClick={() => setIconPickerBaseId(base.id)}
+                            className="w-full h-full flex items-center justify-center rounded-lg hover:bg-app-surface-hover transition-colors"
+                            title="Change database logo"
+                            aria-label={`Change logo for ${base.name}`}
+                          >
+                            <TableIcon icon={base.icon} size="md" />
+                          </button>
+                        ) : (
+                          <TableIcon icon={base.icon} size="md" />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
                         {hasFullAccess ? (
@@ -283,6 +328,32 @@ export default function WorkspacePage() {
         onImport={handleImport}
         onClose={() => setShowImport(false)}
       />
+
+      <TableIconPicker
+        open={showNewBaseIconPicker}
+        title="Database logo"
+        tableName={newBaseName}
+        value={suggestTableIconFromName(newBaseName)}
+        onSave={handleCreateBaseWithIcon}
+        onClose={() => {
+          setShowNewBaseIconPicker(false)
+          setNewBaseName('')
+        }}
+      />
+
+      {iconPickerBase && (
+        <TableIconPicker
+          open
+          title="Database logo"
+          tableName={iconPickerBase.name}
+          value={iconPickerBase.icon}
+          onSave={(icon) => {
+            handleUpdateBaseIcon(iconPickerBase.id, icon)
+            setIconPickerBaseId(null)
+          }}
+          onClose={() => setIconPickerBaseId(null)}
+        />
+      )}
     </>
   )
 }

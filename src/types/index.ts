@@ -126,6 +126,8 @@ export interface Base {
   userId: string
   name: string
   description?: string
+  /** Emoji character or `social:{id}` (e.g. social:instagram). */
+  icon?: string | null
   tables: Table[]
   createdAt: string
 }

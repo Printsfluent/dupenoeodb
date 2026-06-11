@@ -13,6 +13,7 @@ import TableIcon from './TableIcon'
 interface TableIconPickerProps {
   open: boolean
   tableName: string
+  title?: string
   value?: string | null
   onSave: (icon: string | null) => void
   onClose: () => void
@@ -23,6 +24,7 @@ type PickerTab = 'social' | 'emoji'
 export default function TableIconPicker({
   open,
   tableName,
+  title = 'Table logo',
   value,
   onSave,
   onClose,
@@ -74,8 +76,8 @@ export default function TableIconPicker({
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
           <div>
-            <h3 className="text-sm font-semibold text-app-text">Table logo</h3>
-            <p className="text-xs text-app-faint mt-0.5 truncate max-w-[280px]">{tableName || 'Untitled table'}</p>
+            <h3 className="text-sm font-semibold text-app-text">{title}</h3>
+            <p className="text-xs text-app-faint mt-0.5 truncate max-w-[280px]">{tableName || 'Untitled'}</p>
           </div>
           <button type="button" onClick={onClose} className="p-1 text-app-faint hover:text-app-muted">
             <X className="w-4 h-4" />

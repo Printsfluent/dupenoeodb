@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Upload } from 'lucide-react'
+import { ArrowLeft, Plus, Upload, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
@@ -45,6 +45,7 @@ export default function BasePage() {
   const [iconPickerTableId, setIconPickerTableId] = useState<string | null>(null)
   const [newTableName, setNewTableName] = useState('')
   const [showNewTableIconPicker, setShowNewTableIconPicker] = useState(false)
+  const [showBaseIconPicker, setShowBaseIconPicker] = useState(false)
   const toast = useToast()
 
   const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
@@ -148,6 +149,23 @@ export default function BasePage() {
     })
   }
 
+  function updateBaseIcon(icon: string | null) {
+    if (!base || !canEdit) return
+    saveBase({ ...base, icon: normalizeTableIcon(icon) ?? null })
+  }
+
+  function deleteTable(tableId: string, tableName: string) {
+    if (!base || !hasFullAccess) return
+    if (!confirm(`Delete table "${tableName}" and all its data?`)) return
+    const remaining = base.tables.filter((table) => table.id !== tableId)
+    saveBase({ ...base, tables: remaining })
+    if (activeTableId === tableId) {
+      const accessible = getAccessibleTables(member, remaining, hasFullAccess)
+      setActiveTableId(accessible[0]?.id ?? null)
+    }
+    toast.success(`Deleted ${tableName}`)
+  }
+
   function handleImportTables(sheets: ParsedSheet[]) {
     if (!base || !user || !hasFullAccess) return
     const check = canAddTables(base.tables.length, sheets.length, user.plan)
@@ -222,6 +240,21 @@ export default function BasePage() {
             Back
           </Link>
           <span className="shrink-0 text-app-faint">/</span>
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={() => setShowBaseIconPicker(true)}
+              className="shrink-0 p-1 rounded hover:bg-app-surface-active transition-colors"
+              title="Change database logo"
+              aria-label={`Change logo for ${base.name}`}
+            >
+              <TableIcon icon={base.icon} size="sm" />
+            </button>
+          ) : (
+            <span className="shrink-0">
+              <TableIcon icon={base.icon} size="sm" />
+            </span>
+          )}
           <div className="min-w-0">
             {hasFullAccess ? (
               <EditableName
@@ -241,7 +274,7 @@ export default function BasePage() {
           {visibleTables.map((table) => (
             <div
               key={table.id}
-              className={`inline-flex items-center gap-1 border-b-2 transition-colors whitespace-nowrap ${
+              className={`group/tab inline-flex items-center gap-1 border-b-2 transition-colors whitespace-nowrap ${
                 activeTableId === table.id
                   ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                   : 'border-transparent text-app-faint'
@@ -271,6 +304,21 @@ export default function BasePage() {
               >
                 {table.name}
               </button>
+              {hasFullAccess && (
+                <button
+                  type="button"
+                  onClick={() => deleteTable(table.id, table.name)}
+                  className={`mr-1 p-1 rounded text-app-faint hover:text-red-400 transition-all ${
+                    activeTableId === table.id
+                      ? 'opacity-70 hover:opacity-100'
+                      : 'opacity-0 group-hover/tab:opacity-100'
+                  }`}
+                  title={`Delete ${table.name}`}
+                  aria-label={`Delete ${table.name}`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           ))}
           {hasFullAccess && (
@@ -306,8 +354,22 @@ export default function BasePage() {
 
       <main className="flex-1 overflow-hidden bg-app-bg">
         {visibleTables.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-app-faint text-sm">
-            You don&apos;t have access to any tables in this database.
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-app-faint text-sm">
+            {base.tables.length === 0 && hasFullAccess ? (
+              <>
+                <p>No tables in this database yet.</p>
+                <button
+                  type="button"
+                  onClick={() => setShowNewTable(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-brand-400 border border-brand-500/40 hover:bg-brand-500/10 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  New table
+                </button>
+              </>
+            ) : (
+              <p>You don&apos;t have access to any tables in this database.</p>
+            )}
           </div>
         ) : activeTable ? (
           <SpreadsheetGrid
@@ -355,6 +417,7 @@ export default function BasePage() {
 
       <TableIconPicker
         open={showNewTableIconPicker}
+        title="Table logo"
         tableName={newTableName}
         value={suggestTableIconFromName(newTableName)}
         onSave={handleCreateNewTableWithIcon}
@@ -364,9 +427,22 @@ export default function BasePage() {
         }}
       />
 
+      <TableIconPicker
+        open={showBaseIconPicker}
+        title="Database logo"
+        tableName={base.name}
+        value={base.icon}
+        onSave={(icon) => {
+          updateBaseIcon(icon)
+          setShowBaseIconPicker(false)
+        }}
+        onClose={() => setShowBaseIconPicker(false)}
+      />
+
       {iconPickerTable && (
         <TableIconPicker
           open
+          title="Table logo"
           tableName={iconPickerTable.name}
           value={iconPickerTable.icon}
           onSave={(icon) => {
