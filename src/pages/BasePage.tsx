@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Upload } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
@@ -76,18 +76,35 @@ export default function BasePage() {
   }, [workspaceId, cacheVersion])
 
   useEffect(() => {
-    if (!user || !workspaceId || !baseId) return
-    const found = getWorkspaceBases(workspaceId).find((b) => b.id === baseId)
+    if (!user || !baseId) return
+
+    const found =
+      (workspaceId ? getWorkspaceBases(workspaceId).find((b) => b.id === baseId) : undefined)
+      ?? getWorkspaces()
+          .map((ws) => getWorkspaceBases(ws.id).find((b) => b.id === baseId))
+          .find((base) => base !== undefined)
+
+    const activeWorkspaceId = workspaceId ?? found?.workspaceId
+    const workspaceHome = activeWorkspaceId ? `/app/w/${activeWorkspaceId}` : '/app'
+
     if (!found) {
-      navigate(`/app/w/${workspaceId}`)
+      navigate(workspaceHome)
       return
     }
-    const currentMember = getMemberForUser(workspaceId, user.userId, user.email)
-    const bypass = workspace
-      ? canModifyTableSchemaInWorkspace(workspace, user.userId, user.email, workspaceId)
+
+    const currentMember = getMemberForUser(found.workspaceId, user.userId, user.email)
+    const accessWorkspace =
+      workspace ?? getWorkspaces().find((w) => w.id === found.workspaceId)
+    const bypass = accessWorkspace
+      ? canModifyTableSchemaInWorkspace(
+          accessWorkspace,
+          user.userId,
+          user.email,
+          accessWorkspace.id,
+        )
       : false
     if (!memberCanAccessBase(currentMember, found, { bypassForAdmin: bypass })) {
-      navigate(`/app/w/${workspaceId}`)
+      navigate(workspaceHome)
       return
     }
     const accessible = getAccessibleTables(currentMember, found.tables, bypass)
@@ -190,31 +207,34 @@ export default function BasePage() {
   const iconPickerTable = iconPickerTableId
     ? visibleTables.find((table) => table.id === iconPickerTableId)
     : undefined
+  const backWorkspaceId = workspaceId ?? base.workspaceId
+  const backHref = backWorkspaceId ? `/app/w/${backWorkspaceId}` : '/app'
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <header className="shrink-0 border-b border-app-border bg-app-bg">
-        <div className="flex items-center h-12 px-4 gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(`/app/w/${workspaceId}`)}
-            className="inline-flex items-center gap-1.5 text-sm text-app-faint hover:text-app-muted transition-colors"
+      <header className="shrink-0 border-b border-app-border bg-app-bg relative z-20">
+        <div className="flex items-center h-12 px-4 gap-3 min-w-0">
+          <Link
+            to={backHref}
+            className="inline-flex items-center gap-1.5 shrink-0 text-sm text-app-faint hover:text-app-muted transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
-          </button>
-          <span className="text-app-faint">/</span>
-          {hasFullAccess ? (
-            <EditableName
-              value={base.name}
-              onChange={renameBase}
-              placeholder="Base name"
-              className="text-sm font-medium text-app-text"
-              inputClassName="text-sm"
-            />
-          ) : (
-            <span className="text-sm font-medium text-app-text">{base.name}</span>
-          )}
+          </Link>
+          <span className="shrink-0 text-app-faint">/</span>
+          <div className="min-w-0">
+            {hasFullAccess ? (
+              <EditableName
+                value={base.name}
+                onChange={renameBase}
+                placeholder="Base name"
+                className="text-sm font-medium text-app-text"
+                inputClassName="text-sm"
+              />
+            ) : (
+              <span className="text-sm font-medium text-app-text truncate block">{base.name}</span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-1 px-4 overflow-x-auto">
