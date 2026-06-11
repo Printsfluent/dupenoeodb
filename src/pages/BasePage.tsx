@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Plus, Upload, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
@@ -36,6 +36,8 @@ export default function BasePage() {
   const { user } = useAuth()
   const { ready, cacheVersion } = useData()
   const navigate = useNavigate()
+  const location = useLocation()
+  const leavingRef = useRef(false)
   const [base, setBase] = useState<Base | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [showNewTable, setShowNewTable] = useState(false)
@@ -76,7 +78,19 @@ export default function BasePage() {
     migrateWorkspaceMemberRoles(workspaceId)
   }, [workspaceId, cacheVersion])
 
+  const goBackToWorkspace = useCallback(() => {
+    leavingRef.current = true
+    const targetId = workspaceId ?? base?.workspaceId
+    if (targetId) {
+      navigate(`/app/w/${targetId}`, { replace: true })
+      return
+    }
+    navigate('/app', { replace: true })
+  }, [navigate, workspaceId, base?.workspaceId])
+
   useEffect(() => {
+    if (leavingRef.current) return
+    if (!location.pathname.includes('/bases/')) return
     if (!user || !baseId) return
 
     const found =
@@ -114,7 +128,7 @@ export default function BasePage() {
       if (prev && accessible.some((table) => table.id === prev)) return prev
       return accessible[0]?.id ?? null
     })
-  }, [user, workspaceId, baseId, navigate, cacheVersion, workspace])
+  }, [user, workspaceId, baseId, navigate, cacheVersion, workspace, location.pathname])
 
   function saveBase(updated: Base) {
     upsertBase(updated)
@@ -225,51 +239,49 @@ export default function BasePage() {
   const iconPickerTable = iconPickerTableId
     ? visibleTables.find((table) => table.id === iconPickerTableId)
     : undefined
-  const backWorkspaceId = workspaceId ?? base.workspaceId
-  const backHref = backWorkspaceId ? `/app/w/${backWorkspaceId}` : '/app'
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <header className="shrink-0 border-b border-app-border bg-app-bg relative z-20">
-        <div className="flex items-center h-12 px-4 gap-3 min-w-0">
-          <Link
-            to={backHref}
-            className="inline-flex items-center gap-1.5 shrink-0 text-sm text-app-faint hover:text-app-muted transition-colors"
+      <nav className="sticky top-0 z-50 shrink-0 flex items-center h-12 px-4 gap-3 min-w-0 border-b border-app-border bg-app-bg">
+        <button
+          type="button"
+          onClick={goBackToWorkspace}
+          className="inline-flex items-center gap-1.5 shrink-0 text-sm text-app-faint hover:text-app-muted transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4 pointer-events-none" />
+          Back
+        </button>
+        <span className="shrink-0 text-app-faint">/</span>
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={() => setShowBaseIconPicker(true)}
+            className="shrink-0 p-1 rounded hover:bg-app-surface-active transition-colors"
+            title="Change database logo"
+            aria-label={`Change logo for ${base.name}`}
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Link>
-          <span className="shrink-0 text-app-faint">/</span>
-          {canEdit ? (
-            <button
-              type="button"
-              onClick={() => setShowBaseIconPicker(true)}
-              className="shrink-0 p-1 rounded hover:bg-app-surface-active transition-colors"
-              title="Change database logo"
-              aria-label={`Change logo for ${base.name}`}
-            >
-              <TableIcon icon={base.icon} size="sm" />
-            </button>
+            <TableIcon icon={base.icon} size="sm" />
+          </button>
+        ) : (
+          <span className="shrink-0">
+            <TableIcon icon={base.icon} size="sm" />
+          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          {hasFullAccess ? (
+            <EditableName
+              value={base.name}
+              onChange={renameBase}
+              placeholder="Base name"
+              className="text-sm font-medium text-app-text"
+              inputClassName="text-sm"
+            />
           ) : (
-            <span className="shrink-0">
-              <TableIcon icon={base.icon} size="sm" />
-            </span>
+            <span className="text-sm font-medium text-app-text truncate block">{base.name}</span>
           )}
-          <div className="min-w-0">
-            {hasFullAccess ? (
-              <EditableName
-                value={base.name}
-                onChange={renameBase}
-                placeholder="Base name"
-                className="text-sm font-medium text-app-text"
-                inputClassName="text-sm"
-              />
-            ) : (
-              <span className="text-sm font-medium text-app-text truncate block">{base.name}</span>
-            )}
-          </div>
         </div>
+      </nav>
 
+      <header className="shrink-0 border-b border-app-border bg-app-bg">
         <div className="flex items-center gap-1 px-4 overflow-x-auto">
           {visibleTables.map((table) => (
             <div

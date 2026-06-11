@@ -9,6 +9,7 @@ import SignupPage from './pages/SignupPage'
 import WorkspacePage from './pages/WorkspacePage'
 import BasePage from './pages/BasePage'
 import EmptyHomePage from './pages/EmptyHomePage'
+import WorkspaceRouteLayout from './layouts/WorkspaceRouteLayout'
 
 function AuthRedirect({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -41,8 +42,10 @@ export default function App() {
             }
           >
             <Route index element={<EmptyHomePage />} />
-            <Route path="w/:workspaceId" element={<WorkspacePage />} />
-            <Route path="w/:workspaceId/bases/:baseId" element={<BasePage />} />
+            <Route path="w/:workspaceId" element={<WorkspaceRouteLayout />}>
+              <Route index element={<WorkspacePage />} />
+              <Route path="bases/:baseId" element={<BasePage />} />
+            </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
