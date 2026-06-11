@@ -3,6 +3,7 @@ import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star, Pencil, Users } from
 import type { Column, ColumnType, Row, Table } from '../types'
 import { createId } from '../lib/id'
 import EditableName from './EditableName'
+import TableIcon from './TableIcon'
 import FieldContextMenu from './FieldContextMenu'
 import FieldModal from './FieldModal'
 import CellValueDisplay from './CellValueDisplay'
@@ -445,17 +446,20 @@ export default function SpreadsheetGrid({
   return (
     <div className="flex flex-col h-full">
       <div className={`flex items-center justify-between px-4 py-3 border-b ${toolbar}`}>
-        {schemaEditable ? (
-          <EditableName
-            value={table.name}
-            onChange={renameTable}
-            placeholder="Table name"
-            className={`font-semibold ${title}`}
-            inputClassName="text-sm font-semibold min-w-[160px]"
-          />
-        ) : (
-          <span className={`font-semibold text-sm ${title}`}>{table.name}</span>
-        )}
+        <div className="flex items-center gap-2 min-w-0">
+          <TableIcon icon={table.icon} size="md" />
+          {schemaEditable ? (
+            <EditableName
+              value={table.name}
+              onChange={renameTable}
+              placeholder="Table name"
+              className={`font-semibold ${title}`}
+              inputClassName="text-sm font-semibold min-w-[160px]"
+            />
+          ) : (
+            <span className={`font-semibold text-sm ${title}`}>{table.name}</span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {hiddenCount > 0 && schemaEditable && (
             <button

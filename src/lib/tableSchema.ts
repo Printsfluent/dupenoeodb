@@ -1,3 +1,4 @@
+import { normalizeTableIcon } from './tableIcons'
 import type { Base, Column, Table } from '../types'
 
 function columnStructureSignature(col: Column): string {
@@ -47,6 +48,7 @@ export function normalizeBase(base: Base): Base {
 export function normalizeTable(table: Table): Table {
   return {
     ...table,
+    icon: normalizeTableIcon(table.icon) ?? null,
     teamIds: table.teamIds ?? [],
     columns: (table.columns ?? []).map((col) => ({
       ...col,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Table2, Upload } from 'lucide-react'
+import { ArrowLeft, Plus, Upload } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
@@ -8,6 +8,9 @@ import EditableName from '../components/EditableName'
 import NameModal from '../components/NameModal'
 import ImportDataModal from '../components/ImportDataModal'
 import TableTeamsModal from '../components/TableTeamsModal'
+import TableIcon from '../components/TableIcon'
+import TableIconPicker from '../components/TableIconPicker'
+import { normalizeTableIcon, suggestTableIconFromName } from '../lib/tableIcons'
 import { getWorkspaceBases, getWorkspaces, upsertBase } from '../lib/storage'
 import {
   assignTableTeams,
@@ -39,6 +42,9 @@ export default function BasePage() {
   const [showImport, setShowImport] = useState(false)
   const [showTableTeams, setShowTableTeams] = useState(false)
   const [tableTeamIds, setTableTeamIds] = useState<string[]>([])
+  const [iconPickerTableId, setIconPickerTableId] = useState<string | null>(null)
+  const [newTableName, setNewTableName] = useState('')
+  const [showNewTableIconPicker, setShowNewTableIconPicker] = useState(false)
   const toast = useToast()
 
   const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
@@ -115,6 +121,16 @@ export default function BasePage() {
     })
   }
 
+  function updateTableIcon(tableId: string, icon: string | null) {
+    if (!base || !canEdit) return
+    saveBase({
+      ...base,
+      tables: base.tables.map((table) =>
+        table.id === tableId ? { ...table, icon: normalizeTableIcon(icon) ?? null } : table,
+      ),
+    })
+  }
+
   function handleImportTables(sheets: ParsedSheet[]) {
     if (!base || !user || !hasFullAccess) return
     const check = canAddTables(base.tables.length, sheets.length, user.plan)
@@ -135,17 +151,26 @@ export default function BasePage() {
       alert(check.error)
       return
     }
+    setNewTableName(name)
+    setShowNewTable(false)
+    setShowNewTableIconPicker(true)
+  }
+
+  function handleCreateNewTableWithIcon(icon: string | null) {
+    if (!base || !user || !hasFullAccess || !newTableName.trim()) return
     const col = createId()
     const table: Table = {
       id: createId(),
-      name,
+      name: newTableName.trim(),
+      icon: normalizeTableIcon(icon ?? suggestTableIconFromName(newTableName)) ?? null,
       columns: [{ id: col, name: 'Title', type: 'singleLineText' }],
       rows: [],
     }
     const updated = { ...base, tables: [...base.tables, table] }
     saveBase(updated)
     setActiveTableId(table.id)
-    setShowNewTable(false)
+    setNewTableName('')
+    setShowNewTableIconPicker(false)
   }
 
   if (!base) {
@@ -162,6 +187,9 @@ export default function BasePage() {
 
   const activeTable = visibleTables.find((t) => t.id === activeTableId)
     ?? visibleTables[0]
+  const iconPickerTable = iconPickerTableId
+    ? visibleTables.find((table) => table.id === iconPickerTableId)
+    : undefined
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -191,19 +219,39 @@ export default function BasePage() {
 
         <div className="flex items-center gap-1 px-4 overflow-x-auto">
           {visibleTables.map((table) => (
-            <button
+            <div
               key={table.id}
-              type="button"
-              onClick={() => setActiveTableId(table.id)}
-              className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`inline-flex items-center gap-1 border-b-2 transition-colors whitespace-nowrap ${
                 activeTableId === table.id
                   ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                  : 'border-transparent text-app-faint hover:text-app-muted'
+                  : 'border-transparent text-app-faint'
               }`}
             >
-              <Table2 className="w-3.5 h-3.5" />
-              {table.name}
-            </button>
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => setIconPickerTableId(table.id)}
+                  className="ml-2 p-1 rounded hover:bg-app-surface-active transition-colors"
+                  title="Change table logo"
+                  aria-label={`Change logo for ${table.name}`}
+                >
+                  <TableIcon icon={table.icon} size="xs" />
+                </button>
+              ) : (
+                <span className="ml-2">
+                  <TableIcon icon={table.icon} size="xs" />
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setActiveTableId(table.id)}
+                className={`px-2 py-2.5 text-sm font-medium hover:text-app-muted transition-colors ${
+                  activeTableId === table.id ? 'text-brand-600 dark:text-brand-400' : ''
+                }`}
+              >
+                {table.name}
+              </button>
+            </div>
           ))}
           {hasFullAccess && (
             <>
@@ -279,11 +327,35 @@ export default function BasePage() {
         open={showNewTable}
         title="New Table"
         label="Table name"
-        placeholder="e.g. Customers"
+        placeholder="e.g. Instagram Leads"
         defaultValue={`Table ${base.tables.length + 1}`}
         onConfirm={handleConfirmNewTable}
         onClose={() => setShowNewTable(false)}
       />
+
+      <TableIconPicker
+        open={showNewTableIconPicker}
+        tableName={newTableName}
+        value={suggestTableIconFromName(newTableName)}
+        onSave={handleCreateNewTableWithIcon}
+        onClose={() => {
+          setShowNewTableIconPicker(false)
+          setNewTableName('')
+        }}
+      />
+
+      {iconPickerTable && (
+        <TableIconPicker
+          open
+          tableName={iconPickerTable.name}
+          value={iconPickerTable.icon}
+          onSave={(icon) => {
+            updateTableIcon(iconPickerTable.id, icon)
+            setIconPickerTableId(null)
+          }}
+          onClose={() => setIconPickerTableId(null)}
+        />
+      )}
 
       <ImportDataModal
         open={showImport}

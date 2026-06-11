@@ -54,6 +54,8 @@ export interface Table {
   name: string
   columns: Column[]
   rows: Row[]
+  /** Emoji character or `social:{id}` (e.g. social:instagram). */
+  icon?: string | null
   /** When set, only members in these teams (plus admins) can access the table. */
   teamIds?: string[]
 }
