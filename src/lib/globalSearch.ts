@@ -27,7 +27,10 @@ export function globalSearch(
   const allowed = new Set(workspaceIds)
   const results: SearchResult[] = []
 
-  function canAccessDatabase(workspaceId: string, base: { tables: Array<{ id: string; teamIds?: string[] }> }) {
+  function canAccessDatabase(
+    workspaceId: string,
+    base: { teamIds?: string[]; tables: Array<{ id: string; teamIds?: string[] }> },
+  ) {
     if (!userId || !email) return true
     const workspace = cache.workspaces.find((item) => item.id === workspaceId)
     if (!workspace) return false

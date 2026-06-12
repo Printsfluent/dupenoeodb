@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Users } from 'lucide-react'
+import TableTeamsModal from '../components/TableTeamsModal'
 import TableIcon from '../components/TableIcon'
 import TableIconPicker from '../components/TableIconPicker'
 import { normalizeTableIcon, suggestTableIconFromName } from '../lib/tableIcons'
@@ -23,9 +24,11 @@ import {
   repairWorkspaceForUser,
 } from '../lib/storage'
 import {
+  assignBaseTeams,
   filterBasesForMember,
   getAccessibleTables,
   getMemberForUser,
+  getWorkspaceTeams,
   hasFullWorkspaceAccess,
   isWorkspaceAccountOwner,
 } from '../lib/members'
@@ -48,6 +51,8 @@ export default function WorkspacePage() {
   const [newBaseName, setNewBaseName] = useState('')
   const [showNewBaseIconPicker, setShowNewBaseIconPicker] = useState(false)
   const [iconPickerBaseId, setIconPickerBaseId] = useState<string | null>(null)
+  const [showBaseTeamsId, setShowBaseTeamsId] = useState<string | null>(null)
+  const [baseTeamIds, setBaseTeamIds] = useState<string[]>([])
 
   const member = workspace && user
     ? getMemberForUser(workspace.id, user.userId, user.email)
@@ -65,6 +70,10 @@ export default function WorkspacePage() {
   const iconPickerBase = iconPickerBaseId
     ? visibleBases.find((base) => base.id === iconPickerBaseId)
     : undefined
+  const baseTeamsTarget = showBaseTeamsId
+    ? bases.find((base) => base.id === showBaseTeamsId)
+    : undefined
+  const workspaceTeams = workspaceId ? getWorkspaceTeams(workspaceId) : []
 
   useEffect(() => {
     if (!user || !workspaceId || !ready) return
@@ -265,14 +274,29 @@ export default function WorkspacePage() {
                         </p>
                       </div>
                       {hasFullAccess && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteBase(e, base.id)}
-                          className="p-1.5 text-app-faint hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                          aria-label="Delete base"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setBaseTeamIds(base.teamIds ?? [])
+                              setShowBaseTeamsId(base.id)
+                            }}
+                            className="p-1.5 text-app-faint hover:text-brand-400"
+                            aria-label="Database team access"
+                            title="Team access"
+                          >
+                            <Users className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteBase(e, base.id)}
+                            className="p-1.5 text-app-faint hover:text-red-400"
+                            aria-label="Delete base"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       )}
                     </div>
                     )
@@ -352,6 +376,34 @@ export default function WorkspacePage() {
             setIconPickerBaseId(null)
           }}
           onClose={() => setIconPickerBaseId(null)}
+        />
+      )}
+
+      {baseTeamsTarget && workspace && workspaceId && (
+        <TableTeamsModal
+          tableName={baseTeamsTarget.name}
+          title={`Database team access — ${baseTeamsTarget.name}`}
+          description="Restrict this entire database to specific teams. Members not in any selected team will not see this database or its tables. Leave empty to allow all workspace members (table-level rules still apply). Admins always have access."
+          teams={workspaceTeams}
+          selectedTeamIds={baseTeamIds}
+          onChange={setBaseTeamIds}
+          onClose={() => setShowBaseTeamsId(null)}
+          onSave={() => {
+            if (!user) return
+            const result = assignBaseTeams(
+              workspace,
+              workspaceId,
+              baseTeamsTarget.id,
+              baseTeamIds,
+              { userId: user.userId, email: user.email },
+            )
+            if (!result.ok) {
+              alert(result.error ?? 'Failed to save team access')
+              return
+            }
+            refreshBases()
+            setShowBaseTeamsId(null)
+          }}
         />
       )}
     </>

@@ -128,6 +128,8 @@ export interface Base {
   description?: string
   /** Emoji character or `social:{id}` (e.g. social:instagram). */
   icon?: string | null
+  /** When set, only members in these teams (plus admins) can access the database. */
+  teamIds?: string[]
   tables: Table[]
   createdAt: string
 }

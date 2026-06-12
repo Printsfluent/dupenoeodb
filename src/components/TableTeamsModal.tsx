@@ -4,6 +4,8 @@ import { getInitials } from '../lib/colors'
 
 interface TableTeamsModalProps {
   tableName: string
+  title?: string
+  description?: string
   teams: Team[]
   selectedTeamIds: string[]
   onChange: (teamIds: string[]) => void
@@ -13,27 +15,30 @@ interface TableTeamsModalProps {
 
 export default function TableTeamsModal({
   tableName,
+  title,
+  description,
   teams,
   selectedTeamIds,
   onChange,
   onSave,
   onClose,
 }: TableTeamsModalProps) {
+  const modalTitle = title ?? `Team access — ${tableName}`
+  const modalDescription =
+    description ??
+    'Restrict this table to specific teams. Members not in any selected team will not see this table. Leave empty to allow all workspace members. Admins always have access.'
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button type="button" className="absolute inset-0 bg-black/60" onClick={onClose} aria-label="Close" />
       <div className="relative w-full max-w-md rounded-xl border border-app-border bg-app-surface shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-app-border">
-          <h3 className="text-sm font-semibold text-app-text">Team access — {tableName}</h3>
+          <h3 className="text-sm font-semibold text-app-text">{modalTitle}</h3>
           <button type="button" onClick={onClose} className="p-1 text-app-faint hover:text-app-muted">
             <X className="w-4 h-4" />
           </button>
         </div>
         <div className="p-5">
-          <p className="text-xs text-app-faint mb-4 leading-relaxed">
-            Restrict this table to specific teams. Members not in any selected team will not see
-            this table. Leave empty to allow all workspace members. Admins always have access.
-          </p>
+          <p className="text-xs text-app-faint mb-4 leading-relaxed">{modalDescription}</p>
           <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
             {teams.length === 0 ? (
               <p className="text-sm text-app-faint">No teams yet. Create teams in Members &amp; Teams first.</p>

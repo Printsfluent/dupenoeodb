@@ -846,13 +846,23 @@ export function getAccessibleTables<T extends Pick<Table, 'id' | 'teamIds'>>(
   )
 }
 
-/** True when the member can open at least one table in the database. */
+/** True when the member can open this database (base team gate + at least one table when unrestricted). */
 export function memberCanAccessBase(
   member: WorkspaceMember | undefined,
-  base: { tables: Array<Pick<Table, 'id' | 'teamIds'>> },
+  base: { teamIds?: string[]; tables: Array<Pick<Table, 'id' | 'teamIds'>> },
   options?: { bypassForAdmin?: boolean },
 ): boolean {
   if (options?.bypassForAdmin) return true
+  if (!member || member.status === 'blocked' || member.role === 'no_access') return false
+  if (isAdminRole(member.role)) return true
+
+  const baseTeamIds = base.teamIds ?? []
+  if (baseTeamIds.length > 0) {
+    const inAssignedTeam = baseTeamIds.some((teamId) => member.teamIds.includes(teamId))
+    if (!inAssignedTeam) return false
+    return true
+  }
+
   return getAccessibleTables(member, base.tables, false).length > 0
 }
 
@@ -918,6 +928,36 @@ export function assignTableTeams(
     return { ok: false, error: 'You do not have permission to assign table teams' }
   }
   return setTableTeamAccess(workspaceId, baseId, tableId, teamIds)
+}
+
+export function setBaseTeamAccess(
+  workspaceId: string,
+  baseId: string,
+  teamIds: string[],
+): { ok: boolean; error?: string } {
+  const base = getWorkspaceBases(workspaceId).find((item) => item.id === baseId)
+  if (!base) return { ok: false, error: 'Database not found' }
+
+  const workspaceTeams = getWorkspaceTeams(workspaceId)
+  const validTeamIds = [
+    ...new Set(teamIds.filter((id) => workspaceTeams.some((team) => team.id === id))),
+  ]
+
+  void upsertBase({ ...base, teamIds: validTeamIds })
+  return { ok: true }
+}
+
+export function assignBaseTeams(
+  workspace: { ownerId: string },
+  workspaceId: string,
+  baseId: string,
+  teamIds: string[],
+  actor: { userId: string; email: string },
+): { ok: boolean; error?: string } {
+  if (!hasFullWorkspaceAccess(workspace, actor.userId, actor.email, workspaceId)) {
+    return { ok: false, error: 'You do not have permission to assign database teams' }
+  }
+  return setBaseTeamAccess(workspaceId, baseId, teamIds)
 }
 
 export function ensureOwnerMember(

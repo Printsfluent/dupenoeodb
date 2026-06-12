@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Plus, Upload, X } from 'lucide-react'
+import { ArrowLeft, Plus, Upload, Users, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
@@ -13,6 +13,7 @@ import TableIconPicker from '../components/TableIconPicker'
 import { normalizeTableIcon, suggestTableIconFromName } from '../lib/tableIcons'
 import { getWorkspaceBases, getWorkspaces, upsertBase } from '../lib/storage'
 import {
+  assignBaseTeams,
   assignTableTeams,
   canEditInWorkspace,
   canModifyTableSchemaInWorkspace,
@@ -43,7 +44,9 @@ export default function BasePage() {
   const [showNewTable, setShowNewTable] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showTableTeams, setShowTableTeams] = useState(false)
+  const [showBaseTeams, setShowBaseTeams] = useState(false)
   const [tableTeamIds, setTableTeamIds] = useState<string[]>([])
+  const [baseTeamIds, setBaseTeamIds] = useState<string[]>([])
   const [iconPickerTableId, setIconPickerTableId] = useState<string | null>(null)
   const [newTableName, setNewTableName] = useState('')
   const [showNewTableIconPicker, setShowNewTableIconPicker] = useState(false)
@@ -279,6 +282,20 @@ export default function BasePage() {
             <span className="text-sm font-medium text-app-text truncate block">{base.name}</span>
           )}
         </div>
+        {hasFullAccess && (
+          <button
+            type="button"
+            onClick={() => {
+              setBaseTeamIds(base.teamIds ?? [])
+              setShowBaseTeams(true)
+            }}
+            className="inline-flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 text-xs font-medium rounded-lg text-app-faint hover:text-app-muted hover:bg-app-surface-active transition-colors"
+            title="Team access for this database"
+          >
+            <Users className="w-3.5 h-3.5" />
+            Team access{(base.teamIds?.length ?? 0) > 0 ? ` (${base.teamIds!.length})` : ''}
+          </button>
+        )}
       </nav>
 
       <header className="shrink-0 border-b border-app-border bg-app-bg">
@@ -472,6 +489,35 @@ export default function BasePage() {
         onImport={(sheets) => handleImportTables(sheets)}
         onClose={() => setShowImport(false)}
       />
+
+      {showBaseTeams && workspace && workspaceId && baseId && (
+        <TableTeamsModal
+          tableName={base.name}
+          title={`Database team access — ${base.name}`}
+          description="Restrict this entire database to specific teams. Members not in any selected team will not see this database or its tables. Leave empty to allow all workspace members (table-level rules still apply). Admins always have access."
+          teams={workspaceTeams}
+          selectedTeamIds={baseTeamIds}
+          onChange={setBaseTeamIds}
+          onClose={() => setShowBaseTeams(false)}
+          onSave={() => {
+            if (!user) return
+            const result = assignBaseTeams(
+              workspace,
+              workspaceId,
+              baseId,
+              baseTeamIds,
+              { userId: user.userId, email: user.email },
+            )
+            if (!result.ok) {
+              toast.error(result.error ?? 'Failed to save team access')
+              return
+            }
+            setBase({ ...base, teamIds: baseTeamIds })
+            setShowBaseTeams(false)
+            toast.success('Database team access updated')
+          }}
+        />
+      )}
 
       {showTableTeams && activeTable && workspace && workspaceId && baseId && (
         <TableTeamsModal
