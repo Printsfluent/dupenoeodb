@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import type { Column } from '../types'
 import { copyToClipboard } from '../lib/copy'
+import { useToast } from '../context/ToastContext'
 
 interface FieldContextMenuProps {
   column: Column
@@ -88,6 +89,7 @@ export default function FieldContextMenu({
 }: FieldContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
+  const { success } = useToast()
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -113,6 +115,7 @@ export default function FieldContextMenu({
     const ok = await copyToClipboard(column.id)
     if (ok) {
       setCopied(true)
+      success('Field ID copied', 'left')
       setTimeout(() => setCopied(false), 2000)
     }
   }

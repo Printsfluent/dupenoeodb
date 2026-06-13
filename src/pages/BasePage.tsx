@@ -298,7 +298,7 @@ export default function BasePage() {
         )}
       </nav>
 
-      <header className="shrink-0 border-b border-app-border bg-app-bg">
+      <header className="sticky top-12 z-40 shrink-0 border-b border-app-border bg-app-bg">
         <div className="flex items-center gap-1 px-4 overflow-x-auto">
           {visibleTables.map((table) => (
             <div

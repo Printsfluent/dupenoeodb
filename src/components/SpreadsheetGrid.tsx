@@ -14,6 +14,7 @@ import { extractLinkHref, openLink } from '../lib/links'
 import { copyToClipboard } from '../lib/copy'
 import { downloadTableAsCsv, downloadTableAsXlsx } from '../lib/exportSpreadsheet'
 import { useTheme } from '../context/ThemeContext'
+import { useToast } from '../context/ToastContext'
 
 const ROW_INDEX_WIDTH_PX = 40
 
@@ -54,6 +55,8 @@ export default function SpreadsheetGrid({
   onAddRow,
 }: SpreadsheetGridProps) {
   const { theme } = useTheme()
+  const { success } = useToast()
+  const notify = (message: string) => success(message, 'left')
   const dark = darkProp ?? theme === 'dark'
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null)
   const [selectedCell, setSelectedCell] = useState<{ rowId: string; colId: string } | null>(null)
@@ -73,7 +76,14 @@ export default function SpreadsheetGrid({
   })
   const headerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const gridRef = useRef<HTMLDivElement>(null)
+  const headerScrollRef = useRef<HTMLDivElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
+
+  function syncHeaderScroll() {
+    if (headerScrollRef.current && gridRef.current) {
+      headerScrollRef.current.scrollLeft = gridRef.current.scrollLeft
+    }
+  }
 
   const visibleColumns = useMemo(
     () => table.columns.filter((col) => view.showHidden || !col.hidden),
@@ -82,7 +92,12 @@ export default function SpreadsheetGrid({
 
   const pinnedColumnId = useMemo(() => {
     const display = visibleColumns.find((col) => col.isDisplayValue)
-    return display?.id ?? visibleColumns[0]?.id ?? null
+    if (display) return display.id
+    const named = visibleColumns.find((col) => {
+      const n = col.name.trim().toLowerCase()
+      return n === 'username' || n === 'user name' || n === 'title' || n === 'name'
+    })
+    return named?.id ?? visibleColumns[0]?.id ?? null
   }, [visibleColumns])
 
   const hiddenCount = table.columns.filter((col) => col.hidden).length
@@ -191,7 +206,9 @@ export default function SpreadsheetGrid({
         const value = row?.cells[active.colId] ?? ''
         if (value) {
           e.preventDefault()
-          void copyToClipboard(value)
+          void copyToClipboard(value).then((ok) => {
+            if (ok) notify('Copied')
+          })
         }
         return
       }
@@ -230,10 +247,12 @@ export default function SpreadsheetGrid({
 
   function deleteRow(rowId: string) {
     onChange({ ...table, rows: table.rows.filter((r) => r.id !== rowId) })
+    notify('Row deleted')
   }
 
   function deleteColumn(colId: string) {
     if (!schemaEditable || table.columns.length <= 1) return
+    const column = table.columns.find((col) => col.id === colId)
     onChange({
       ...table,
       columns: table.columns.filter((c) => c.id !== colId),
@@ -245,6 +264,7 @@ export default function SpreadsheetGrid({
     if (view.sortColumnId === colId) setView((v) => ({ ...v, sortColumnId: null }))
     if (view.filterColumnId === colId) setView((v) => ({ ...v, filterColumnId: null, filterValue: '' }))
     if (view.groupColumnId === colId) setView((v) => ({ ...v, groupColumnId: null }))
+    notify(column ? `Column "${column.name}" deleted` : 'Column deleted')
   }
 
   function createColumn(name: string, type: ColumnType = 'singleLineText'): Column {
@@ -302,6 +322,7 @@ export default function SpreadsheetGrid({
         cells: { ...row.cells, [duplicate.id]: row.cells[colId] ?? '' },
       })),
     })
+    notify(`Field "${source.name}" copied`)
   }
 
   function setDisplayValue(colId: string) {
@@ -409,10 +430,14 @@ export default function SpreadsheetGrid({
     : null
 
   const stickyIndexClass = 'sticky left-0 z-[15] bg-app-bg'
-  const stickyIndexHeadClass = 'sticky left-0 top-0 z-[30] bg-app-surface-muted'
+  const stickyIndexHeadClass = 'sticky left-0 z-[36] bg-app-surface-muted'
   const stickyPinnedStyle = { left: ROW_INDEX_WIDTH_PX }
-  const stickyPinnedClass = 'sticky z-[14] bg-app-bg shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]'
-  const stickyPinnedHeadClass = 'sticky top-0 z-[29] bg-app-surface-muted shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]'
+  const stickyPinnedClass = 'sticky z-[14] bg-app-bg border-r-2 border-r-brand-500/50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]'
+  const stickyPinnedHeadClass =
+    'sticky z-[35] bg-brand-500/10 border-2 border-brand-500 ring-1 ring-inset ring-brand-500/40 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]'
+  const pinnedHeadText = 'text-brand-400'
+  const pinnedCellText = 'text-brand-400'
+  const pinnedCellSelected = 'ring-2 ring-inset ring-brand-500 bg-brand-500/10'
 
   function isCellSelected(rowId: string, colId: string) {
     return selectedCell?.rowId === rowId && selectedCell?.colId === colId
@@ -434,6 +459,12 @@ export default function SpreadsheetGrid({
           const interaction = getCellInteraction(col.type)
           const stickyClass = isPinned ? `${stickyPinnedClass} border-r ${cellBorder}` : `border-r ${cellBorder}`
           const stickyStyle = isPinned ? stickyPinnedStyle : undefined
+          const displayCellText = isPinned ? pinnedCellText : cellText
+          const selectedClass = isSelected
+            ? isPinned
+              ? pinnedCellSelected
+              : 'ring-2 ring-inset ring-brand-500 bg-brand-500/10'
+            : ''
 
           return (
             <td
@@ -449,9 +480,7 @@ export default function SpreadsheetGrid({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') selectCell(row, col)
                   }}
-                  className={`w-full text-left px-3 py-2 min-h-[36px] cursor-default ${
-                    isSelected ? 'ring-2 ring-inset ring-brand-500 bg-brand-500/10' : ''
-                  }`}
+                  className={`w-full text-left px-3 py-2 min-h-[36px] cursor-default ${selectedClass}`}
                   title={col.description}
                 >
                   <CellValueDisplay
@@ -461,7 +490,7 @@ export default function SpreadsheetGrid({
                     colorCodeOptions={col.colorCodeOptions}
                     dark={dark}
                     emptyText={emptyText}
-                    cellText={cellText}
+                    cellText={displayCellText}
                   />
                 </div>
               ) : isEditing ? (
@@ -477,9 +506,7 @@ export default function SpreadsheetGrid({
                 />
               ) : interaction === 'inline-rating' ? (
                 <div
-                  className={`min-h-[36px] flex items-center ${cellHover} ${
-                    isSelected ? 'ring-2 ring-inset ring-brand-500 bg-brand-500/10' : ''
-                  }`}
+                  className={`min-h-[36px] flex items-center ${cellHover} ${selectedClass}`}
                   title={col.description}
                   onClick={() => selectCell(row, col)}
                 >
@@ -494,9 +521,7 @@ export default function SpreadsheetGrid({
                   type="button"
                   onClick={() => handleCellClick(row, col, value)}
                   onDoubleClick={() => handleCellDoubleClick(row, col, value)}
-                  className={`w-full text-left px-3 py-2 min-h-[36px] transition-colors ${
-                    isSelected ? 'ring-2 ring-inset ring-brand-500 bg-brand-500/10' : ''
-                  } ${
+                  className={`w-full text-left px-3 py-2 min-h-[36px] transition-colors ${selectedClass} ${
                     interaction === 'readonly'
                       ? 'cursor-default'
                       : extractLinkHref(value)
@@ -516,7 +541,7 @@ export default function SpreadsheetGrid({
                     colorCodeOptions={col.colorCodeOptions}
                     dark={dark}
                     emptyText={emptyText}
-                    cellText={cellText}
+                    cellText={displayCellText}
                   />
                 </button>
               )}
@@ -541,8 +566,8 @@ export default function SpreadsheetGrid({
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className={`flex items-center justify-between px-4 py-3 border-b ${toolbar}`}>
+    <div className="flex flex-col h-full min-h-0">
+      <div className={`shrink-0 flex items-center justify-between px-4 py-3 border-b ${toolbar}`}>
         <div className="flex items-center gap-2 min-w-0">
           <TableIcon icon={table.icon} size="md" />
           {schemaEditable ? (
@@ -645,9 +670,12 @@ export default function SpreadsheetGrid({
         </div>
       </div>
 
-      <div ref={gridRef} className="flex-1 overflow-auto isolate">
+      <div
+        ref={headerScrollRef}
+        className="shrink-0 overflow-x-auto overflow-y-hidden border-b border-app-border bg-app-surface-muted [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      >
         <table className="w-full text-sm border-collapse min-w-max">
-          <thead className="sticky top-0 z-20 bg-app-surface-muted">
+          <thead>
             <tr className={`border-b ${thead}`}>
               <th
                 className={`w-10 px-2 py-2.5 text-xs font-medium ${thText} border-r ${thBorder} ${stickyIndexHeadClass}`}
@@ -656,6 +684,7 @@ export default function SpreadsheetGrid({
               </th>
               {visibleColumns.map((col) => {
                 const isPinned = col.id === pinnedColumnId
+                const headText = isPinned ? pinnedHeadText : thText
                 return (
                 <th
                   key={col.id}
@@ -678,7 +707,7 @@ export default function SpreadsheetGrid({
                       title={`${col.name} — click for menu, double-click to edit field`}
                     >
                       <span className="flex-1 min-w-0 flex items-center gap-1">
-                        <span className={`text-xs font-semibold uppercase tracking-wider truncate ${thText}`}>
+                        <span className={`text-xs font-semibold uppercase tracking-wider truncate ${headText}`}>
                           {col.name}
                         </span>
                         {col.isDisplayValue && <Star className="w-3 h-3 text-amber-400 shrink-0 fill-amber-400" />}
@@ -702,14 +731,14 @@ export default function SpreadsheetGrid({
                       >
                         <Pencil className="w-3 h-3" />
                       </span>
-                      <ChevronDown className={`w-3.5 h-3.5 shrink-0 ${thText}`} />
+                      <ChevronDown className={`w-3.5 h-3.5 shrink-0 ${headText}`} />
                     </button>
                   ) : (
                     <div
                       className={`w-full flex items-center gap-1 px-2 py-1.5 ${col.hidden ? 'opacity-50' : ''}`}
                       title={col.description || col.name}
                     >
-                      <span className={`text-xs font-semibold uppercase tracking-wider truncate ${thText}`}>
+                      <span className={`text-xs font-semibold uppercase tracking-wider truncate ${headText}`}>
                         {col.name}
                       </span>
                       {col.isDisplayValue && <Star className="w-3 h-3 text-amber-400 shrink-0 fill-amber-400" />}
@@ -721,6 +750,11 @@ export default function SpreadsheetGrid({
               <th className="w-10 bg-app-surface-muted" />
             </tr>
           </thead>
+        </table>
+      </div>
+
+      <div ref={gridRef} onScroll={syncHeaderScroll} className="flex-1 min-h-0 overflow-auto isolate">
+        <table className="w-full text-sm border-collapse min-w-max">
           <tbody>
             {groupedRows
               ? groupedRows.flatMap(([group, rows]) => [
