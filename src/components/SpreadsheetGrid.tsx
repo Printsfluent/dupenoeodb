@@ -461,6 +461,11 @@ export default function SpreadsheetGrid({
     `sticky z-[35] bg-brand-500/10 ${gridBorder} border-brand-500 ring-1 ring-inset ring-brand-500/40 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]`
   const pinnedHeadText = 'text-brand-400'
   const pinnedCellText = 'text-brand-400'
+  const pinnedCellSelected = 'ring-2 ring-inset ring-brand-500 bg-brand-500/10'
+
+  function isCellSelected(rowId: string, colId: string) {
+    return selectedCell?.rowId === rowId && selectedCell?.colId === colId
+  }
 
   function renderRow(row: Row, index: number) {
     return (
@@ -472,12 +477,18 @@ export default function SpreadsheetGrid({
         </td>
         {visibleColumns.map((col) => {
           const isEditing = editingCell?.rowId === row.id && editingCell?.colId === col.id
+          const isSelected = isCellSelected(row.id, col.id)
           const value = row.cells[col.id] ?? ''
           const isPinned = col.id === pinnedColumnId
           const interaction = getCellInteraction(col.type)
           const stickyClass = isPinned ? `${stickyPinnedClass} ${gridBorder} border-r ${cellBorder}` : `${gridBorder} border-r ${cellBorder}`
           const stickyStyle = isPinned ? stickyPinnedStyle : undefined
           const displayCellText = isPinned ? pinnedCellText : cellText
+          const selectedClass = isSelected
+            ? isPinned
+              ? pinnedCellSelected
+              : 'ring-2 ring-inset ring-brand-500 bg-brand-500/10'
+            : ''
 
           return (
             <td
@@ -493,7 +504,7 @@ export default function SpreadsheetGrid({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') selectCell(row, col)
                   }}
-                  className="w-full text-left px-3 py-2 min-h-[36px] cursor-default overflow-hidden"
+                  className={`w-full text-left px-3 py-2 min-h-[36px] cursor-default overflow-hidden ${selectedClass}`}
                   title={col.description}
                 >
                   <CellValueDisplay
@@ -519,7 +530,7 @@ export default function SpreadsheetGrid({
                 />
               ) : interaction === 'inline-rating' ? (
                 <div
-                  className={`min-h-[36px] flex items-center ${cellHover}`}
+                  className={`min-h-[36px] flex items-center ${cellHover} ${selectedClass}`}
                   title={col.description}
                   onClick={() => selectCell(row, col)}
                 >
@@ -534,7 +545,7 @@ export default function SpreadsheetGrid({
                   type="button"
                   onClick={() => handleCellClick(row, col, value)}
                   onDoubleClick={() => handleCellDoubleClick(row, col, value)}
-                  className={`w-full text-left px-3 py-2 min-h-[36px] transition-colors overflow-hidden ${
+                  className={`w-full text-left px-3 py-2 min-h-[36px] transition-colors overflow-hidden ${selectedClass} ${
                     interaction === 'readonly'
                       ? 'cursor-default'
                       : extractLinkHref(value)
