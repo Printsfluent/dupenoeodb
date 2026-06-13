@@ -1,4 +1,5 @@
 import { Paperclip, Star, User, MapPin, Braces } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { ColumnType, SelectOption } from '../types'
 import { normalizeColumnType } from '../lib/fieldTypes'
 import { findSelectOption, parseMultiSelectValue } from '../lib/selectOptions'
@@ -14,6 +15,42 @@ interface CellValueDisplayProps {
   dark?: boolean
   emptyText: string
   cellText: string
+  highlightQuery?: string
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function HighlightText({
+  text,
+  query,
+  className,
+}: {
+  text: string
+  query?: string
+  className?: string
+}) {
+  if (!query?.trim()) return <span className={className}>{text}</span>
+
+  const parts = text.split(new RegExp(`(${escapeRegExp(query.trim())})`, 'gi'))
+  return (
+    <span className={className}>
+      {parts.map((part, index) =>
+        part.toLowerCase() === query.trim().toLowerCase() ? (
+          <mark key={`${part}-${index}`} className="bg-brand-500/30 text-inherit rounded-sm px-0.5">
+            {part}
+          </mark>
+        ) : (
+          <span key={`${part}-${index}`}>{part}</span>
+        ),
+      )}
+    </span>
+  )
+}
+
+function renderHighlighted(text: string, query: string | undefined, className?: string): ReactNode {
+  return <HighlightText text={text} query={query} className={className} />
 }
 
 export default function CellValueDisplay({
@@ -24,6 +61,7 @@ export default function CellValueDisplay({
   dark,
   emptyText: _emptyText,
   cellText,
+  highlightQuery,
 }: CellValueDisplayProps) {
   const normalized = normalizeColumnType(type)
   const linkHref = extractLinkHref(value)
@@ -35,7 +73,7 @@ export default function CellValueDisplay({
   if (linkHref) {
     return (
       <span className="text-brand-400 underline decoration-brand-400/50 underline-offset-2">
-        {value}
+        {renderHighlighted(value, highlightQuery)}
       </span>
     )
   }
@@ -77,7 +115,7 @@ export default function CellValueDisplay({
             className="w-4 h-4 rounded border border-app-border-strong shrink-0"
             style={{ backgroundColor: value.startsWith('#') ? value : `#${value}` }}
           />
-          <span className={cellText}>{value}</span>
+          <span className={cellText}>{renderHighlighted(value, highlightQuery)}</span>
         </span>
       )
 
@@ -85,7 +123,7 @@ export default function CellValueDisplay({
       return (
         <span className={`inline-flex items-center gap-1.5 ${cellText}`}>
           <Paperclip className="w-3.5 h-3.5 text-app-faint" />
-          {value}
+          {renderHighlighted(value, highlightQuery)}
         </span>
       )
 
@@ -93,7 +131,7 @@ export default function CellValueDisplay({
       return (
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs bg-app-surface-active text-app-muted">
           <User className="w-3 h-3" />
-          {value}
+          {renderHighlighted(value, highlightQuery)}
         </span>
       )
 
@@ -101,7 +139,7 @@ export default function CellValueDisplay({
       return (
         <span className={`inline-flex items-center gap-1.5 ${cellText}`}>
           <MapPin className="w-3.5 h-3.5 text-brand-400" />
-          {value}
+          {renderHighlighted(value, highlightQuery)}
         </span>
       )
 
@@ -109,33 +147,33 @@ export default function CellValueDisplay({
       return (
         <span className={`inline-flex items-center gap-1.5 font-mono text-xs ${cellText}`}>
           <Braces className="w-3.5 h-3.5 text-app-faint shrink-0" />
-          <span className="truncate max-w-[140px]">{value}</span>
+          <span className="truncate max-w-[140px]">{renderHighlighted(value, highlightQuery)}</span>
         </span>
       )
 
     case 'autoNumber':
-      return <span className={`${cellText} text-app-faint tabular-nums`}>{value}</span>
+      return <span className={`${cellText} text-app-faint tabular-nums`}>{renderHighlighted(value, highlightQuery)}</span>
 
     case 'longText':
-      return <span className={`${cellText} line-clamp-2`}>{value}</span>
+      return <span className={`${cellText} line-clamp-2`}>{renderHighlighted(value, highlightQuery)}</span>
 
     case 'decimal':
     case 'number':
-      return <span className={`${cellText} tabular-nums`}>{value}</span>
+      return <span className={`${cellText} tabular-nums`}>{renderHighlighted(value, highlightQuery)}</span>
 
     case 'dateTime':
-      return <span className={cellText}>{formatDateTimeDisplay(value)}</span>
+      return <span className={cellText}>{renderHighlighted(formatDateTimeDisplay(value), highlightQuery)}</span>
 
     case 'geometry':
-      return <span className={`${cellText} font-mono text-xs`}>{value}</span>
+      return <span className={`${cellText} font-mono text-xs`}>{renderHighlighted(value, highlightQuery)}</span>
 
     case 'singleSelect': {
       const option = findSelectOption(options, value)
-      if (!option) return <span className={cellText}>{value}</span>
+      if (!option) return <span className={cellText}>{renderHighlighted(value, highlightQuery)}</span>
       return colorCodeOptions ? (
         <SelectOptionBadge label={option.label} color={option.color} dark={dark} />
       ) : (
-        <span className={cellText}>{option.label}</span>
+        <span className={cellText}>{renderHighlighted(option.label, highlightQuery)}</span>
       )
     }
 
@@ -146,11 +184,11 @@ export default function CellValueDisplay({
         <span className="inline-flex flex-wrap gap-1">
           {ids.map((id) => {
             const option = findSelectOption(options, id)
-            if (!option) return <span key={id} className={cellText}>{id}</span>
+            if (!option) return <span key={id} className={cellText}>{renderHighlighted(id, highlightQuery)}</span>
             return colorCodeOptions ? (
               <SelectOptionBadge key={id} label={option.label} color={option.color} dark={dark} compact />
             ) : (
-              <span key={id} className={`${cellText} text-xs`}>{option.label}</span>
+              <span key={id} className={`${cellText} text-xs`}>{renderHighlighted(option.label, highlightQuery)}</span>
             )
           })}
         </span>
@@ -166,10 +204,10 @@ export default function CellValueDisplay({
                 : value === 'Churned' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400'
                   : 'bg-app-surface-active text-app-faint'
           }`}>
-            {value}
+            {renderHighlighted(value, highlightQuery)}
           </span>
         )
       }
-      return <span className={cellText}>{value}</span>
+      return <span className={cellText}>{renderHighlighted(value, highlightQuery)}</span>
   }
 }

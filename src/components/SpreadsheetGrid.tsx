@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
-import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star, Pencil, Users, Download } from 'lucide-react'
+import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star, Pencil, Users, Download, Search } from 'lucide-react'
 import type { Column, ColumnType, Row, Table } from '../types'
 import { createId } from '../lib/id'
 import EditableName from './EditableName'
@@ -9,7 +9,7 @@ import FieldModal from './FieldModal'
 import CellValueDisplay from './CellValueDisplay'
 import CellValueEditor, { RatingInput, getCellInteraction } from './CellValueEditor'
 import { isSelectFieldType, normalizeColumnType } from '../lib/fieldTypes'
-import { createSelectOption, getDefaultCellValue } from '../lib/selectOptions'
+import { createSelectOption, getDefaultCellValue, findSelectOption, parseMultiSelectValue } from '../lib/selectOptions'
 import { extractLinkHref, openLink } from '../lib/links'
 import { copyToClipboard } from '../lib/copy'
 import { downloadTableAsCsv, downloadTableAsXlsx } from '../lib/exportSpreadsheet'
@@ -40,6 +40,7 @@ interface ViewState {
   filterValue: string
   groupColumnId: string | null
   showHidden: boolean
+  searchQuery: string
 }
 
 export default function SpreadsheetGrid({
@@ -73,7 +74,9 @@ export default function SpreadsheetGrid({
     filterValue: '',
     groupColumnId: null,
     showHidden: false,
+    searchQuery: '',
   })
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const headerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const gridRef = useRef<HTMLDivElement>(null)
   const headerScrollRef = useRef<HTMLDivElement>(null)
@@ -363,6 +366,29 @@ export default function SpreadsheetGrid({
     setView((v) => ({ ...v, sortColumnId: colId, sortDirection: direction }))
   }
 
+  function getSearchableCellText(row: Row, col: Column): string {
+    const raw = row.cells[col.id] ?? ''
+    const normalized = normalizeColumnType(col.type)
+    if (normalized === 'singleSelect') {
+      const option = findSelectOption(col.options ?? [], raw)
+      return [raw, option?.label ?? ''].filter(Boolean).join(' ')
+    }
+    if (normalized === 'multiSelect') {
+      const ids = parseMultiSelectValue(raw)
+      const labels = ids.map((id) => findSelectOption(col.options ?? [], id)?.label ?? id)
+      return [raw, ...labels].filter(Boolean).join(' ')
+    }
+    return raw
+  }
+
+  function rowMatchesSearch(row: Row, query: string) {
+    const q = query.trim().toLowerCase()
+    if (!q) return true
+    return visibleColumns.some((col) =>
+      getSearchableCellText(row, col).toLowerCase().includes(q),
+    )
+  }
+
   function clearViewOverrides() {
     setView({
       sortColumnId: null,
@@ -371,6 +397,7 @@ export default function SpreadsheetGrid({
       filterValue: '',
       groupColumnId: null,
       showHidden: view.showHidden,
+      searchQuery: '',
     })
   }
 
@@ -382,6 +409,10 @@ export default function SpreadsheetGrid({
       rows = rows.filter((row) =>
         (row.cells[view.filterColumnId!] ?? '').toLowerCase().includes(q),
       )
+    }
+
+    if (view.searchQuery.trim()) {
+      rows = rows.filter((row) => rowMatchesSearch(row, view.searchQuery))
     }
 
     if (view.sortColumnId) {
@@ -400,7 +431,21 @@ export default function SpreadsheetGrid({
     }
 
     return rows
-  }, [table.rows, view.filterColumnId, view.filterValue, view.sortColumnId, view.sortDirection])
+  }, [table.rows, view.filterColumnId, view.filterValue, view.searchQuery, view.sortColumnId, view.sortDirection, visibleColumns])
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   const groupedRows = useMemo(() => {
     if (!view.groupColumnId) return null
@@ -484,6 +529,7 @@ export default function SpreadsheetGrid({
           const stickyClass = isPinned ? `${stickyPinnedClass} ${gridBorder} border-r ${cellBorder}` : `${gridBorder} border-r ${cellBorder}`
           const stickyStyle = isPinned ? stickyPinnedStyle : undefined
           const displayCellText = isPinned ? pinnedCellText : cellText
+          const searchHighlight = view.searchQuery.trim() || undefined
           const selectedClass = isSelected
             ? isPinned
               ? pinnedCellSelected
@@ -515,6 +561,7 @@ export default function SpreadsheetGrid({
                     dark={dark}
                     emptyText={emptyText}
                     cellText={displayCellText}
+                    highlightQuery={searchHighlight}
                   />
                 </div>
               ) : isEditing ? (
@@ -566,6 +613,7 @@ export default function SpreadsheetGrid({
                     dark={dark}
                     emptyText={emptyText}
                     cellText={displayCellText}
+                    highlightQuery={searchHighlight}
                   />
                 </button>
               )}
@@ -592,7 +640,7 @@ export default function SpreadsheetGrid({
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className={`shrink-0 flex items-center justify-between px-4 py-3 ${gridBorder} border-b ${toolbar}`}>
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <TableIcon icon={table.icon} size="md" />
           {schemaEditable ? (
             <EditableName
@@ -605,6 +653,28 @@ export default function SpreadsheetGrid({
           ) : (
             <span className={`font-semibold text-sm ${title}`}>{table.name}</span>
           )}
+          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-app-border bg-app-bg min-w-[180px] max-w-[280px] flex-1">
+            <Search className="w-4 h-4 text-app-faint shrink-0" />
+            <input
+              ref={searchInputRef}
+              type="search"
+              value={view.searchQuery}
+              onChange={(e) => setView((v) => ({ ...v, searchQuery: e.target.value }))}
+              placeholder="Search cells..."
+              className="flex-1 min-w-0 bg-transparent text-sm text-app-text outline-none placeholder:text-app-faint"
+              aria-label="Search cells"
+            />
+            {view.searchQuery && (
+              <button
+                type="button"
+                onClick={() => setView((v) => ({ ...v, searchQuery: '' }))}
+                className="p-0.5 text-app-faint hover:text-app-muted shrink-0"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {hiddenCount > 0 && schemaEditable && (
@@ -617,7 +687,7 @@ export default function SpreadsheetGrid({
               {view.showHidden ? 'Hide hidden fields' : `Show ${hiddenCount} hidden`}
             </button>
           )}
-          {(view.sortColumnId || view.filterColumnId || view.groupColumnId) && (
+          {(view.sortColumnId || view.filterColumnId || view.groupColumnId || view.searchQuery) && (
             <button
               type="button"
               onClick={clearViewOverrides}
@@ -798,7 +868,13 @@ export default function SpreadsheetGrid({
 
         {processedRows.length === 0 && (
           <div className={`flex flex-col items-center justify-center py-16 ${thText}`}>
-            <p className="text-sm">{table.rows.length === 0 ? 'No rows yet' : 'No rows match the current filter'}</p>
+            <p className="text-sm">
+              {table.rows.length === 0
+                ? 'No rows yet'
+                : view.searchQuery.trim()
+                  ? 'No cells match your search'
+                  : 'No rows match the current filter'}
+            </p>
             {table.rows.length === 0 && !readOnly ? (
               <button
                 type="button"
