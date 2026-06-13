@@ -193,9 +193,29 @@ export default function SpreadsheetGrid({
     activateCellEdit(row, col)
   }
 
+  function cellAcceptsDirectInput(col: Column) {
+    if (!canEditCell(col)) return false
+    const interaction = getCellInteraction(col.type)
+    return interaction === 'edit' || interaction === 'select'
+  }
+
   useEffect(() => {
     if (!selectedCell || editingCell) return
     const active = selectedCell
+
+    function onPaste(e: ClipboardEvent) {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
+      const col = table.columns.find((item) => item.id === active.colId)
+      if (!col || !cellAcceptsDirectInput(col)) return
+
+      const pasted = e.clipboardData?.getData('text/plain')
+      if (pasted === undefined) return
+
+      e.preventDefault()
+      updateCell(active.rowId, active.colId, pasted)
+    }
 
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement
@@ -231,8 +251,12 @@ export default function SpreadsheetGrid({
     }
 
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedCell, editingCell, table.rows, table.columns])
+    window.addEventListener('paste', onPaste)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('paste', onPaste)
+    }
+  }, [selectedCell, editingCell, table.rows, table.columns, readOnly, isWorkspaceAdmin])
 
   useEffect(() => {
     if (!showExportMenu) return
