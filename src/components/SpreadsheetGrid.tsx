@@ -2,8 +2,6 @@ import { useState, useRef, useMemo, useEffect } from 'react'
 import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star, Pencil, Users, Download, Search } from 'lucide-react'
 import type { Column, ColumnType, Row, Table } from '../types'
 import { createId } from '../lib/id'
-import EditableName from './EditableName'
-import TableIcon from './TableIcon'
 import FieldContextMenu from './FieldContextMenu'
 import FieldModal from './FieldModal'
 import CellValueDisplay from './CellValueDisplay'
@@ -473,13 +471,7 @@ export default function SpreadsheetGrid({
     setFieldModal({ columnId: colId, mode: 'edit' })
   }
 
-  function renameTable(name: string) {
-    if (!schemaEditable) return
-    onChange({ ...table, name })
-  }
-
   const toolbar = 'border-app-border bg-app-surface'
-  const title = 'text-app-text'
   const addColBtn = 'text-app-faint hover:text-brand-500 hover:bg-app-surface-active'
   const thText = 'text-app-faint'
   const thBorder = 'border-app-border'
@@ -639,44 +631,30 @@ export default function SpreadsheetGrid({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className={`shrink-0 flex items-center justify-between px-4 py-3 ${gridBorder} border-b ${toolbar}`}>
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <TableIcon icon={table.icon} size="md" />
-          {schemaEditable ? (
-            <EditableName
-              value={table.name}
-              onChange={renameTable}
-              placeholder="Table name"
-              className={`font-semibold ${title}`}
-              inputClassName="text-sm font-semibold min-w-[160px]"
-            />
-          ) : (
-            <span className={`font-semibold text-sm ${title}`}>{table.name}</span>
+      <div className={`shrink-0 flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${gridBorder} border-b ${toolbar}`}>
+        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-app-border bg-app-bg min-w-[220px] max-w-[360px] flex-1">
+          <Search className="w-4 h-4 text-app-faint shrink-0" />
+          <input
+            ref={searchInputRef}
+            type="search"
+            value={view.searchQuery}
+            onChange={(e) => setView((v) => ({ ...v, searchQuery: e.target.value }))}
+            placeholder="Search cells..."
+            className="flex-1 min-w-0 bg-transparent text-sm text-app-text outline-none placeholder:text-app-faint"
+            aria-label="Search cells"
+          />
+          {view.searchQuery && (
+            <button
+              type="button"
+              onClick={() => setView((v) => ({ ...v, searchQuery: '' }))}
+              className="p-0.5 text-app-faint hover:text-app-muted shrink-0"
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           )}
-          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-app-border bg-app-bg min-w-[180px] max-w-[280px] flex-1">
-            <Search className="w-4 h-4 text-app-faint shrink-0" />
-            <input
-              ref={searchInputRef}
-              type="search"
-              value={view.searchQuery}
-              onChange={(e) => setView((v) => ({ ...v, searchQuery: e.target.value }))}
-              placeholder="Search cells..."
-              className="flex-1 min-w-0 bg-transparent text-sm text-app-text outline-none placeholder:text-app-faint"
-              aria-label="Search cells"
-            />
-            {view.searchQuery && (
-              <button
-                type="button"
-                onClick={() => setView((v) => ({ ...v, searchQuery: '' }))}
-                className="p-0.5 text-app-faint hover:text-app-muted shrink-0"
-                aria-label="Clear search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {hiddenCount > 0 && schemaEditable && (
             <button
               type="button"

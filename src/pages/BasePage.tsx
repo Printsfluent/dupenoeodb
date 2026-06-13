@@ -331,15 +331,15 @@ export default function BasePage() {
         )}
       </nav>
 
-      <header className="sticky top-12 z-40 shrink-0 border-b border-app-border bg-app-bg">
+      <header className="sticky top-12 z-40 shrink-0 bg-app-bg border-b border-app-border">
         <div className="flex items-center gap-1 px-4 overflow-x-auto">
           {visibleTables.map((table) => (
             <div
               key={table.id}
-              className={`group/tab inline-flex items-center gap-1 border-b-2 transition-colors whitespace-nowrap ${
+              className={`group/tab relative inline-flex items-center gap-1 border-b-2 -mb-px transition-colors whitespace-nowrap ${
                 activeTableId === table.id
                   ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                  : 'border-transparent text-app-faint'
+                  : 'border-transparent text-app-faint hover:text-app-muted'
               }`}
             >
               {canEdit ? (
