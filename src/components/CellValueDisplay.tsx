@@ -22,14 +22,14 @@ export default function CellValueDisplay({
   options = [],
   colorCodeOptions = true,
   dark,
-  emptyText,
+  emptyText: _emptyText,
   cellText,
 }: CellValueDisplayProps) {
   const normalized = normalizeColumnType(type)
   const linkHref = extractLinkHref(value)
 
   if (!value) {
-    return <span className={emptyText}>Empty</span>
+    return null
   }
 
   if (linkHref) {
@@ -141,7 +141,7 @@ export default function CellValueDisplay({
 
     case 'multiSelect': {
       const ids = parseMultiSelectValue(value)
-      if (!ids.length) return <span className={emptyText}>Empty</span>
+      if (!ids.length) return null
       return (
         <span className="inline-flex flex-wrap gap-1">
           {ids.map((id) => {

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Star } from 'lucide-react'
 import type { ColumnType, SelectOption } from '../types'
 import { normalizeColumnType } from '../lib/fieldTypes'
@@ -86,12 +87,31 @@ export default function CellValueEditor({
 }: CellValueEditorProps) {
   const normalized = normalizeColumnType(type)
   const cls = inputClass()
+  const [draft, setDraft] = useState(value)
+
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+
+  function commit(next: string) {
+    onChange(next)
+    onDone?.()
+  }
+
+  function updateDraft(next: string) {
+    setDraft(next)
+  }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && normalized !== 'longText' && normalized !== 'json' && normalized !== 'geometry') {
+      e.preventDefault()
+      commit(draft)
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      setDraft(value)
       onDone?.()
     }
-    if (e.key === 'Escape') onDone?.()
   }
 
   switch (normalized) {
@@ -99,10 +119,16 @@ export default function CellValueEditor({
       return (
         <textarea
           autoFocus
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onDone}
-          onKeyDown={(e) => { if (e.key === 'Escape') onDone?.() }}
+          value={draft}
+          onChange={(e) => updateDraft(e.target.value)}
+          onBlur={() => commit(draft)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              setDraft(value)
+              onDone?.()
+            }
+          }}
           rows={3}
           placeholder="Enter long text..."
           className={`${cls} resize-none min-h-[72px]`}
@@ -114,10 +140,16 @@ export default function CellValueEditor({
       return (
         <textarea
           autoFocus
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onDone}
-          onKeyDown={(e) => { if (e.key === 'Escape') onDone?.() }}
+          value={draft}
+          onChange={(e) => updateDraft(e.target.value)}
+          onBlur={() => commit(draft)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              setDraft(value)
+              onDone?.()
+            }
+          }}
           rows={3}
           placeholder={normalized === 'json' ? '{"key": "value"}' : 'POINT(lng lat)'}
           className={`${cls} resize-none font-mono text-xs min-h-[72px]`}
@@ -130,9 +162,9 @@ export default function CellValueEditor({
           autoFocus
           type="number"
           step="1"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onDone}
+          value={draft}
+          onChange={(e) => updateDraft(e.target.value)}
+          onBlur={() => commit(draft)}
           onKeyDown={handleKeyDown}
           placeholder="0"
           className={cls}
@@ -145,9 +177,9 @@ export default function CellValueEditor({
           autoFocus
           type="number"
           step="any"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onDone}
+          value={draft}
+          onChange={(e) => updateDraft(e.target.value)}
+          onBlur={() => commit(draft)}
           onKeyDown={handleKeyDown}
           placeholder="0.00"
           className={cls}
@@ -159,9 +191,9 @@ export default function CellValueEditor({
         <input
           autoFocus
           type="datetime-local"
-          value={toDatetimeLocal(value)}
-          onChange={(e) => onChange(fromDatetimeLocal(e.target.value))}
-          onBlur={onDone}
+          value={toDatetimeLocal(draft)}
+          onChange={(e) => updateDraft(fromDatetimeLocal(e.target.value))}
+          onBlur={() => commit(draft)}
           onKeyDown={handleKeyDown}
           className={cls}
         />
@@ -180,9 +212,9 @@ export default function CellValueEditor({
           />
           <input
             type="text"
-            value={value}
-            onChange={(e) => onChange(normalizeHex(e.target.value))}
-            onBlur={onDone}
+            value={draft}
+            onChange={(e) => updateDraft(normalizeHex(e.target.value))}
+            onBlur={() => commit(draft)}
             onKeyDown={handleKeyDown}
             placeholder="#3388fc"
             className="flex-1 min-w-0 bg-transparent text-sm outline-none text-inherit"
@@ -219,9 +251,9 @@ export default function CellValueEditor({
         <input
           autoFocus
           type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onDone}
+          value={draft}
+          onChange={(e) => updateDraft(e.target.value)}
+          onBlur={() => commit(draft)}
           onKeyDown={handleKeyDown}
           placeholder="filename.pdf or URL"
           className={cls}
@@ -233,9 +265,9 @@ export default function CellValueEditor({
         <input
           autoFocus
           type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onDone}
+          value={draft}
+          onChange={(e) => updateDraft(e.target.value)}
+          onBlur={() => commit(draft)}
           onKeyDown={handleKeyDown}
           placeholder="Name or email"
           className={cls}
@@ -247,9 +279,9 @@ export default function CellValueEditor({
         <input
           autoFocus
           type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onDone}
+          value={draft}
+          onChange={(e) => updateDraft(e.target.value)}
+          onBlur={() => commit(draft)}
           onKeyDown={handleKeyDown}
           placeholder="Address or 37.7749, -122.4194"
           className={cls}
@@ -269,13 +301,13 @@ export default function CellValueEditor({
         <div className="relative min-h-[36px] px-2 py-1 bg-app-surface">
           <SelectCellEditor
             options={options}
-            value={value}
+            value={draft}
             multiple={normalized === 'multiSelect'}
             colorCodeOptions={colorCodeOptions}
             alphabetizeOptions={alphabetizeOptions}
             dark={dark}
-            onChange={onChange}
-            onDone={onDone}
+            onChange={updateDraft}
+            onDone={() => commit(draft)}
           />
         </div>
       )
@@ -285,9 +317,9 @@ export default function CellValueEditor({
         <input
           autoFocus
           type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onDone}
+          value={draft}
+          onChange={(e) => updateDraft(e.target.value)}
+          onBlur={() => commit(draft)}
           onKeyDown={handleKeyDown}
           placeholder="Enter value"
           className={cls}

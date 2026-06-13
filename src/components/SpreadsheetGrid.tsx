@@ -1,5 +1,5 @@
-import { useState, useRef, useMemo } from 'react'
-import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star, Pencil, Users } from 'lucide-react'
+import { useState, useRef, useMemo, useEffect } from 'react'
+import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star, Pencil, Users, Download } from 'lucide-react'
 import type { Column, ColumnType, Row, Table } from '../types'
 import { createId } from '../lib/id'
 import EditableName from './EditableName'
@@ -11,7 +11,11 @@ import CellValueEditor, { RatingInput, getCellInteraction } from './CellValueEdi
 import { isSelectFieldType, normalizeColumnType } from '../lib/fieldTypes'
 import { createSelectOption, getDefaultCellValue } from '../lib/selectOptions'
 import { extractLinkHref, openLink } from '../lib/links'
+import { copyToClipboard } from '../lib/copy'
+import { downloadTableAsCsv, downloadTableAsXlsx } from '../lib/exportSpreadsheet'
 import { useTheme } from '../context/ThemeContext'
+
+const ROW_INDEX_WIDTH_PX = 40
 
 interface SpreadsheetGridProps {
   table: Table
@@ -52,6 +56,8 @@ export default function SpreadsheetGrid({
   const { theme } = useTheme()
   const dark = darkProp ?? theme === 'dark'
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{ rowId: string; colId: string } | null>(null)
+  const [showExportMenu, setShowExportMenu] = useState(false)
   const [fieldMenu, setFieldMenu] = useState<{ columnId: string; rect: DOMRect } | null>(null)
   const [fieldModal, setFieldModal] = useState<{
     columnId: string
@@ -66,12 +72,18 @@ export default function SpreadsheetGrid({
     showHidden: false,
   })
   const headerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
-  const cellClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   const visibleColumns = useMemo(
     () => table.columns.filter((col) => view.showHidden || !col.hidden),
     [table.columns, view.showHidden],
   )
+
+  const pinnedColumnId = useMemo(() => {
+    const display = visibleColumns.find((col) => col.isDisplayValue)
+    return display?.id ?? visibleColumns[0]?.id ?? null
+  }, [visibleColumns])
 
   const hiddenCount = table.columns.filter((col) => col.hidden).length
   const schemaEditable = canEditFields && canModifySchema
@@ -130,42 +142,91 @@ export default function SpreadsheetGrid({
     if (!canEditCell(col)) return
     const interaction = getCellInteraction(col.type)
     if (interaction === 'readonly' || interaction === 'inline-rating') return
+    setSelectedCell({ rowId: row.id, colId: col.id })
     setEditingCell({ rowId: row.id, colId: col.id })
   }
 
+  function selectCell(row: Row, col: Column) {
+    setSelectedCell({ rowId: row.id, colId: col.id })
+    setEditingCell(null)
+  }
+
   function handleCellClick(row: Row, col: Column, value: string) {
-    if (!canEditCell(col)) return
+    if (!canEditCell(col)) {
+      selectCell(row, col)
+      return
+    }
     const interaction = getCellInteraction(col.type)
     if (interaction === 'toggle') {
       const checked = value === 'true' || value === '1' || value.toLowerCase() === 'yes'
       updateCell(row.id, col.id, checked ? '' : 'true')
+      selectCell(row, col)
       return
     }
-    if (interaction === 'readonly' || interaction === 'inline-rating') return
-
-    if (extractLinkHref(value)) {
-      if (cellClickTimer.current) clearTimeout(cellClickTimer.current)
-      cellClickTimer.current = setTimeout(() => {
-        cellClickTimer.current = null
-        activateCellEdit(row, col)
-      }, 250)
+    if (interaction === 'readonly' || interaction === 'inline-rating') {
+      selectCell(row, col)
       return
     }
-
-    activateCellEdit(row, col)
+    selectCell(row, col)
   }
 
   function handleCellDoubleClick(row: Row, col: Column, value: string) {
-    if (cellClickTimer.current) {
-      clearTimeout(cellClickTimer.current)
-      cellClickTimer.current = null
-    }
     if (openLink(value)) {
       setEditingCell(null)
       return
     }
     activateCellEdit(row, col)
   }
+
+  useEffect(() => {
+    if (!selectedCell || editingCell) return
+    const active = selectedCell
+
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
+        const row = table.rows.find((item) => item.id === active.rowId)
+        const value = row?.cells[active.colId] ?? ''
+        if (value) {
+          e.preventDefault()
+          void copyToClipboard(value)
+        }
+        return
+      }
+
+      if (e.key === 'Enter' || e.key === 'F2') {
+        e.preventDefault()
+        const row = table.rows.find((item) => item.id === active.rowId)
+        const col = table.columns.find((item) => item.id === active.colId)
+        if (row && col) activateCellEdit(row, col)
+        return
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const col = table.columns.find((item) => item.id === active.colId)
+        if (col && canEditCell(col)) {
+          e.preventDefault()
+          updateCell(active.rowId, active.colId, '')
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedCell, editingCell, table.rows, table.columns])
+
+  useEffect(() => {
+    if (!showExportMenu) return
+    function onPointerDown(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [showExportMenu])
 
   function deleteRow(rowId: string) {
     onChange({ ...table, rows: table.rows.filter((r) => r.id !== rowId) })
@@ -300,10 +361,11 @@ export default function SpreadsheetGrid({
     if (!view.groupColumnId) return null
     const groups = new Map<string, Row[]>()
     processedRows.forEach((row) => {
-      const key = row.cells[view.groupColumnId!] || '(Empty)'
-      const list = groups.get(key) ?? []
+      const key = row.cells[view.groupColumnId!] || ''
+      const label = key || '(No value)'
+      const list = groups.get(label) ?? []
       list.push(row)
-      groups.set(key, list)
+      groups.set(label, list)
     })
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [processedRows, view.groupColumnId])
@@ -346,22 +408,52 @@ export default function SpreadsheetGrid({
     ? table.columns.find((col) => col.id === fieldModal.columnId)
     : null
 
+  const stickyIndexClass = 'sticky left-0 z-[15] bg-app-bg'
+  const stickyIndexHeadClass = 'sticky left-0 top-0 z-[30] bg-app-surface-muted'
+  const stickyPinnedStyle = { left: ROW_INDEX_WIDTH_PX }
+  const stickyPinnedClass = 'sticky z-[14] bg-app-bg shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]'
+  const stickyPinnedHeadClass = 'sticky top-0 z-[29] bg-app-surface-muted shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]'
+
+  function isCellSelected(rowId: string, colId: string) {
+    return selectedCell?.rowId === rowId && selectedCell?.colId === colId
+  }
+
   function renderRow(row: Row, index: number) {
     return (
       <tr key={row.id} className={`border-b ${rowBorder} ${rowHover} group`}>
-        <td className={`px-2 py-2 text-xs ${thText} text-center border-r ${cellBorder}`}>
+        <td
+          className={`px-2 py-2 text-xs ${thText} text-center border-r ${cellBorder} ${stickyIndexClass}`}
+        >
           {index + 1}
         </td>
         {visibleColumns.map((col) => {
           const isEditing = editingCell?.rowId === row.id && editingCell?.colId === col.id
+          const isSelected = isCellSelected(row.id, col.id)
           const value = row.cells[col.id] ?? ''
-
+          const isPinned = col.id === pinnedColumnId
           const interaction = getCellInteraction(col.type)
+          const stickyClass = isPinned ? `${stickyPinnedClass} border-r ${cellBorder}` : `border-r ${cellBorder}`
+          const stickyStyle = isPinned ? stickyPinnedStyle : undefined
 
           return (
-            <td key={col.id} className={`px-0 py-0 border-r ${cellBorder}`}>
+            <td
+              key={col.id}
+              className={`px-0 py-0 min-w-[160px] ${stickyClass}`}
+              style={stickyStyle}
+            >
               {!canEditCell(col) ? (
-                <div className="w-full text-left px-3 py-2 min-h-[36px]" title={col.description}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => selectCell(row, col)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') selectCell(row, col)
+                  }}
+                  className={`w-full text-left px-3 py-2 min-h-[36px] cursor-default ${
+                    isSelected ? 'ring-2 ring-inset ring-brand-500 bg-brand-500/10' : ''
+                  }`}
+                  title={col.description}
+                >
                   <CellValueDisplay
                     type={col.type}
                     value={value}
@@ -385,8 +477,11 @@ export default function SpreadsheetGrid({
                 />
               ) : interaction === 'inline-rating' ? (
                 <div
-                  className={`min-h-[36px] flex items-center ${cellHover}`}
+                  className={`min-h-[36px] flex items-center ${cellHover} ${
+                    isSelected ? 'ring-2 ring-inset ring-brand-500 bg-brand-500/10' : ''
+                  }`}
                   title={col.description}
+                  onClick={() => selectCell(row, col)}
                 >
                   <RatingInput
                     value={value}
@@ -400,6 +495,8 @@ export default function SpreadsheetGrid({
                   onClick={() => handleCellClick(row, col, value)}
                   onDoubleClick={() => handleCellDoubleClick(row, col, value)}
                   className={`w-full text-left px-3 py-2 min-h-[36px] transition-colors ${
+                    isSelected ? 'ring-2 ring-inset ring-brand-500 bg-brand-500/10' : ''
+                  } ${
                     interaction === 'readonly'
                       ? 'cursor-default'
                       : extractLinkHref(value)
@@ -408,8 +505,8 @@ export default function SpreadsheetGrid({
                   }`}
                   title={
                     extractLinkHref(value)
-                      ? `${col.description ? `${col.description} · ` : ''}Double-click to open link`
-                      : col.description
+                      ? `${col.description ? `${col.description} · ` : ''}Double-click to open link · Double-click to edit`
+                      : `${col.description ? `${col.description} · ` : ''}Click to select · Double-click to edit`
                   }
                 >
                   <CellValueDisplay
@@ -511,16 +608,62 @@ export default function SpreadsheetGrid({
               Add row
             </button>
           )}
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              type="button"
+              onClick={() => setShowExportMenu((open) => !open)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors text-app-faint hover:text-app-muted hover:bg-app-surface-active"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 py-1 rounded-lg border border-app-border bg-app-surface shadow-xl min-w-[140px] z-50">
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadTableAsCsv(table)
+                    setShowExportMenu(false)
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-app-text hover:bg-app-surface-hover"
+                >
+                  Export as CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadTableAsXlsx(table)
+                    setShowExportMenu(false)
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-app-text hover:bg-app-surface-hover"
+                >
+                  Export as Excel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div ref={gridRef} className="flex-1 overflow-auto isolate">
         <table className="w-full text-sm border-collapse min-w-max">
-          <thead className="sticky top-0 z-10">
+          <thead className="sticky top-0 z-20 bg-app-surface-muted">
             <tr className={`border-b ${thead}`}>
-              <th className={`w-10 px-2 py-2.5 text-xs font-medium ${thText} border-r ${thBorder}`}>#</th>
-              {visibleColumns.map((col) => (
-                <th key={col.id} className={`px-1 py-1 border-r ${thBorder} min-w-[160px] group/col`}>
+              <th
+                className={`w-10 px-2 py-2.5 text-xs font-medium ${thText} border-r ${thBorder} ${stickyIndexHeadClass}`}
+              >
+                #
+              </th>
+              {visibleColumns.map((col) => {
+                const isPinned = col.id === pinnedColumnId
+                return (
+                <th
+                  key={col.id}
+                  className={`px-1 py-1 border-r ${thBorder} min-w-[160px] group/col ${
+                    isPinned ? stickyPinnedHeadClass : 'bg-app-surface-muted'
+                  }`}
+                  style={isPinned ? stickyPinnedStyle : undefined}
+                >
                   {schemaEditable ? (
                     <button
                       ref={(el) => { headerRefs.current[col.id] = el }}
@@ -573,8 +716,9 @@ export default function SpreadsheetGrid({
                     </div>
                   )}
                 </th>
-              ))}
-              <th className="w-10" />
+                )
+              })}
+              <th className="w-10 bg-app-surface-muted" />
             </tr>
           </thead>
           <tbody>
