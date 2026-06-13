@@ -43,8 +43,8 @@ export default function BasePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tableParam = searchParams.get('table')
   const leavingRef = useRef(false)
+  const seededTableUrlRef = useRef(false)
   const [base, setBase] = useState<Base | null>(null)
-  const [activeTableId, setActiveTableId] = useState<string | null>(() => tableParam)
   const [showNewTable, setShowNewTable] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showTableTeams, setShowTableTeams] = useState(false)
@@ -96,14 +96,37 @@ export default function BasePage() {
   }, [navigate, workspaceId, base?.workspaceId])
 
   const selectActiveTable = useCallback((tableId: string | null) => {
-    setActiveTableId(tableId)
     setSearchParams((prev) => {
+      const current = prev.get('table')
+      if ((tableId ?? null) === (current ?? null)) return prev
       const next = new URLSearchParams(prev)
       if (tableId) next.set('table', tableId)
       else next.delete('table')
       return next
     }, { replace: true })
   }, [setSearchParams])
+
+  const visibleTables = useMemo(() => {
+    if (!base) return []
+    return getAccessibleTables(member, base.tables, hasFullAccess)
+  }, [base, member, hasFullAccess, cacheVersion])
+
+  const activeTableId = useMemo(() => {
+    if (tableParam && visibleTables.some((table) => table.id === tableParam)) return tableParam
+    return visibleTables[0]?.id ?? null
+  }, [tableParam, visibleTables])
+
+  useEffect(() => {
+    seededTableUrlRef.current = false
+  }, [baseId])
+
+  useEffect(() => {
+    if (!base || tableParam || seededTableUrlRef.current) return
+    const fallback = visibleTables[0]?.id
+    if (!fallback) return
+    seededTableUrlRef.current = true
+    selectActiveTable(fallback)
+  }, [base, tableParam, visibleTables, selectActiveTable])
 
   useEffect(() => {
     if (leavingRef.current) return
@@ -142,17 +165,8 @@ export default function BasePage() {
       navigate(workspaceHome)
       return
     }
-    const accessible = getAccessibleTables(currentMember, found.tables, bypass)
     setBase(found)
-    const nextTableId =
-      (tableParam && accessible.some((table) => table.id === tableParam) ? tableParam : null)
-      ?? (activeTableId && accessible.some((table) => table.id === activeTableId) ? activeTableId : null)
-      ?? accessible[0]?.id
-      ?? null
-    if (nextTableId !== activeTableId || nextTableId !== tableParam) {
-      selectActiveTable(nextTableId)
-    }
-  }, [user, workspaceId, baseId, navigate, cacheVersion, workspace, location.pathname, ready, tableParam, activeTableId, selectActiveTable])
+  }, [user, workspaceId, baseId, navigate, cacheVersion, workspace, location.pathname, ready])
 
   function saveBase(updated: Base) {
     upsertBase(updated)
@@ -255,8 +269,6 @@ export default function BasePage() {
   }
 
   const workspaceTeams = workspaceId ? getWorkspaceTeams(workspaceId) : []
-
-  const visibleTables = getAccessibleTables(member, base.tables, hasFullAccess)
 
   const activeTable = visibleTables.find((t) => t.id === activeTableId)
     ?? visibleTables[0]
