@@ -101,14 +101,11 @@ export function DataProvider({
   }, [userId, userEmail])
 
   useEffect(() => {
-    if (!isFirebaseConfigured()) {
-      return subscribeDataCache(() => {
-        persistCacheToLocalStorage()
-        if (userId && userEmail) {
-          setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
-        }
-      })
-    }
+    if (!userId || !userEmail) return
+    return subscribeDataCache(() => {
+      persistCacheToLocalStorage()
+      setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+    })
   }, [userId, userEmail])
 
   useEffect(() => {
@@ -126,6 +123,7 @@ export function DataProvider({
       return
     }
 
+    hydrateCacheFromLocalStorage()
     setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
     setReady(true)
 

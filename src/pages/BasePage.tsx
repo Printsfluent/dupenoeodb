@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Plus, Upload, Users, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
@@ -26,6 +26,8 @@ import {
 import { isTableStructureChange } from '../lib/tableSchema'
 import { useToast } from '../context/ToastContext'
 import { repairWorkspaceForUser } from '../lib/storage'
+import { getCache } from '../lib/dataStore'
+import { isFirebaseConfigured } from '../lib/firebase'
 import { sheetsToTables } from '../lib/importSpreadsheet'
 import { createId } from '../lib/id'
 import { canAddRows, canAddTables } from '../lib/planLimits'
@@ -38,9 +40,11 @@ export default function BasePage() {
   const { ready, cacheVersion } = useData()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tableParam = searchParams.get('table')
   const leavingRef = useRef(false)
   const [base, setBase] = useState<Base | null>(null)
-  const [activeTableId, setActiveTableId] = useState<string | null>(null)
+  const [activeTableId, setActiveTableId] = useState<string | null>(() => tableParam)
   const [showNewTable, setShowNewTable] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showTableTeams, setShowTableTeams] = useState(false)
@@ -91,10 +95,20 @@ export default function BasePage() {
     navigate('/app', { replace: true })
   }, [navigate, workspaceId, base?.workspaceId])
 
+  const selectActiveTable = useCallback((tableId: string | null) => {
+    setActiveTableId(tableId)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (tableId) next.set('table', tableId)
+      else next.delete('table')
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
   useEffect(() => {
     if (leavingRef.current) return
     if (!location.pathname.includes('/bases/')) return
-    if (!user || !baseId) return
+    if (!user || !baseId || !ready) return
 
     const found =
       (workspaceId ? getWorkspaceBases(workspaceId).find((b) => b.id === baseId) : undefined)
@@ -106,7 +120,10 @@ export default function BasePage() {
     const workspaceHome = activeWorkspaceId ? `/app/w/${activeWorkspaceId}` : '/app'
 
     if (!found) {
-      navigate(workspaceHome)
+      const cacheHasBases = getCache().bases.length > 0
+      if (!isFirebaseConfigured() || cacheHasBases) {
+        navigate(workspaceHome)
+      }
       return
     }
 
@@ -127,11 +144,15 @@ export default function BasePage() {
     }
     const accessible = getAccessibleTables(currentMember, found.tables, bypass)
     setBase(found)
-    setActiveTableId((prev) => {
-      if (prev && accessible.some((table) => table.id === prev)) return prev
-      return accessible[0]?.id ?? null
-    })
-  }, [user, workspaceId, baseId, navigate, cacheVersion, workspace, location.pathname])
+    const nextTableId =
+      (tableParam && accessible.some((table) => table.id === tableParam) ? tableParam : null)
+      ?? (activeTableId && accessible.some((table) => table.id === activeTableId) ? activeTableId : null)
+      ?? accessible[0]?.id
+      ?? null
+    if (nextTableId !== activeTableId || nextTableId !== tableParam) {
+      selectActiveTable(nextTableId)
+    }
+  }, [user, workspaceId, baseId, navigate, cacheVersion, workspace, location.pathname, ready, tableParam, activeTableId, selectActiveTable])
 
   function saveBase(updated: Base) {
     upsertBase(updated)
@@ -178,7 +199,7 @@ export default function BasePage() {
     saveBase({ ...base, tables: remaining })
     if (activeTableId === tableId) {
       const accessible = getAccessibleTables(member, remaining, hasFullAccess)
-      setActiveTableId(accessible[0]?.id ?? null)
+      selectActiveTable(accessible[0]?.id ?? null)
     }
     toast.success(`Deleted ${tableName}`)
   }
@@ -193,7 +214,7 @@ export default function BasePage() {
     const imported = sheetsToTables(sheets)
     const updated = { ...base, tables: [...base.tables, ...imported] }
     saveBase(updated)
-    setActiveTableId(imported[0]?.id ?? activeTableId)
+    selectActiveTable(imported[0]?.id ?? activeTableId)
   }
 
   function handleConfirmNewTable(name: string) {
@@ -220,7 +241,7 @@ export default function BasePage() {
     }
     const updated = { ...base, tables: [...base.tables, table] }
     saveBase(updated)
-    setActiveTableId(table.id)
+    selectActiveTable(table.id)
     setNewTableName('')
     setShowNewTableIconPicker(false)
   }
@@ -326,7 +347,7 @@ export default function BasePage() {
               )}
               <button
                 type="button"
-                onClick={() => setActiveTableId(table.id)}
+                onClick={() => selectActiveTable(table.id)}
                 className={`px-2 py-2.5 text-sm font-medium hover:text-app-muted transition-colors ${
                   activeTableId === table.id ? 'text-brand-600 dark:text-brand-400' : ''
                 }`}
