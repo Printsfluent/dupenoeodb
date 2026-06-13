@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { Star } from 'lucide-react'
 import type { ColumnType, SelectOption } from '../types'
 import { normalizeColumnType } from '../lib/fieldTypes'
@@ -17,6 +17,25 @@ interface CellValueEditorProps {
 
 function inputClass() {
   return 'w-full px-3 py-2 border-2 outline-none text-sm bg-app-surface border-brand-500 text-app-text placeholder:text-app-faint'
+}
+
+const disableBrowserAutocomplete = {
+  autoComplete: 'off',
+  autoCorrect: 'off',
+  autoCapitalize: 'off',
+  spellCheck: false,
+  'data-lpignore': 'true',
+  'data-1p-ignore': 'true',
+  'data-form-type': 'other',
+  name: 'sheetflow-grid-cell',
+} as const
+
+function CellInputForm({ children }: { children: ReactNode }) {
+  return (
+    <form autoComplete="off" onSubmit={(e) => e.preventDefault()} className="contents">
+      {children}
+    </form>
+  )
 }
 
 function toDatetimeLocal(value: string) {
@@ -117,92 +136,108 @@ export default function CellValueEditor({
   switch (normalized) {
     case 'longText':
       return (
-        <textarea
-          autoFocus
-          value={draft}
-          onChange={(e) => updateDraft(e.target.value)}
-          onBlur={() => commit(draft)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.preventDefault()
-              setDraft(value)
-              onDone?.()
-            }
-          }}
-          rows={3}
-          placeholder="Enter long text..."
-          className={`${cls} resize-none min-h-[72px]`}
-        />
+        <CellInputForm>
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => updateDraft(e.target.value)}
+            onBlur={() => commit(draft)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setDraft(value)
+                onDone?.()
+              }
+            }}
+            rows={3}
+            placeholder="Enter long text..."
+            className={`${cls} resize-none min-h-[72px]`}
+            {...disableBrowserAutocomplete}
+          />
+        </CellInputForm>
       )
 
     case 'json':
     case 'geometry':
       return (
-        <textarea
-          autoFocus
-          value={draft}
-          onChange={(e) => updateDraft(e.target.value)}
-          onBlur={() => commit(draft)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.preventDefault()
-              setDraft(value)
-              onDone?.()
-            }
-          }}
-          rows={3}
-          placeholder={normalized === 'json' ? '{"key": "value"}' : 'POINT(lng lat)'}
-          className={`${cls} resize-none font-mono text-xs min-h-[72px]`}
-        />
+        <CellInputForm>
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => updateDraft(e.target.value)}
+            onBlur={() => commit(draft)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setDraft(value)
+                onDone?.()
+              }
+            }}
+            rows={3}
+            placeholder={normalized === 'json' ? '{"key": "value"}' : 'POINT(lng lat)'}
+            className={`${cls} resize-none font-mono text-xs min-h-[72px]`}
+            {...disableBrowserAutocomplete}
+          />
+        </CellInputForm>
       )
 
     case 'number':
       return (
-        <input
-          autoFocus
-          type="number"
-          step="1"
-          value={draft}
-          onChange={(e) => updateDraft(e.target.value)}
-          onBlur={() => commit(draft)}
-          onKeyDown={handleKeyDown}
-          placeholder="0"
-          className={cls}
-        />
+        <CellInputForm>
+          <input
+            autoFocus
+            type="number"
+            step="1"
+            value={draft}
+            onChange={(e) => updateDraft(e.target.value)}
+            onBlur={() => commit(draft)}
+            onKeyDown={handleKeyDown}
+            placeholder="0"
+            className={cls}
+            {...disableBrowserAutocomplete}
+          />
+        </CellInputForm>
       )
 
     case 'decimal':
       return (
-        <input
-          autoFocus
-          type="number"
-          step="any"
-          value={draft}
-          onChange={(e) => updateDraft(e.target.value)}
-          onBlur={() => commit(draft)}
-          onKeyDown={handleKeyDown}
-          placeholder="0.00"
-          className={cls}
-        />
+        <CellInputForm>
+          <input
+            autoFocus
+            type="number"
+            step="any"
+            value={draft}
+            onChange={(e) => updateDraft(e.target.value)}
+            onBlur={() => commit(draft)}
+            onKeyDown={handleKeyDown}
+            placeholder="0.00"
+            className={cls}
+            {...disableBrowserAutocomplete}
+          />
+        </CellInputForm>
       )
 
     case 'dateTime':
       return (
-        <input
-          autoFocus
-          type="datetime-local"
-          value={toDatetimeLocal(draft)}
-          onChange={(e) => updateDraft(fromDatetimeLocal(e.target.value))}
-          onBlur={() => commit(draft)}
-          onKeyDown={handleKeyDown}
-          className={cls}
-        />
+        <CellInputForm>
+          <input
+            autoFocus
+            type="datetime-local"
+            value={toDatetimeLocal(draft)}
+            onChange={(e) => updateDraft(fromDatetimeLocal(e.target.value))}
+            onBlur={() => commit(draft)}
+            onKeyDown={handleKeyDown}
+            className={cls}
+            {...disableBrowserAutocomplete}
+          />
+        </CellInputForm>
       )
 
     case 'colour': {
       const hex = value.startsWith('#') ? value : value ? `#${value}` : '#3388fc'
       return (
-        <div className="flex items-center gap-2 px-2 py-1.5 border-2 border-brand-500 bg-app-surface">
+        <CellInputForm>
+          <div className="flex items-center gap-2 px-2 py-1.5 border-2 border-brand-500 bg-app-surface">
           <input
             autoFocus
             type="color"
@@ -218,8 +253,10 @@ export default function CellValueEditor({
             onKeyDown={handleKeyDown}
             placeholder="#3388fc"
             className="flex-1 min-w-0 bg-transparent text-sm outline-none text-inherit"
+            {...disableBrowserAutocomplete}
           />
-        </div>
+          </div>
+        </CellInputForm>
       )
     }
 
@@ -248,44 +285,53 @@ export default function CellValueEditor({
 
     case 'attachment':
       return (
-        <input
-          autoFocus
-          type="text"
-          value={draft}
-          onChange={(e) => updateDraft(e.target.value)}
-          onBlur={() => commit(draft)}
-          onKeyDown={handleKeyDown}
-          placeholder="filename.pdf or URL"
-          className={cls}
-        />
+        <CellInputForm>
+          <input
+            autoFocus
+            type="text"
+            value={draft}
+            onChange={(e) => updateDraft(e.target.value)}
+            onBlur={() => commit(draft)}
+            onKeyDown={handleKeyDown}
+            placeholder="filename.pdf or URL"
+            className={cls}
+            {...disableBrowserAutocomplete}
+          />
+        </CellInputForm>
       )
 
     case 'user':
       return (
-        <input
-          autoFocus
-          type="text"
-          value={draft}
-          onChange={(e) => updateDraft(e.target.value)}
-          onBlur={() => commit(draft)}
-          onKeyDown={handleKeyDown}
-          placeholder="Name or email"
-          className={cls}
-        />
+        <CellInputForm>
+          <input
+            autoFocus
+            type="text"
+            value={draft}
+            onChange={(e) => updateDraft(e.target.value)}
+            onBlur={() => commit(draft)}
+            onKeyDown={handleKeyDown}
+            placeholder="Name or email"
+            className={cls}
+            {...disableBrowserAutocomplete}
+          />
+        </CellInputForm>
       )
 
     case 'geoData':
       return (
-        <input
-          autoFocus
-          type="text"
-          value={draft}
-          onChange={(e) => updateDraft(e.target.value)}
-          onBlur={() => commit(draft)}
-          onKeyDown={handleKeyDown}
-          placeholder="Address or 37.7749, -122.4194"
-          className={cls}
-        />
+        <CellInputForm>
+          <input
+            autoFocus
+            type="text"
+            value={draft}
+            onChange={(e) => updateDraft(e.target.value)}
+            onBlur={() => commit(draft)}
+            onKeyDown={handleKeyDown}
+            placeholder="Address or 37.7749, -122.4194"
+            className={cls}
+            {...disableBrowserAutocomplete}
+          />
+        </CellInputForm>
       )
 
     case 'autoNumber':
@@ -314,16 +360,19 @@ export default function CellValueEditor({
 
     default:
       return (
-        <input
-          autoFocus
-          type="text"
-          value={draft}
-          onChange={(e) => updateDraft(e.target.value)}
-          onBlur={() => commit(draft)}
-          onKeyDown={handleKeyDown}
-          placeholder="Enter value"
-          className={cls}
-        />
+        <CellInputForm>
+          <input
+            autoFocus
+            type="text"
+            value={draft}
+            onChange={(e) => updateDraft(e.target.value)}
+            onBlur={() => commit(draft)}
+            onKeyDown={handleKeyDown}
+            placeholder="Enter value"
+            className={cls}
+            {...disableBrowserAutocomplete}
+          />
+        </CellInputForm>
       )
   }
 }
