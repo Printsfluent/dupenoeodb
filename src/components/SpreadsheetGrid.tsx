@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react'
+import { useState, useRef, useMemo, useEffect, type CSSProperties } from 'react'
 import { Plus, Trash2, Columns3, ChevronDown, Eye, X, Star, Pencil, Users, Download } from 'lucide-react'
 import type { Column, ColumnType, Row, Table } from '../types'
 import { createId } from '../lib/id'
@@ -17,6 +17,10 @@ import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
 
 const ROW_INDEX_WIDTH_PX = 40
+const ACTION_COLUMN_WIDTH_PX = 40
+const DEFAULT_COLUMN_WIDTH_PX = 160
+const MIN_COLUMN_WIDTH_PX = 72
+const MAX_COLUMN_WIDTH_PX = 640
 
 interface SpreadsheetGridProps {
   table: Table
@@ -78,6 +82,71 @@ export default function SpreadsheetGrid({
   const gridRef = useRef<HTMLDivElement>(null)
   const headerScrollRef = useRef<HTMLDivElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
+  const [columnWidthOverrides, setColumnWidthOverrides] = useState<Record<string, number>>({})
+  const [resizingColumn, setResizingColumn] = useState<{
+    colId: string
+    startX: number
+    startWidth: number
+  } | null>(null)
+
+  function getColumnWidth(col: Column) {
+    return columnWidthOverrides[col.id] ?? col.width ?? DEFAULT_COLUMN_WIDTH_PX
+  }
+
+  function clampColumnWidth(width: number) {
+    return Math.min(MAX_COLUMN_WIDTH_PX, Math.max(MIN_COLUMN_WIDTH_PX, Math.round(width)))
+  }
+
+  function setColumnWidth(colId: string, width: number) {
+    const nextWidth = clampColumnWidth(width)
+    onChange({
+      ...table,
+      columns: table.columns.map((col) =>
+        col.id === colId ? { ...col, width: nextWidth } : col,
+      ),
+    })
+  }
+
+  function startColumnResize(colId: string, clientX: number) {
+    const col = table.columns.find((item) => item.id === colId)
+    if (!col) return
+    setResizingColumn({
+      colId,
+      startX: clientX,
+      startWidth: getColumnWidth(col),
+    })
+  }
+
+  useEffect(() => {
+    if (!resizingColumn) return
+    const active = resizingColumn
+
+    function onMouseMove(e: MouseEvent) {
+      const next = clampColumnWidth(active.startWidth + (e.clientX - active.startX))
+      setColumnWidthOverrides((prev) => ({ ...prev, [active.colId]: next }))
+    }
+
+    function onMouseUp(e: MouseEvent) {
+      const next = clampColumnWidth(active.startWidth + (e.clientX - active.startX))
+      setColumnWidth(active.colId, next)
+      setColumnWidthOverrides((prev) => {
+        const { [active.colId]: _removed, ...rest } = prev
+        return rest
+      })
+      setResizingColumn(null)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [resizingColumn, table])
 
   function syncHeaderScroll() {
     if (headerScrollRef.current && gridRef.current) {
@@ -99,6 +168,23 @@ export default function SpreadsheetGrid({
     })
     return named?.id ?? visibleColumns[0]?.id ?? null
   }, [visibleColumns])
+
+  const tableWidthPx = useMemo(() => {
+    return ROW_INDEX_WIDTH_PX
+      + ACTION_COLUMN_WIDTH_PX
+      + visibleColumns.reduce((sum, col) => sum + getColumnWidth(col), 0)
+  }, [visibleColumns, table.columns, columnWidthOverrides])
+
+  function columnCellStyle(col: Column, isPinned: boolean) {
+    const width = getColumnWidth(col)
+    const style: CSSProperties = {
+      width,
+      minWidth: width,
+      maxWidth: width,
+    }
+    if (isPinned) style.left = ROW_INDEX_WIDTH_PX
+    return style
+  }
 
   const hiddenCount = table.columns.filter((col) => col.hidden).length
   const schemaEditable = canEditFields && canModifySchema
@@ -335,6 +421,7 @@ export default function SpreadsheetGrid({
       id: createId(),
       name: `${source.name} copy`,
       isDisplayValue: false,
+      width: source.width,
     }
     const columns = [...table.columns]
     columns.splice(index + 1, 0, duplicate)
@@ -436,9 +523,9 @@ export default function SpreadsheetGrid({
   const toolbar = 'border-app-border bg-app-surface'
   const title = 'text-app-text'
   const addColBtn = 'text-app-faint hover:text-brand-500 hover:bg-app-surface-active'
-  const thead = 'bg-app-surface-muted border-app-border'
   const thText = 'text-app-faint'
   const thBorder = 'border-app-border'
+  const gridBorder = 'border-2'
   const rowHover = 'hover:bg-app-surface-hover'
   const rowBorder = 'border-app-border'
   const cellBorder = 'border-app-border'
@@ -455,10 +542,9 @@ export default function SpreadsheetGrid({
 
   const stickyIndexClass = 'sticky left-0 z-[15] bg-app-bg'
   const stickyIndexHeadClass = 'sticky left-0 z-[36] bg-app-surface-muted'
-  const stickyPinnedStyle = { left: ROW_INDEX_WIDTH_PX }
-  const stickyPinnedClass = 'sticky z-[14] bg-app-bg border-r-2 border-r-brand-500/50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]'
+  const stickyPinnedClass = `sticky z-[14] bg-app-bg ${gridBorder} border-r-brand-500/50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]`
   const stickyPinnedHeadClass =
-    'sticky z-[35] bg-brand-500/10 border-2 border-brand-500 ring-1 ring-inset ring-brand-500/40 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]'
+    `sticky z-[35] bg-brand-500/10 ${gridBorder} border-brand-500 ring-1 ring-inset ring-brand-500/40 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]`
   const pinnedHeadText = 'text-brand-400'
   const pinnedCellText = 'text-brand-400'
   const pinnedCellSelected = 'ring-2 ring-inset ring-brand-500 bg-brand-500/10'
@@ -469,9 +555,10 @@ export default function SpreadsheetGrid({
 
   function renderRow(row: Row, index: number) {
     return (
-      <tr key={row.id} className={`border-b ${rowBorder} ${rowHover} group`}>
+      <tr key={row.id} className={`${gridBorder} border-b ${rowBorder} ${rowHover} group`}>
         <td
-          className={`px-2 py-2 text-xs ${thText} text-center border-r ${cellBorder} ${stickyIndexClass}`}
+          className={`px-2 py-2 text-xs ${thText} text-center ${gridBorder} border-r ${cellBorder} ${stickyIndexClass}`}
+          style={{ width: ROW_INDEX_WIDTH_PX, minWidth: ROW_INDEX_WIDTH_PX, maxWidth: ROW_INDEX_WIDTH_PX }}
         >
           {index + 1}
         </td>
@@ -481,8 +568,8 @@ export default function SpreadsheetGrid({
           const value = row.cells[col.id] ?? ''
           const isPinned = col.id === pinnedColumnId
           const interaction = getCellInteraction(col.type)
-          const stickyClass = isPinned ? `${stickyPinnedClass} border-r ${cellBorder}` : `border-r ${cellBorder}`
-          const stickyStyle = isPinned ? stickyPinnedStyle : undefined
+          const stickyClass = isPinned ? `${stickyPinnedClass} ${gridBorder} border-r ${cellBorder}` : `${gridBorder} border-r ${cellBorder}`
+          const stickyStyle = columnCellStyle(col, isPinned)
           const displayCellText = isPinned ? pinnedCellText : cellText
           const selectedClass = isSelected
             ? isPinned
@@ -493,7 +580,7 @@ export default function SpreadsheetGrid({
           return (
             <td
               key={col.id}
-              className={`px-0 py-0 min-w-[160px] ${stickyClass}`}
+              className={`px-0 py-0 overflow-hidden ${stickyClass}`}
               style={stickyStyle}
             >
               {!canEditCell(col) ? (
@@ -504,7 +591,7 @@ export default function SpreadsheetGrid({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') selectCell(row, col)
                   }}
-                  className={`w-full text-left px-3 py-2 min-h-[36px] cursor-default ${selectedClass}`}
+                  className={`w-full text-left px-3 py-2 min-h-[36px] cursor-default overflow-hidden ${selectedClass}`}
                   title={col.description}
                 >
                   <CellValueDisplay
@@ -545,7 +632,7 @@ export default function SpreadsheetGrid({
                   type="button"
                   onClick={() => handleCellClick(row, col, value)}
                   onDoubleClick={() => handleCellDoubleClick(row, col, value)}
-                  className={`w-full text-left px-3 py-2 min-h-[36px] transition-colors ${selectedClass} ${
+                  className={`w-full text-left px-3 py-2 min-h-[36px] transition-colors overflow-hidden ${selectedClass} ${
                     interaction === 'readonly'
                       ? 'cursor-default'
                       : extractLinkHref(value)
@@ -572,7 +659,10 @@ export default function SpreadsheetGrid({
             </td>
           )
         })}
-        <td className="px-2 w-10">
+        <td
+          className="px-2"
+          style={{ width: ACTION_COLUMN_WIDTH_PX, minWidth: ACTION_COLUMN_WIDTH_PX, maxWidth: ACTION_COLUMN_WIDTH_PX }}
+        >
           {!readOnly && (
             <button
               type="button"
@@ -591,7 +681,7 @@ export default function SpreadsheetGrid({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className={`shrink-0 flex items-center justify-between px-4 py-3 border-b ${toolbar}`}>
+      <div className={`shrink-0 flex items-center justify-between px-4 py-3 ${gridBorder} border-b ${toolbar}`}>
         <div className="flex items-center gap-2 min-w-0">
           <TableIcon icon={table.icon} size="md" />
           {schemaEditable ? (
@@ -696,13 +786,17 @@ export default function SpreadsheetGrid({
 
       <div
         ref={headerScrollRef}
-        className="shrink-0 overflow-x-auto overflow-y-hidden border-b border-app-border bg-app-surface-muted [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className={`shrink-0 overflow-x-auto overflow-y-hidden ${gridBorder} border-b ${cellBorder} bg-app-surface-muted [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
       >
-        <table className="w-full text-sm border-collapse min-w-max">
+        <table
+          className="text-sm border-collapse"
+          style={{ tableLayout: 'fixed', width: tableWidthPx, minWidth: tableWidthPx }}
+        >
           <thead>
-            <tr className={`border-b ${thead}`}>
+            <tr className={`${gridBorder} border-b ${rowBorder}`}>
               <th
-                className={`w-10 px-2 py-2.5 text-xs font-medium ${thText} border-r ${thBorder} ${stickyIndexHeadClass}`}
+                className={`px-2 py-2.5 text-xs font-medium ${thText} ${gridBorder} border-r ${thBorder} ${stickyIndexHeadClass}`}
+                style={{ width: ROW_INDEX_WIDTH_PX, minWidth: ROW_INDEX_WIDTH_PX, maxWidth: ROW_INDEX_WIDTH_PX }}
               >
                 #
               </th>
@@ -712,10 +806,10 @@ export default function SpreadsheetGrid({
                 return (
                 <th
                   key={col.id}
-                  className={`px-1 py-1 border-r ${thBorder} min-w-[160px] group/col ${
+                  className={`relative px-1 py-1 ${gridBorder} border-r ${thBorder} group/col ${
                     isPinned ? stickyPinnedHeadClass : 'bg-app-surface-muted'
                   }`}
-                  style={isPinned ? stickyPinnedStyle : undefined}
+                  style={columnCellStyle(col, isPinned)}
                 >
                   {schemaEditable ? (
                     <button
@@ -727,7 +821,7 @@ export default function SpreadsheetGrid({
                         e.stopPropagation()
                         openEditField(col.id)
                       }}
-                      className={`w-full flex items-center gap-1 px-2 py-1.5 rounded text-left transition-colors hover:bg-app-surface-active ${col.hidden ? 'opacity-50' : ''}`}
+                      className={`w-full flex items-center gap-1 px-2 py-1.5 pr-3 rounded text-left transition-colors hover:bg-app-surface-active ${col.hidden ? 'opacity-50' : ''}`}
                       title={`${col.name} — click for menu, double-click to edit field`}
                     >
                       <span className="flex-1 min-w-0 flex items-center gap-1">
@@ -759,7 +853,7 @@ export default function SpreadsheetGrid({
                     </button>
                   ) : (
                     <div
-                      className={`w-full flex items-center gap-1 px-2 py-1.5 ${col.hidden ? 'opacity-50' : ''}`}
+                      className={`w-full flex items-center gap-1 px-2 py-1.5 pr-3 ${col.hidden ? 'opacity-50' : ''}`}
                       title={col.description || col.name}
                     >
                       <span className={`text-xs font-semibold uppercase tracking-wider truncate ${headText}`}>
@@ -768,17 +862,36 @@ export default function SpreadsheetGrid({
                       {col.isDisplayValue && <Star className="w-3 h-3 text-amber-400 shrink-0 fill-amber-400" />}
                     </div>
                   )}
+                  <button
+                    type="button"
+                    aria-label={`Resize ${col.name} column`}
+                    className={`absolute top-0 right-0 z-20 h-full w-2 cursor-col-resize touch-none ${
+                      resizingColumn?.colId === col.id ? 'bg-brand-500' : 'hover:bg-brand-500/50'
+                    }`}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      startColumnResize(col.id, e.clientX)
+                    }}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                  />
                 </th>
                 )
               })}
-              <th className="w-10 bg-app-surface-muted" />
+              <th
+                className="bg-app-surface-muted"
+                style={{ width: ACTION_COLUMN_WIDTH_PX, minWidth: ACTION_COLUMN_WIDTH_PX, maxWidth: ACTION_COLUMN_WIDTH_PX }}
+              />
             </tr>
           </thead>
         </table>
       </div>
 
-      <div ref={gridRef} onScroll={syncHeaderScroll} className="flex-1 min-h-0 overflow-auto isolate">
-        <table className="w-full text-sm border-collapse min-w-max">
+      <div ref={gridRef} onScroll={syncHeaderScroll} className={`flex-1 min-h-0 overflow-auto isolate ${gridBorder} border-app-border`}>
+        <table
+          className="text-sm border-collapse"
+          style={{ tableLayout: 'fixed', width: tableWidthPx, minWidth: tableWidthPx }}
+        >
           <tbody>
             {groupedRows
               ? groupedRows.flatMap(([group, rows]) => [

@@ -42,6 +42,8 @@ export interface Column {
   colorCodeOptions?: boolean
   alphabetizeOptions?: boolean
   defaultValue?: string
+  /** Pixel width for grid column layout. */
+  width?: number
 }
 
 export interface Row {
