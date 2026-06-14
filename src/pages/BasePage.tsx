@@ -31,7 +31,7 @@ import { getCache, setBases } from '../lib/dataStore'
 import { isFirebaseConfigured, getFirestoreDb } from '../lib/firebase'
 import { COL, ensureBaseInCache } from '../lib/firestoreSync'
 import { isBaseNewer, stampBase } from '../lib/baseUpdated'
-import { pickRicherBase } from '../lib/baseMerge'
+import { resolveBaseConflict } from '../lib/baseMerge'
 import { rememberLastTable } from '../lib/lastTable'
 import { normalizeBase } from '../lib/tableSchema'
 import { sheetsToTables } from '../lib/importSpreadsheet'
@@ -151,9 +151,13 @@ export default function BasePage() {
         if (!snapshot.exists() || snapshot.metadata.hasPendingWrites) return
         const remote = normalizeBase({ id: snapshot.id, ...snapshot.data() } as Base)
         const cached = getCache().bases.find((item) => item.id === baseId)
-        if (cached && isBaseNewer(cached, remote)) return
-        const merged = cached ? pickRicherBase(cached, remote) : remote
-        setBases([merged])
+        if (!cached) {
+          setBases([remote])
+          return
+        }
+        if (isBaseNewer(cached, remote)) return
+        const next = isBaseNewer(remote, cached) ? remote : resolveBaseConflict(cached, remote)
+        setBases([next])
       },
       (error) => console.warn('Firestore base listener:', error),
     )
@@ -196,7 +200,10 @@ export default function BasePage() {
       navigate(workspaceHome)
       return
     }
-    setBase(found)
+    setBase((prev) => {
+      if (prev?.id === found.id && isBaseNewer(prev, found)) return prev
+      return found
+    })
   }, [user, workspaceId, baseId, navigate, cacheVersion, workspace, location.pathname, ready])
 
   function saveBase(updated: Base) {

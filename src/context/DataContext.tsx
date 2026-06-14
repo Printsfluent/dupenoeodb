@@ -356,10 +356,11 @@ export function DataProvider({
         onSnapshot(
           query(collection(firestore, COL.bases), where('workspaceId', '==', workspaceId)),
           (snapshot) => {
-            const needsSync = mergeBasesForWorkspace(
-              workspaceId,
-              snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never),
-            )
+            const incoming = snapshot.docs
+              .filter((item) => !item.metadata.hasPendingWrites)
+              .map((item) => ({ id: item.id, ...item.data() }) as never)
+            if (incoming.length === 0) return
+            const needsSync = mergeBasesForWorkspace(workspaceId, incoming)
             if (needsSync.length > 0) {
               void persistBases(needsSync)
             }

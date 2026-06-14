@@ -23,7 +23,7 @@ import type {
   WorkspaceMember,
 } from '../types'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
-import { pickRicherBase, countBaseRows } from './baseMerge'
+import { pickRicherBase, countBaseRows, resolveBaseConflict } from './baseMerge'
 import { isBaseNewer, stampBase } from './baseUpdated'
 import { normalizeBase } from './tableSchema'
 import {
@@ -173,7 +173,11 @@ export async function ensureBaseInCache(baseId: string): Promise<Base | null> {
       return cached
     }
 
-    const merged = cached ? pickRicherBase(cached, remote) : remote
+    const merged = cached
+      ? isBaseNewer(remote, cached)
+        ? remote
+        : resolveBaseConflict(cached, remote)
+      : remote
     setBases([merged])
 
     if (!cached || countBaseRows(merged) > countBaseRows(cached)) {
