@@ -167,11 +167,17 @@ export default function SpreadsheetGrid({
     setEditingCell(null)
   }
 
-  function handleCellClick(row: Row, col: Column, value: string) {
+  function handleCellClick(row: Row, col: Column, value: string, e?: React.MouseEvent) {
     if (!canEditCell(col)) {
       selectCell(row, col)
       return
     }
+
+    if (e && (e.metaKey || e.ctrlKey) && extractLinkHref(value)) {
+      openLink(value)
+      return
+    }
+
     const interaction = getCellInteraction(col.type)
     if (interaction === 'toggle') {
       const checked = value === 'true' || value === '1' || value.toLowerCase() === 'yes'
@@ -183,14 +189,13 @@ export default function SpreadsheetGrid({
       selectCell(row, col)
       return
     }
+
     selectCell(row, col)
+    activateCellEdit(row, col)
   }
 
-  function handleCellDoubleClick(row: Row, col: Column, value: string) {
-    if (openLink(value)) {
-      setEditingCell(null)
-      return
-    }
+  function handleCellDoubleClick(row: Row, col: Column) {
+    if (!canEditCell(col)) return
     activateCellEdit(row, col)
   }
 
@@ -247,6 +252,22 @@ export default function SpreadsheetGrid({
         if (col && canEditCell(col)) {
           e.preventDefault()
           updateCell(active.rowId, active.colId, '')
+        }
+        return
+      }
+
+      if (
+        e.key.length === 1 &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
+        const row = table.rows.find((item) => item.id === active.rowId)
+        const col = table.columns.find((item) => item.id === active.colId)
+        if (row && col && getCellInteraction(col.type) === 'edit') {
+          e.preventDefault()
+          setEditingCell({ rowId: active.rowId, colId: active.colId })
+          updateCell(active.rowId, active.colId, e.key)
         }
       }
     }
@@ -582,19 +603,23 @@ export default function SpreadsheetGrid({
               ) : (
                 <button
                   type="button"
-                  onClick={() => handleCellClick(row, col, value)}
-                  onDoubleClick={() => handleCellDoubleClick(row, col, value)}
+                  onClick={(e) => handleCellClick(row, col, value, e)}
+                  onDoubleClick={() => handleCellDoubleClick(row, col)}
                   className={`w-full text-left px-3 py-2 min-h-[36px] transition-colors overflow-hidden ${selectedClass} ${
                     interaction === 'readonly'
                       ? 'cursor-default'
                       : extractLinkHref(value)
-                        ? 'cursor-pointer hover:text-brand-300'
+                        ? 'cursor-text hover:text-brand-300'
                         : cellHover
                   }`}
                   title={
                     extractLinkHref(value)
-                      ? `${col.description ? `${col.description} · ` : ''}Double-click to open link · Double-click to edit`
-                      : `${col.description ? `${col.description} · ` : ''}Click to select · Double-click to edit`
+                      ? `${col.description ? `${col.description} · ` : ''}Click to edit · Ctrl+click to open link`
+                      : col.editPermission === 'creators_only' && !isWorkspaceAdmin
+                        ? `${col.description ? `${col.description} · ` : ''}Only workspace admins can edit this field`
+                        : interaction === 'readonly'
+                          ? `${col.description ? `${col.description} · ` : ''}Auto-number field (read-only)`
+                          : `${col.description ? `${col.description} · ` : ''}Click to edit`
                   }
                 >
                   <CellValueDisplay

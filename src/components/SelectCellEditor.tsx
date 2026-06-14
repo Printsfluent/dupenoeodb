@@ -74,8 +74,15 @@ export default function SelectCellEditor({
       setOpen(false)
       onDone?.()
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+
+    const timer = window.setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
   }, [onDone])
 
   function toggleOption(id: string) {
