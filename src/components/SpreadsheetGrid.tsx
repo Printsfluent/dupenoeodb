@@ -10,6 +10,15 @@ import { isSelectFieldType, normalizeColumnType } from '../lib/fieldTypes'
 import { createSelectOption, getDefaultCellValue, findSelectOption, parseMultiSelectValue } from '../lib/selectOptions'
 import { extractLinkHref, openLink } from '../lib/links'
 import { copyToClipboard } from '../lib/copy'
+import {
+  buildCopyText,
+  getSelectionBounds,
+  isCoordInBounds,
+  parseClipboardGrid,
+  resolvePastedValue,
+  type GridBounds,
+  type SelectionRange,
+} from '../lib/gridClipboard'
 import { downloadTableAsCsv, downloadTableAsXlsx } from '../lib/exportSpreadsheet'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
@@ -58,7 +67,8 @@ export default function SpreadsheetGrid({
   const notify = (message: string) => success(message, 'left')
   const dark = darkProp ?? theme === 'dark'
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null)
-  const [selectedCell, setSelectedCell] = useState<{ rowId: string; colId: string } | null>(null)
+  const [selection, setSelection] = useState<SelectionRange | null>(null)
+  const isSelectingRef = useRef(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [fieldMenu, setFieldMenu] = useState<{ columnId: string; rect: DOMRect } | null>(null)
   const [fieldModal, setFieldModal] = useState<{
@@ -158,20 +168,34 @@ export default function SpreadsheetGrid({
     if (!canEditCell(col)) return
     const interaction = getCellInteraction(col.type)
     if (interaction === 'readonly' || interaction === 'inline-rating') return
-    setSelectedCell({ rowId: row.id, colId: col.id })
-    setEditingCell({ rowId: row.id, colId: col.id })
+    const coord = { rowId: row.id, colId: col.id }
+    setSelection({ anchor: coord, focus: coord })
+    setEditingCell(coord)
   }
 
-  function selectCell(row: Row, col: Column) {
-    setSelectedCell({ rowId: row.id, colId: col.id })
+  function applySelection(row: Row, col: Column, extend = false) {
     setEditingCell(null)
+    setSelection((prev) => {
+      if (extend && prev) {
+        return { anchor: prev.anchor, focus: { rowId: row.id, colId: col.id } }
+      }
+      return {
+        anchor: { rowId: row.id, colId: col.id },
+        focus: { rowId: row.id, colId: col.id },
+      }
+    })
+    if (!extend) isSelectingRef.current = true
+  }
+
+  function extendSelectionTo(row: Row, col: Column) {
+    if (!isSelectingRef.current) return
+    setSelection((prev) =>
+      prev ? { ...prev, focus: { rowId: row.id, colId: col.id } } : null,
+    )
   }
 
   function handleCellClick(row: Row, col: Column, value: string, e?: React.MouseEvent) {
-    if (!canEditCell(col)) {
-      selectCell(row, col)
-      return
-    }
+    if (!canEditCell(col)) return
 
     if (e && (e.metaKey || e.ctrlKey) && extractLinkHref(value)) {
       openLink(value)
@@ -182,15 +206,8 @@ export default function SpreadsheetGrid({
     if (interaction === 'toggle') {
       const checked = value === 'true' || value === '1' || value.toLowerCase() === 'yes'
       updateCell(row.id, col.id, checked ? '' : 'true')
-      selectCell(row, col)
       return
     }
-    if (interaction === 'readonly' || interaction === 'inline-rating') {
-      selectCell(row, col)
-      return
-    }
-
-    selectCell(row, col)
   }
 
   function handleCellDoubleClick(row: Row, col: Column) {
@@ -204,96 +221,40 @@ export default function SpreadsheetGrid({
     return interaction === 'edit' || interaction === 'select'
   }
 
-  function resolvePastedValue(col: Column, pasted: string): string {
-    const trimmed = pasted.trim()
-    if (!isSelectFieldType(col.type)) return trimmed
-    const option = findSelectOption(col.options ?? [], trimmed)
-    if (option) return option.id
-    if (normalizeColumnType(col.type) === 'multiSelect') {
-      const ids = trimmed.split(/[,|]/).map((part) => part.trim()).filter(Boolean)
-      const resolved = ids.map((part) => findSelectOption(col.options ?? [], part)?.id ?? part)
-      return resolved.length ? JSON.stringify(resolved) : ''
+  function canPasteInto(col: Column): boolean {
+    if (!canEditCell(col)) return false
+    const interaction = getCellInteraction(col.type)
+    return interaction !== 'readonly'
+  }
+
+  function batchUpdateCells(updates: { rowId: string; colId: string; value: string }[]) {
+    if (!updates.length) return
+    const patch = new Map<string, Map<string, string>>()
+    for (const update of updates) {
+      if (!patch.has(update.rowId)) patch.set(update.rowId, new Map())
+      patch.get(update.rowId)!.set(update.colId, update.value)
     }
-    return trimmed
+    onChange({
+      ...table,
+      rows: table.rows.map((row) => {
+        const rowPatch = patch.get(row.id)
+        if (!rowPatch) return row
+        const cells = { ...row.cells }
+        rowPatch.forEach((value, colId) => {
+          cells[colId] = value
+        })
+        return { ...row, cells }
+      }),
+    })
   }
 
   useEffect(() => {
-    if (!selectedCell) return
-    const active = selectedCell
-
-    function onPaste(e: ClipboardEvent) {
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
-
-      const col = table.columns.find((item) => item.id === active.colId)
-      if (!col || !cellAcceptsDirectInput(col)) return
-
-      const pasted = e.clipboardData?.getData('text/plain')
-      if (pasted === undefined) return
-
-      e.preventDefault()
-      updateCell(active.rowId, active.colId, resolvePastedValue(col, pasted))
-      setEditingCell(null)
+    function onMouseUp() {
+      isSelectingRef.current = false
     }
-
-    function onKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
-
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
-        const row = table.rows.find((item) => item.id === active.rowId)
-        const value = row?.cells[active.colId] ?? ''
-        if (value) {
-          e.preventDefault()
-          void copyToClipboard(value).then((ok) => {
-            if (ok) notify('Copied')
-          })
-        }
-        return
-      }
-
-      if (e.key === 'Enter' || e.key === 'F2') {
-        e.preventDefault()
-        const row = table.rows.find((item) => item.id === active.rowId)
-        const col = table.columns.find((item) => item.id === active.colId)
-        if (row && col) activateCellEdit(row, col)
-        return
-      }
-
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        const col = table.columns.find((item) => item.id === active.colId)
-        if (col && canEditCell(col)) {
-          e.preventDefault()
-          updateCell(active.rowId, active.colId, '')
-        }
-        return
-      }
-
-      if (
-        e.key.length === 1 &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !e.altKey
-      ) {
-        const row = table.rows.find((item) => item.id === active.rowId)
-        const col = table.columns.find((item) => item.id === active.colId)
-        if (row && col && cellAcceptsDirectInput(col)) {
-          e.preventDefault()
-          setEditingCell({ rowId: active.rowId, colId: active.colId })
-          if (getCellInteraction(col.type) === 'edit') {
-            updateCell(active.rowId, active.colId, e.key)
-          }
-        }
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('paste', onPaste)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('paste', onPaste)
-    }
-  }, [selectedCell, table.rows, table.columns, readOnly, isWorkspaceAdmin])
+    window.addEventListener('mouseup', onMouseUp)
+    return () => window.removeEventListener('mouseup', onMouseUp)
+  }, [])
 
   useEffect(() => {
     if (!showExportMenu) return
@@ -467,6 +428,192 @@ export default function SpreadsheetGrid({
     return rows
   }, [table.rows, view.filterColumnId, view.filterValue, view.searchQuery, view.sortColumnId, view.sortDirection, visibleColumns])
 
+  const displayRowIds = useMemo(() => processedRows.map((row) => row.id), [processedRows])
+  const visibleColIds = useMemo(() => visibleColumns.map((col) => col.id), [visibleColumns])
+
+  function getActiveBounds(): GridBounds | null {
+    if (!selection) return null
+    return getSelectionBounds(selection, displayRowIds, visibleColIds)
+  }
+
+  function pasteClipboardText(text: string) {
+    if (!selection) return
+    const bounds = getActiveBounds()
+    if (!bounds) return
+
+    const grid = parseClipboardGrid(text)
+    if (!grid.length) return
+
+    const isSingleValue = grid.length === 1 && grid[0].length === 1
+    const updates: { rowId: string; colId: string; value: string }[] = []
+
+    if (
+      isSingleValue &&
+      (bounds.rowStart !== bounds.rowEnd || bounds.colStart !== bounds.colEnd)
+    ) {
+      const value = grid[0][0]
+      for (let r = bounds.rowStart; r <= bounds.rowEnd; r++) {
+        const row = processedRows[r]
+        for (let c = bounds.colStart; c <= bounds.colEnd; c++) {
+          const col = visibleColumns[c]
+          if (!canPasteInto(col)) continue
+          updates.push({
+            rowId: row.id,
+            colId: col.id,
+            value: resolvePastedValue(col, value),
+          })
+        }
+      }
+    } else {
+      for (let r = 0; r < grid.length; r++) {
+        const targetRowIdx = bounds.rowStart + r
+        if (targetRowIdx >= processedRows.length) break
+        const row = processedRows[targetRowIdx]
+        for (let c = 0; c < grid[r].length; c++) {
+          const targetColIdx = bounds.colStart + c
+          if (targetColIdx >= visibleColumns.length) break
+          const col = visibleColumns[targetColIdx]
+          if (!canPasteInto(col)) continue
+          updates.push({
+            rowId: row.id,
+            colId: col.id,
+            value: resolvePastedValue(col, grid[r][c] ?? ''),
+          })
+        }
+      }
+    }
+
+    batchUpdateCells(updates)
+    setEditingCell(null)
+  }
+
+  function clearSelectionCells() {
+    const bounds = getActiveBounds()
+    if (!bounds) return
+    const updates: { rowId: string; colId: string; value: string }[] = []
+    for (let r = bounds.rowStart; r <= bounds.rowEnd; r++) {
+      const row = processedRows[r]
+      for (let c = bounds.colStart; c <= bounds.colEnd; c++) {
+        const col = visibleColumns[c]
+        if (!canPasteInto(col)) continue
+        updates.push({ rowId: row.id, colId: col.id, value: '' })
+      }
+    }
+    batchUpdateCells(updates)
+  }
+
+  useEffect(() => {
+    if (!selection) return
+    const active = selection.focus
+
+    function onPaste(e: ClipboardEvent) {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
+      const pasted = e.clipboardData?.getData('text/plain')
+      if (pasted === undefined) return
+
+      const bounds = getSelectionBounds(selection!, displayRowIds, visibleColIds)
+      if (!bounds) return
+
+      const grid = parseClipboardGrid(pasted)
+      const isSingleValue = grid.length === 1 && grid[0].length === 1
+      if (isSingleValue) {
+        if (bounds.rowStart === bounds.rowEnd && bounds.colStart === bounds.colEnd) {
+          const col = visibleColumns.find((item) => item.id === active.colId)
+          if (!col || !cellAcceptsDirectInput(col)) return
+        } else {
+          let hasEditable = false
+          for (let r = bounds.rowStart; r <= bounds.rowEnd; r++) {
+            for (let c = bounds.colStart; c <= bounds.colEnd; c++) {
+              if (canPasteInto(visibleColumns[c])) {
+                hasEditable = true
+                break
+              }
+            }
+            if (hasEditable) break
+          }
+          if (!hasEditable) return
+        }
+      } else {
+        const hasEditableTarget = (() => {
+          for (let r = 0; r < grid.length; r++) {
+            const targetRowIdx = bounds.rowStart + r
+            if (targetRowIdx >= processedRows.length) break
+            for (let c = 0; c < grid[r].length; c++) {
+              const targetColIdx = bounds.colStart + c
+              if (targetColIdx >= visibleColumns.length) break
+              if (canPasteInto(visibleColumns[targetColIdx])) return true
+            }
+          }
+          return false
+        })()
+        if (!hasEditableTarget) return
+      }
+
+      e.preventDefault()
+      pasteClipboardText(pasted)
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
+        const bounds = getSelectionBounds(selection!, displayRowIds, visibleColIds)
+        if (!bounds) return
+        e.preventDefault()
+        const text = buildCopyText(bounds, processedRows, visibleColumns)
+        void copyToClipboard(text).then((ok) => {
+          if (ok) notify(bounds.rowStart === bounds.rowEnd && bounds.colStart === bounds.colEnd ? 'Copied' : 'Copied selection')
+        })
+        return
+      }
+
+      if (e.key === 'Enter' || e.key === 'F2') {
+        e.preventDefault()
+        const row = processedRows.find((item) => item.id === active.rowId)
+        const col = visibleColumns.find((item) => item.id === active.colId)
+        if (row && col) activateCellEdit(row, col)
+        return
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const bounds = getSelectionBounds(selection!, displayRowIds, visibleColIds)
+        if (!bounds) return
+        e.preventDefault()
+        if (bounds.rowStart === bounds.rowEnd && bounds.colStart === bounds.colEnd) {
+          const col = visibleColumns.find((item) => item.id === active.colId)
+          if (col && canPasteInto(col)) {
+            updateCell(active.rowId, active.colId, '')
+          }
+        } else {
+          clearSelectionCells()
+        }
+        return
+      }
+
+      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const row = processedRows.find((item) => item.id === active.rowId)
+        const col = visibleColumns.find((item) => item.id === active.colId)
+        if (row && col && cellAcceptsDirectInput(col)) {
+          e.preventDefault()
+          setEditingCell({ rowId: active.rowId, colId: active.colId })
+          if (getCellInteraction(col.type) === 'edit') {
+            updateCell(active.rowId, active.colId, e.key)
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('paste', onPaste)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('paste', onPaste)
+    }
+  }, [selection, processedRows, visibleColumns, displayRowIds, visibleColIds, readOnly, isWorkspaceAdmin])
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
@@ -538,8 +685,16 @@ export default function SpreadsheetGrid({
   const scrollCellClass = `${cellDivider} ${bodyBg}`
   const scrollHeadClass = `${cellDivider} ${headBg}`
 
+  function handleCellPointerDown(row: Row, col: Column, e: React.MouseEvent) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    applySelection(row, col, e.shiftKey)
+  }
+
   function isCellSelected(rowId: string, colId: string) {
-    return selectedCell?.rowId === rowId && selectedCell?.colId === colId
+    const bounds = getActiveBounds()
+    if (!bounds) return false
+    return isCoordInBounds(rowId, colId, displayRowIds, visibleColIds, bounds)
   }
 
   function renderRow(row: Row, index: number) {
@@ -576,9 +731,10 @@ export default function SpreadsheetGrid({
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => selectCell(row, col)}
+                  onMouseDown={(e) => handleCellPointerDown(row, col, e)}
+                  onMouseEnter={() => extendSelectionTo(row, col)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') selectCell(row, col)
+                    if (e.key === 'Enter' || e.key === ' ') applySelection(row, col)
                   }}
                   className={`w-full text-left px-3 py-2 min-h-[36px] cursor-default overflow-hidden ${selectedClass}`}
                   title={col.description}
@@ -609,7 +765,8 @@ export default function SpreadsheetGrid({
                 <div
                   className={`min-h-[36px] flex items-center ${cellHover} ${selectedClass}`}
                   title={col.description}
-                  onClick={() => selectCell(row, col)}
+                  onMouseDown={(e) => handleCellPointerDown(row, col, e)}
+                  onMouseEnter={() => extendSelectionTo(row, col)}
                 >
                   <RatingInput
                     value={value}
@@ -620,6 +777,8 @@ export default function SpreadsheetGrid({
               ) : (
                 <button
                   type="button"
+                  onMouseDown={(e) => handleCellPointerDown(row, col, e)}
+                  onMouseEnter={() => extendSelectionTo(row, col)}
                   onClick={(e) => handleCellClick(row, col, value, e)}
                   onDoubleClick={() => handleCellDoubleClick(row, col)}
                   className={`w-full text-left px-3 py-2 min-h-[36px] transition-colors overflow-hidden ${selectedClass} ${
@@ -872,7 +1031,7 @@ export default function SpreadsheetGrid({
         </table>
       </div>
 
-      <div ref={gridRef} onScroll={syncHeaderScroll} className="flex-1 min-h-0 overflow-auto isolate border-t border-app-border">
+      <div ref={gridRef} onScroll={syncHeaderScroll} className="flex-1 min-h-0 overflow-auto isolate border-t border-app-border select-none">
         <table className={tableClass}>
           <tbody>
             {groupedRows
