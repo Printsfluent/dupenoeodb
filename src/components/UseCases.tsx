@@ -1,4 +1,5 @@
 import { Users, Kanban, Settings, Package } from 'lucide-react'
+import { APP_NAME } from '../lib/brand'
 
 const cases = [
   {
@@ -36,7 +37,7 @@ export default function UseCases() {
             Endless Use Cases
           </h2>
           <p className="mt-4 text-lg text-gray-600">
-            BaseFlow caters to every department in an organisation. Its versatility
+            {APP_NAME} caters to every department in an organisation. Its versatility
             addresses a multitude of use cases seamlessly.
           </p>
         </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { APP_NAME } from '../lib/brand'
 
 const features = [
   {
@@ -98,7 +99,7 @@ function FeatureVisual({ id }: { id: string }) {
         </div>
         <div className="text-brand-500 font-bold">→</div>
         <div className="flex-1 p-3 rounded-lg bg-brand-50 border border-brand-200 text-center text-xs font-medium text-brand-700">
-          BaseFlow
+          {APP_NAME}
         </div>
       </div>
     )

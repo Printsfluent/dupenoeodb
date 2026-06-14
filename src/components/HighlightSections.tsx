@@ -1,4 +1,5 @@
 import { Smartphone, TrendingUp, PenTool, Network } from 'lucide-react'
+import { APP_NAME } from '../lib/brand'
 
 const highlights = [
   {
@@ -16,7 +17,7 @@ const highlights = [
   {
     icon: TrendingUp,
     title: 'Scale to Millions of Rows!',
-    desc: 'Simply use our hosted database or bring your own Postgres/MySQL. BaseFlow handles millions of rows without breaking a sweat — no enterprise sales call required.',
+    desc: `Simply use our hosted database or bring your own Postgres/MySQL. ${APP_NAME} handles millions of rows without breaking a sweat — no enterprise sales call required.`,
     align: 'left' as const,
   },
   {

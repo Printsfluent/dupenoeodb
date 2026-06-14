@@ -1,4 +1,5 @@
 import { Database, LayoutGrid, Code2 } from 'lucide-react'
+import { APP_NAME } from '../lib/brand'
 
 const steps = [
   {
@@ -27,7 +28,7 @@ export default function HowItWorks() {
             How It Works — A Quick Overview
           </h2>
           <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">
-            BaseFlow provides an intuitive spreadsheet interface for creating online databases,
+            {APP_NAME} provides an intuitive spreadsheet interface for creating online databases,
             either from scratch or by connecting to any Postgres/MySQL. Access your data through
             interactive UIs like Kanban, Form, and Gallery, or via API and SQL.
           </p>
