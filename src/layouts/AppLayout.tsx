@@ -114,7 +114,7 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen flex bg-app-bg text-app-text">
+    <div className="h-screen flex overflow-hidden bg-app-bg text-app-text">
       <aside
         className={`${collapsed ? 'w-16' : 'w-64'} shrink-0 border-r border-app-border bg-app-surface flex flex-col transition-all duration-200`}
       >
@@ -311,7 +311,9 @@ export default function AppLayout() {
             }}
           />
         )}
-        <Outlet />
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <Outlet />
+        </div>
       </div>
 
       {showNotifications && user && (

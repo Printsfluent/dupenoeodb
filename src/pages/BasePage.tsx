@@ -450,7 +450,7 @@ export default function BasePage() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden bg-app-bg">
+      <main className="flex-1 min-h-0 overflow-hidden flex flex-col bg-app-bg">
         {visibleTables.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-app-faint text-sm">
             {base.tables.length === 0 && hasFullAccess ? (

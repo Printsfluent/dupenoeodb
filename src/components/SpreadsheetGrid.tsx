@@ -674,8 +674,9 @@ export default function SpreadsheetGrid({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className={`shrink-0 flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b ${toolbar}`}>
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className={`shrink-0 border-b border-app-border ${toolbar}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-app-border bg-app-bg min-w-[220px] max-w-[360px] flex-1">
           <Search className="w-4 h-4 text-app-faint shrink-0" />
           <input
@@ -784,8 +785,10 @@ export default function SpreadsheetGrid({
             )}
           </div>
         </div>
+        </div>
       </div>
 
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       <div
         ref={headerScrollRef}
         className={`shrink-0 overflow-x-auto overflow-y-hidden border-b border-app-border ${headBg} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
@@ -916,6 +919,7 @@ export default function SpreadsheetGrid({
             ) : null}
           </div>
         )}
+      </div>
       </div>
 
       {schemaEditable && fieldMenu && activeColumn && (
