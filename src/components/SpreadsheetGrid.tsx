@@ -509,14 +509,14 @@ export default function SpreadsheetGrid({
   const toolbar = 'border-app-border bg-app-surface'
   const addColBtn = 'text-app-faint hover:text-brand-500 hover:bg-app-surface-active'
   const thText = 'text-app-faint'
-  const thBorder = 'border-app-border'
-  const gridBorder = 'border-2'
   const rowHover = 'hover:bg-app-surface-hover'
-  const rowBorder = 'border-app-border'
-  const cellBorder = 'border-app-border'
   const cellHover = 'hover:bg-app-surface-hover'
   const cellText = 'text-app-text'
   const emptyText = 'text-app-faint'
+  const tableClass = 'w-full text-sm border-separate border-spacing-0 min-w-max'
+  const cellDivider = 'border-r border-b border-app-border'
+  const headBg = 'bg-app-surface-muted'
+  const bodyBg = 'bg-app-bg'
   const activeColumn = fieldMenu
     ? table.columns.find((col) => col.id === fieldMenu.columnId)
     : null
@@ -525,15 +525,17 @@ export default function SpreadsheetGrid({
     ? table.columns.find((col) => col.id === fieldModal.columnId)
     : null
 
-  const stickyIndexClass = 'sticky left-0 z-[15] bg-app-bg'
-  const stickyIndexHeadClass = 'sticky left-0 z-[36] bg-app-surface-muted'
+  const stickyIndexClass = `sticky left-0 z-[20] ${bodyBg} ${cellDivider}`
+  const stickyIndexHeadClass = `sticky left-0 z-[40] ${headBg} ${cellDivider}`
   const stickyPinnedStyle = { left: ROW_INDEX_WIDTH_PX }
-  const stickyPinnedClass = `sticky z-[14] bg-app-bg ${gridBorder} border-r-brand-500/50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]`
+  const stickyPinnedClass = `sticky z-[18] ${bodyBg} ${cellDivider} border-r-brand-500/45 shadow-[2px_0_6px_-3px_rgba(0,0,0,0.18),inset_-1px_0_0_0_rgba(51,136,252,0.35)]`
   const stickyPinnedHeadClass =
-    `sticky z-[35] bg-brand-500/10 ${gridBorder} border-brand-500 ring-1 ring-inset ring-brand-500/40 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]`
+    `sticky z-[38] bg-brand-500/10 ${cellDivider} border-r-brand-500/45 shadow-[2px_0_6px_-3px_rgba(0,0,0,0.18),inset_-1px_0_0_0_rgba(51,136,252,0.45)]`
   const pinnedHeadText = 'text-brand-400'
   const pinnedCellText = 'text-brand-400'
   const pinnedCellSelected = 'ring-2 ring-inset ring-brand-500 bg-brand-500/10'
+  const scrollCellClass = `${cellDivider} ${bodyBg}`
+  const scrollHeadClass = `${cellDivider} ${headBg}`
 
   function isCellSelected(rowId: string, colId: string) {
     return selectedCell?.rowId === rowId && selectedCell?.colId === colId
@@ -541,9 +543,9 @@ export default function SpreadsheetGrid({
 
   function renderRow(row: Row, index: number) {
     return (
-      <tr key={row.id} className={`${gridBorder} border-b ${rowBorder} ${rowHover} group`}>
+      <tr key={row.id} className={`${rowHover} group`}>
         <td
-          className={`px-2 py-2 text-xs ${thText} text-center ${gridBorder} border-r ${cellBorder} ${stickyIndexClass}`}
+          className={`w-10 px-2 py-2 text-xs ${thText} text-center ${stickyIndexClass}`}
         >
           {index + 1}
         </td>
@@ -553,7 +555,7 @@ export default function SpreadsheetGrid({
           const value = row.cells[col.id] ?? ''
           const isPinned = col.id === pinnedColumnId
           const interaction = getCellInteraction(col.type)
-          const stickyClass = isPinned ? `${stickyPinnedClass} ${gridBorder} border-r ${cellBorder}` : `${gridBorder} border-r ${cellBorder}`
+          const stickyClass = isPinned ? stickyPinnedClass : scrollCellClass
           const stickyStyle = isPinned ? stickyPinnedStyle : undefined
           const displayCellText = isPinned ? pinnedCellText : cellText
           const searchHighlight = view.searchQuery.trim() || undefined
@@ -624,7 +626,7 @@ export default function SpreadsheetGrid({
                       ? 'cursor-default'
                       : extractLinkHref(value)
                         ? 'cursor-text hover:text-brand-300'
-                        : cellHover
+                        : `${cellHover}`
                   }`}
                   title={
                     extractLinkHref(value)
@@ -651,7 +653,7 @@ export default function SpreadsheetGrid({
             </td>
           )
         })}
-        <td className="px-2 w-10">
+        <td className={`px-2 w-10 ${scrollCellClass}`}>
           {!readOnly && (
             <button
               type="button"
@@ -670,7 +672,7 @@ export default function SpreadsheetGrid({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className={`shrink-0 flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${gridBorder} border-b ${toolbar}`}>
+      <div className={`shrink-0 flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b ${toolbar}`}>
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-app-border bg-app-bg min-w-[220px] max-w-[360px] flex-1">
           <Search className="w-4 h-4 text-app-faint shrink-0" />
           <input
@@ -783,13 +785,13 @@ export default function SpreadsheetGrid({
 
       <div
         ref={headerScrollRef}
-        className={`shrink-0 overflow-x-auto overflow-y-hidden ${gridBorder} border-b ${cellBorder} bg-app-surface-muted [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
+        className={`shrink-0 overflow-x-auto overflow-y-hidden border-b border-app-border ${headBg} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
       >
-        <table className="w-full text-sm border-collapse min-w-max">
+        <table className={tableClass}>
           <thead>
-            <tr className={`${gridBorder} border-b ${rowBorder}`}>
+            <tr>
               <th
-                className={`w-10 px-2 py-2.5 text-xs font-medium ${thText} ${gridBorder} border-r ${thBorder} ${stickyIndexHeadClass}`}
+                className={`w-10 px-2 py-2.5 text-xs font-medium ${thText} ${stickyIndexHeadClass}`}
               >
                 #
               </th>
@@ -799,8 +801,8 @@ export default function SpreadsheetGrid({
                 return (
                 <th
                   key={col.id}
-                  className={`px-1 py-1 ${gridBorder} border-r ${thBorder} min-w-[160px] group/col ${
-                    isPinned ? stickyPinnedHeadClass : 'bg-app-surface-muted'
+                  className={`px-1 py-1 min-w-[160px] group/col ${
+                    isPinned ? stickyPinnedHeadClass : scrollHeadClass
                   }`}
                   style={isPinned ? stickyPinnedStyle : undefined}
                 >
@@ -858,21 +860,21 @@ export default function SpreadsheetGrid({
                 </th>
                 )
               })}
-              <th className="w-10 bg-app-surface-muted" />
+              <th className={`w-10 ${scrollHeadClass}`} />
             </tr>
           </thead>
         </table>
       </div>
 
-      <div ref={gridRef} onScroll={syncHeaderScroll} className={`flex-1 min-h-0 overflow-auto isolate ${gridBorder} border-app-border`}>
-        <table className="w-full text-sm border-collapse min-w-max">
+      <div ref={gridRef} onScroll={syncHeaderScroll} className="flex-1 min-h-0 overflow-auto isolate border-t border-app-border">
+        <table className={tableClass}>
           <tbody>
             {groupedRows
               ? groupedRows.flatMap(([group, rows]) => [
-                <tr key={`group-${group}`} className="bg-app-surface-muted">
+                <tr key={`group-${group}`} className={headBg}>
                   <td
                     colSpan={visibleColumns.length + 2}
-                    className={`px-3 py-2 text-xs font-semibold uppercase tracking-wider ${thText}`}
+                    className={`px-3 py-2 text-xs font-semibold uppercase tracking-wider border-b border-app-border ${thText}`}
                   >
                     {group} ({rows.length})
                   </td>
