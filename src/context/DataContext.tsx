@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -15,6 +16,7 @@ import {
 } from 'firebase/firestore'
 import { getFirestoreDb, isFirebaseConfigured } from '../lib/firebase'
 import { hydrateCacheFromLocalStorage, persistCacheToLocalStorage } from '../lib/localPersistence'
+import { installRecoveryConsoleHelper, runStartupDataRecovery } from '../lib/dataRecovery'
 import { COL, persistBases } from '../lib/firestoreSync'
 import {
   clearDataCache,
@@ -38,6 +40,9 @@ interface DataContextValue {
   localMode: boolean
   workspaceIds: string[]
   cacheVersion: number
+  recoveryMessage: string | null
+  clearRecoveryMessage: () => void
+  tryRecoverData: () => Promise<void>
 }
 
 const DataContext = createContext<DataContextValue>({
@@ -46,6 +51,9 @@ const DataContext = createContext<DataContextValue>({
   localMode: false,
   workspaceIds: [],
   cacheVersion: 0,
+  recoveryMessage: null,
+  clearRecoveryMessage: () => {},
+  tryRecoverData: async () => {},
 })
 
 function computeWorkspaceIds(userId: string, email: string) {
@@ -79,6 +87,26 @@ export function DataProvider({
   )
   const [workspaceIds, setWorkspaceIds] = useState<string[]>([])
   const [cacheVersion, setCacheVersion] = useState(0)
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null)
+
+  const clearRecoveryMessage = useCallback(() => setRecoveryMessage(null), [])
+
+  const tryRecoverData = useCallback(async () => {
+    if (!userId || !userEmail) return
+    const ids = computeWorkspaceIds(userId, userEmail)
+    const result = await runStartupDataRecovery(ids)
+    if (result.restored) {
+      setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+      setCacheVersion((v) => v + 1)
+      setRecoveryMessage(
+        `Restored ${result.recoveredRows} records from ${result.sources.join(' and ')}.`,
+      )
+    } else {
+      setRecoveryMessage(
+        'No older records were found in this browser or offline cache. Try another device where you last edited the data.',
+      )
+    }
+  }, [userId, userEmail])
 
   useEffect(() => {
     const handleOnline = () => setOnline(true)
@@ -118,14 +146,38 @@ export function DataProvider({
 
     if (!isFirebaseConfigured()) {
       hydrateCacheFromLocalStorage()
-      setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
-      setReady(true)
-      return
+      installRecoveryConsoleHelper()
+      let cancelled = false
+      void (async () => {
+        const ids = computeWorkspaceIds(userId, userEmail)
+        await runStartupDataRecovery(ids)
+        if (!cancelled) {
+          setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+          setReady(true)
+        }
+      })()
+      return () => {
+        cancelled = true
+      }
     }
 
     hydrateCacheFromLocalStorage()
+    installRecoveryConsoleHelper()
     setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
-    setReady(true)
+
+    let cancelled = false
+    void (async () => {
+      const ids = computeWorkspaceIds(userId, userEmail)
+      const result = await runStartupDataRecovery(ids)
+      if (!cancelled && result.restored) {
+        setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+        setCacheVersion((v) => v + 1)
+        setRecoveryMessage(
+          `Restored ${result.recoveredRows} records from ${result.sources.join(' and ')}.`,
+        )
+      }
+      if (!cancelled) setReady(true)
+    })()
 
     const firestore = getFirestoreDb()
     const unsubs: Array<() => void> = []
@@ -245,7 +297,10 @@ export function DataProvider({
       ),
     )
 
-    return () => unsubs.forEach((unsub) => unsub())
+    return () => {
+      cancelled = true
+      unsubs.forEach((unsub) => unsub())
+    }
   }, [userId, userEmail])
 
   const workspaceIdsKey = useMemo(
@@ -323,8 +378,11 @@ export function DataProvider({
       localMode: !isFirebaseConfigured(),
       workspaceIds,
       cacheVersion,
+      recoveryMessage,
+      clearRecoveryMessage,
+      tryRecoverData,
     }),
-    [ready, online, workspaceIds, cacheVersion],
+    [ready, online, workspaceIds, cacheVersion, recoveryMessage, clearRecoveryMessage, tryRecoverData],
   )
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>

@@ -22,6 +22,8 @@ import type {
   WorkspaceMember,
 } from '../types'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
+import { pickRicherBase } from './baseMerge'
+import { normalizeBase } from './tableSchema'
 import {
   getCache,
   mergeBasesForWorkspace,
@@ -209,10 +211,14 @@ export async function deleteWorkspaceCascade(
 }
 
 export async function persistBase(base: Base) {
-  setBases([base])
+  const existing = getCache().bases.find((item) => item.id === base.id)
+  const merged = existing
+    ? pickRicherBase(existing, normalizeBase(base))
+    : normalizeBase(base)
+  setBases([merged])
   if (skipCloudSync()) return
   try {
-    await setDoc(doc(getFirestoreDb(), COL.bases, base.id), base, { merge: true })
+    await setDoc(doc(getFirestoreDb(), COL.bases, merged.id), merged, { merge: true })
   } catch (error) {
     logSyncError('persistBase', error)
   }

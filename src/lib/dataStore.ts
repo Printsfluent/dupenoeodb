@@ -9,7 +9,8 @@ import type {
   WorkspaceInvite,
   WorkspaceMember,
 } from '../types'
-import { mergeWorkspaceBases } from './baseMerge'
+import { mergeWorkspaceBases, pickRicherBase } from './baseMerge'
+import { normalizeBase } from './tableSchema'
 
 export interface DataCache {
   users: User[]
@@ -81,7 +82,13 @@ export function setWorkspaces(workspaces: Workspace[], removedIds: string[] = []
 }
 
 export function setBases(bases: Base[], removedIds: string[] = []) {
-  cache.bases = removeById(mergeById(cache.bases, bases), removedIds)
+  const map = new Map(cache.bases.map((base) => [base.id, base]))
+  bases.forEach((incoming) => {
+    const normalized = normalizeBase(incoming)
+    const existing = map.get(normalized.id)
+    map.set(normalized.id, existing ? pickRicherBase(existing, normalized) : normalized)
+  })
+  cache.bases = removeById(Array.from(map.values()), removedIds)
   notify()
 }
 

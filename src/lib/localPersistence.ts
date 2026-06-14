@@ -1,5 +1,6 @@
 import type { PlanId, Session } from '../types'
 import { countAllBaseRows, mergeBasesList } from './baseMerge'
+import { appendBasesHistory } from './dataRecovery'
 import {
   getCache,
   setActivityEvents,
@@ -76,6 +77,7 @@ export function persistCacheToLocalStorage() {
   write(KEYS.workspaces, cache.workspaces)
   write(KEYS.bases, safeBases)
   write(KEYS.basesBackup, nextBackup)
+  appendBasesHistory(safeBases)
   write(KEYS.members, cache.members)
   write(KEYS.teams, cache.teams)
   write(KEYS.invites, cache.invites)
