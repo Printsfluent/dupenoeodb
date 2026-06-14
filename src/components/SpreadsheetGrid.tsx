@@ -205,8 +205,21 @@ export default function SpreadsheetGrid({
     return interaction === 'edit' || interaction === 'select'
   }
 
+  function resolvePastedValue(col: Column, pasted: string): string {
+    const trimmed = pasted.trim()
+    if (!isSelectFieldType(col.type)) return trimmed
+    const option = findSelectOption(col.options ?? [], trimmed)
+    if (option) return option.id
+    if (normalizeColumnType(col.type) === 'multiSelect') {
+      const ids = trimmed.split(/[,|]/).map((part) => part.trim()).filter(Boolean)
+      const resolved = ids.map((part) => findSelectOption(col.options ?? [], part)?.id ?? part)
+      return resolved.length ? JSON.stringify(resolved) : ''
+    }
+    return trimmed
+  }
+
   useEffect(() => {
-    if (!selectedCell || editingCell) return
+    if (!selectedCell) return
     const active = selectedCell
 
     function onPaste(e: ClipboardEvent) {
@@ -220,7 +233,8 @@ export default function SpreadsheetGrid({
       if (pasted === undefined) return
 
       e.preventDefault()
-      updateCell(active.rowId, active.colId, pasted)
+      updateCell(active.rowId, active.colId, resolvePastedValue(col, pasted))
+      setEditingCell(null)
     }
 
     function onKeyDown(e: KeyboardEvent) {
@@ -278,7 +292,7 @@ export default function SpreadsheetGrid({
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('paste', onPaste)
     }
-  }, [selectedCell, editingCell, table.rows, table.columns, readOnly, isWorkspaceAdmin])
+  }, [selectedCell, table.rows, table.columns, readOnly, isWorkspaceAdmin])
 
   useEffect(() => {
     if (!showExportMenu) return

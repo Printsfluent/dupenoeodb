@@ -92,9 +92,12 @@ export default function SelectCellEditor({
         : [...selectedIds, id]
       onChange(next.length ? JSON.stringify(next) : '')
     } else {
-      onChange(selectedIds.includes(id) ? '' : id)
-      setOpen(false)
-      onDone?.()
+      const next = selectedIds.includes(id) ? '' : id
+      onChange(next)
+      if (!multiple) {
+        setOpen(false)
+        onDone?.()
+      }
     }
   }
 
@@ -153,6 +156,7 @@ export default function SelectCellEditor({
             <button
               key={option.id}
               type="button"
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={() => toggleOption(option.id)}
               className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-app-surface-hover"
             >

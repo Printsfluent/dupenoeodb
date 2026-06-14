@@ -347,13 +347,13 @@ export default function CellValueEditor({
         <div className="relative min-h-[36px] px-2 py-1 bg-app-surface">
           <SelectCellEditor
             options={options}
-            value={draft}
+            value={value}
             multiple={normalized === 'multiSelect'}
             colorCodeOptions={colorCodeOptions}
             alphabetizeOptions={alphabetizeOptions}
             dark={dark}
-            onChange={updateDraft}
-            onDone={() => commit(draft)}
+            onChange={(next) => commit(next)}
+            onDone={() => onDone?.()}
           />
         </div>
       )

@@ -1,4 +1,5 @@
 import { normalizeBase } from './tableSchema'
+import { isBaseNewer } from './baseUpdated'
 import type { Base, Row, Table } from '../types'
 
 export function countBaseRows(base: Base): number {
@@ -115,6 +116,10 @@ export function mergeWorkspaceBases(workspaceId: string, existing: Base[], incom
   const merged = remote.map((remoteBase) => {
     const localBase = localById.get(remoteBase.id)
     if (!localBase) return remoteBase
+    if (isBaseNewer(localBase, remoteBase)) {
+      needsCloudSync.push(localBase)
+      return localBase
+    }
 
     const picked = pickRicherBase(localBase, remoteBase)
     const localRows = countBaseRows(localBase)

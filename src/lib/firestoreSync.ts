@@ -24,6 +24,7 @@ import type {
 } from '../types'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 import { pickRicherBase, countBaseRows } from './baseMerge'
+import { isBaseNewer, stampBase } from './baseUpdated'
 import { normalizeBase } from './tableSchema'
 import {
   getCache,
@@ -168,6 +169,10 @@ export async function ensureBaseInCache(baseId: string): Promise<Base | null> {
 
     if (!remote) return cached ?? null
 
+    if (cached && isBaseNewer(cached, remote)) {
+      return cached
+    }
+
     const merged = cached ? pickRicherBase(cached, remote) : remote
     setBases([merged])
 
@@ -260,14 +265,11 @@ export async function deleteWorkspaceCascade(
 }
 
 export async function persistBase(base: Base) {
-  const existing = getCache().bases.find((item) => item.id === base.id)
-  const merged = existing
-    ? pickRicherBase(existing, normalizeBase(base))
-    : normalizeBase(base)
-  setBases([merged])
+  const stamped = stampBase(normalizeBase(base))
+  setBases([stamped])
   if (skipCloudSync()) return
   try {
-    await setDoc(doc(getFirestoreDb(), COL.bases, merged.id), merged, { merge: true })
+    await setDoc(doc(getFirestoreDb(), COL.bases, stamped.id), stamped, { merge: true })
   } catch (error) {
     logSyncError('persistBase', error)
   }

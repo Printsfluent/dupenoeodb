@@ -30,6 +30,7 @@ import { repairWorkspaceForUser } from '../lib/storage'
 import { getCache, setBases } from '../lib/dataStore'
 import { isFirebaseConfigured, getFirestoreDb } from '../lib/firebase'
 import { COL, ensureBaseInCache } from '../lib/firestoreSync'
+import { isBaseNewer, stampBase } from '../lib/baseUpdated'
 import { pickRicherBase } from '../lib/baseMerge'
 import { rememberLastTable } from '../lib/lastTable'
 import { normalizeBase } from '../lib/tableSchema'
@@ -147,9 +148,10 @@ export default function BasePage() {
     return onSnapshot(
       doc(firestore, COL.bases, baseId),
       (snapshot) => {
-        if (!snapshot.exists()) return
+        if (!snapshot.exists() || snapshot.metadata.hasPendingWrites) return
         const remote = normalizeBase({ id: snapshot.id, ...snapshot.data() } as Base)
         const cached = getCache().bases.find((item) => item.id === baseId)
+        if (cached && isBaseNewer(cached, remote)) return
         const merged = cached ? pickRicherBase(cached, remote) : remote
         setBases([merged])
       },
@@ -198,8 +200,9 @@ export default function BasePage() {
   }, [user, workspaceId, baseId, navigate, cacheVersion, workspace, location.pathname, ready])
 
   function saveBase(updated: Base) {
-    upsertBase(updated)
-    setBase(updated)
+    const stamped = stampBase(updated)
+    upsertBase(stamped)
+    setBase(stamped)
   }
 
   function renameBase(name: string) {
@@ -208,15 +211,19 @@ export default function BasePage() {
   }
 
   function updateTable(table: Table) {
-    if (!base) return
-    const previous = base.tables.find((item) => item.id === table.id)
+    if (!base || !baseId) return
+    const latest =
+      getWorkspaceBases(base.workspaceId).find((item) => item.id === baseId)
+      ?? getCache().bases.find((item) => item.id === baseId)
+      ?? base
+    const previous = latest.tables.find((item) => item.id === table.id)
     if (previous && isTableStructureChange(previous, table) && !canManageSchema) {
       toast.error('Only workspace admins can change fields, columns, or table structure')
       return
     }
     saveBase({
-      ...base,
-      tables: base.tables.map((t) => (t.id === table.id ? table : t)),
+      ...latest,
+      tables: latest.tables.map((t) => (t.id === table.id ? table : t)),
     })
   }
 

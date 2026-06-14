@@ -132,6 +132,8 @@ export interface Base {
   teamIds?: string[]
   tables: Table[]
   createdAt: string
+  /** Set on every local save so cloud sync can prefer the latest edits. */
+  updatedAt?: string
 }
 
 /** SheetFlow spec name for a Base (database inside a workspace). */
