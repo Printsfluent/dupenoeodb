@@ -134,6 +134,21 @@ export function serializeGridToTsv(grid: string[][]): string {
   return grid.map((row) => row.join('\t')).join('\n')
 }
 
+export function buildSelectedCellKeys(
+  bounds: GridBounds | null,
+  rowIds: string[],
+  colIds: string[],
+): Set<string> | null {
+  if (!bounds) return null
+  const keys = new Set<string>()
+  for (let r = bounds.rowStart; r <= bounds.rowEnd; r++) {
+    for (let c = bounds.colStart; c <= bounds.colEnd; c++) {
+      keys.add(`${rowIds[r]}:${colIds[c]}`)
+    }
+  }
+  return keys
+}
+
 export function buildCopyText(
   bounds: GridBounds,
   rows: { id: string; cells: Record<string, string> }[],

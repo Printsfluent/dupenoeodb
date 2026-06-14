@@ -264,15 +264,32 @@ export async function deleteWorkspaceCascade(
   }
 }
 
+const cloudPersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const CLOUD_PERSIST_DEBOUNCE_MS = 450
+
 export async function persistBase(base: Base) {
   const stamped = stampBase(normalizeBase(base))
   setBases([stamped])
   if (skipCloudSync()) return
-  try {
-    await setDoc(doc(getFirestoreDb(), COL.bases, stamped.id), stamped, { merge: true })
-  } catch (error) {
-    logSyncError('persistBase', error)
-  }
+
+  const baseId = stamped.id
+  const existing = cloudPersistTimers.get(baseId)
+  if (existing) clearTimeout(existing)
+
+  cloudPersistTimers.set(
+    baseId,
+    setTimeout(() => {
+      cloudPersistTimers.delete(baseId)
+      const latest = getCache().bases.find((item) => item.id === baseId) ?? stamped
+      void (async () => {
+        try {
+          await setDoc(doc(getFirestoreDb(), COL.bases, baseId), latest, { merge: true })
+        } catch (error) {
+          logSyncError('persistBase', error)
+        }
+      })()
+    }, CLOUD_PERSIST_DEBOUNCE_MS),
+  )
 }
 
 export async function persistBases(bases: Base[]) {
