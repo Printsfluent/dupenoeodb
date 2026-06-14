@@ -191,7 +191,6 @@ export default function SpreadsheetGrid({
     }
 
     selectCell(row, col)
-    activateCellEdit(row, col)
   }
 
   function handleCellDoubleClick(row: Row, col: Column) {
@@ -278,10 +277,12 @@ export default function SpreadsheetGrid({
       ) {
         const row = table.rows.find((item) => item.id === active.rowId)
         const col = table.columns.find((item) => item.id === active.colId)
-        if (row && col && getCellInteraction(col.type) === 'edit') {
+        if (row && col && cellAcceptsDirectInput(col)) {
           e.preventDefault()
           setEditingCell({ rowId: active.rowId, colId: active.colId })
-          updateCell(active.rowId, active.colId, e.key)
+          if (getCellInteraction(col.type) === 'edit') {
+            updateCell(active.rowId, active.colId, e.key)
+          }
         }
       }
     }
@@ -630,12 +631,14 @@ export default function SpreadsheetGrid({
                   }`}
                   title={
                     extractLinkHref(value)
-                      ? `${col.description ? `${col.description} · ` : ''}Click to edit · Ctrl+click to open link`
+                      ? `${col.description ? `${col.description} · ` : ''}Click to select · Ctrl+click to open link · Double-click or type to edit`
                       : col.editPermission === 'creators_only' && !isWorkspaceAdmin
                         ? `${col.description ? `${col.description} · ` : ''}Only workspace admins can edit this field`
                         : interaction === 'readonly'
                           ? `${col.description ? `${col.description} · ` : ''}Auto-number field (read-only)`
-                          : `${col.description ? `${col.description} · ` : ''}Click to edit`
+                          : interaction === 'select'
+                            ? `${col.description ? `${col.description} · ` : ''}Click to select · Double-click or Enter to choose`
+                            : `${col.description ? `${col.description} · ` : ''}Click to select · Double-click or type to edit`
                   }
                 >
                   <CellValueDisplay
