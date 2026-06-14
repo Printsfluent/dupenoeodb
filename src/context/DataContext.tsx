@@ -15,11 +15,11 @@ import {
 } from 'firebase/firestore'
 import { getFirestoreDb, isFirebaseConfigured } from '../lib/firebase'
 import { hydrateCacheFromLocalStorage, persistCacheToLocalStorage } from '../lib/localPersistence'
-import { COL } from '../lib/firestoreSync'
+import { COL, persistBases } from '../lib/firestoreSync'
 import {
   clearDataCache,
   getCache,
-  replaceBasesForWorkspace,
+  mergeBasesForWorkspace,
   replaceTeamsForWorkspace,
   setAppNotifications,
   setInvites,
@@ -301,10 +301,13 @@ export function DataProvider({
         onSnapshot(
           query(collection(firestore, COL.bases), where('workspaceId', '==', workspaceId)),
           (snapshot) => {
-            replaceBasesForWorkspace(
+            const needsSync = mergeBasesForWorkspace(
               workspaceId,
               snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as never),
             )
+            if (needsSync.length > 0) {
+              void persistBases(needsSync)
+            }
           },
         ),
       )

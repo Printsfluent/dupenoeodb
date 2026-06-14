@@ -24,8 +24,8 @@ import type {
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 import {
   getCache,
+  mergeBasesForWorkspace,
   removePendingPlan,
-  replaceBasesForWorkspace,
   replaceTeamsForWorkspace,
   setBases,
   setActivityEvents,
@@ -123,10 +123,13 @@ export async function ensureWorkspaceBasesInCache(workspaceId: string) {
     const snapshot = await getDocs(
       query(collection(getFirestoreDb(), COL.bases), where('workspaceId', '==', workspaceId)),
     )
-    replaceBasesForWorkspace(
+    const needsSync = mergeBasesForWorkspace(
       workspaceId,
       snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Base)),
     )
+    if (needsSync.length > 0) {
+      await persistBases(needsSync)
+    }
   } catch (error) {
     logSyncError('ensureWorkspaceBasesInCache', error)
   }

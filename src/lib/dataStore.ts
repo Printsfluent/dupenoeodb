@@ -9,6 +9,7 @@ import type {
   WorkspaceInvite,
   WorkspaceMember,
 } from '../types'
+import { mergeWorkspaceBases } from './baseMerge'
 
 export interface DataCache {
   users: User[]
@@ -158,4 +159,12 @@ export function replaceBasesForWorkspace(workspaceId: string, bases: Base[]) {
     ...bases,
   ]
   notify()
+}
+
+/** Merge Firestore bases with cache, preserving richer local row data. */
+export function mergeBasesForWorkspace(workspaceId: string, incoming: Base[]): Base[] {
+  const { bases, needsCloudSync } = mergeWorkspaceBases(workspaceId, cache.bases, incoming)
+  cache.bases = bases
+  notify()
+  return needsCloudSync
 }

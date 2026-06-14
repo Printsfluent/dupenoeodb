@@ -1,4 +1,5 @@
 import type { PlanId, Session } from '../types'
+import { countAllBaseRows, mergeBasesList } from './baseMerge'
 import {
   getCache,
   setActivityEvents,
@@ -17,6 +18,7 @@ const KEYS = {
   session: 'gridvault_session',
   workspaces: 'gridvault_workspaces',
   bases: 'gridvault_bases',
+  basesBackup: 'gridvault_bases_backup',
   members: 'gridvault_members',
   teams: 'gridvault_teams',
   invites: 'gridvault_invites',
@@ -41,7 +43,9 @@ function write<T>(key: string, value: T) {
 export function hydrateCacheFromLocalStorage() {
   setUsers(read(KEYS.users, []))
   setWorkspaces(read(KEYS.workspaces, []))
-  setBases(read(KEYS.bases, []))
+  const storedBases = read(KEYS.bases, [])
+  const backupBases = read(KEYS.basesBackup, [])
+  setBases(mergeBasesList(storedBases, backupBases))
   setMembers(read(KEYS.members, []))
   setTeams(read(KEYS.teams, []))
   setInvites(read(KEYS.invites, []))
@@ -52,9 +56,26 @@ export function hydrateCacheFromLocalStorage() {
 
 export function persistCacheToLocalStorage() {
   const cache = getCache()
+  const previousBases = read(KEYS.bases, [])
+  const backupBases = read(KEYS.basesBackup, [])
+  const mergedBases = mergeBasesList(previousBases, cache.bases)
+  const safeBases =
+    countAllBaseRows(mergedBases) >= countAllBaseRows(previousBases)
+      ? mergedBases
+      : mergeBasesList(previousBases, mergedBases)
+  const nextBackup =
+    countAllBaseRows(safeBases) >= countAllBaseRows(backupBases)
+      ? safeBases
+      : backupBases
+
+  if (countAllBaseRows(safeBases) > countAllBaseRows(cache.bases)) {
+    setBases(safeBases)
+  }
+
   write(KEYS.users, cache.users)
   write(KEYS.workspaces, cache.workspaces)
-  write(KEYS.bases, cache.bases)
+  write(KEYS.bases, safeBases)
+  write(KEYS.basesBackup, nextBackup)
   write(KEYS.members, cache.members)
   write(KEYS.teams, cache.teams)
   write(KEYS.invites, cache.invites)
