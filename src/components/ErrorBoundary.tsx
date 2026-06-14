@@ -21,11 +21,18 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.error) {
+      const quotaExceeded =
+        this.state.error.name === 'QuotaExceededError' ||
+        this.state.error.message.toLowerCase().includes('quota')
       return (
         <div className="min-h-screen flex items-center justify-center bg-app-bg p-6">
           <div className="max-w-md text-center">
             <h1 className="text-lg font-semibold text-app-text">Something went wrong</h1>
-            <p className="mt-2 text-sm text-app-muted">{this.state.error.message}</p>
+            <p className="mt-2 text-sm text-app-muted">
+              {quotaExceeded
+                ? 'Browser storage is full. Your data is still saved in Firebase — reload after the fix deploys, or run sheetflowClearStorageBloat() in the browser console.'
+                : this.state.error.message}
+            </p>
             <button
               type="button"
               onClick={() => window.location.reload()}

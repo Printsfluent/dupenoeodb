@@ -5,11 +5,13 @@ import { getCache, setBases } from './dataStore'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 import { COL, persistBases } from './firestoreSync'
 import { normalizeBase } from './tableSchema'
+import { clearStorageBloat, pruneOversizedHistoryOnStartup, safeWriteJson } from './safeStorage'
 
 const BASES_KEY = 'gridvault_bases'
 const BASES_BACKUP_KEY = 'gridvault_bases_backup'
 const BASES_HISTORY_KEY = 'gridvault_bases_history'
-const MAX_HISTORY_SNAPSHOTS = 24
+const MAX_HISTORY_SNAPSHOTS = 2
+const MAX_HISTORY_BYTES = 250_000
 
 interface BasesHistory {
   snapshots: Array<{ savedAt: string; bases: Base[] }>
@@ -105,7 +107,12 @@ export function appendBasesHistory(bases: Base[]) {
   if (history.snapshots.length > MAX_HISTORY_SNAPSHOTS) {
     history.snapshots = history.snapshots.slice(-MAX_HISTORY_SNAPSHOTS)
   }
-  localStorage.setItem(BASES_HISTORY_KEY, JSON.stringify(history))
+
+  const payload = JSON.stringify(history)
+  if (payload.length > MAX_HISTORY_BYTES) {
+    history.snapshots = history.snapshots.slice(-1)
+  }
+  safeWriteJson(BASES_HISTORY_KEY, history)
 }
 
 export function collectRecoverableBases(): Base[] {
@@ -196,11 +203,17 @@ export async function runStartupDataRecovery(workspaceIds: string[]): Promise<Re
 
 export function installRecoveryConsoleHelper() {
   if (typeof window === 'undefined') return
+  pruneOversizedHistoryOnStartup()
   const globalWindow = window as Window & {
     sheetflowRecoverData?: () => Promise<RecoveryResult>
     sheetflowScanStorage?: () => ReturnType<typeof scanLocalStorageForBases>
+    sheetflowClearStorageBloat?: () => void
   }
   globalWindow.sheetflowScanStorage = scanLocalStorageForBases
+  globalWindow.sheetflowClearStorageBloat = () => {
+    clearStorageBloat()
+    console.info('Cleared bulky local record copies. Reload the page if storage was full.')
+  }
   globalWindow.sheetflowRecoverData = async () => {
     const workspaceIds = [
       ...new Set(getCache().bases.map((base) => base.workspaceId).filter(Boolean)),
