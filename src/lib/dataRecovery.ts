@@ -3,7 +3,7 @@ import type { Base, Table } from '../types'
 import { countAllBaseRows, mergeBasesList, pickRicherBase } from './baseMerge'
 import { getCache, setBases } from './dataStore'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
-import { COL, persistBases } from './firestoreSync'
+import { COL, ensureBaseInCache, persistBases } from './firestoreSync'
 import { normalizeBase } from './tableSchema'
 import { clearStorageBloat, pruneOversizedHistoryOnStartup, safeWriteJson } from './safeStorage'
 
@@ -192,6 +192,8 @@ export async function runStartupDataRecovery(workspaceIds: string[]): Promise<Re
   if (needsCloudSync.length > 0) {
     void persistBases(needsCloudSync)
   }
+
+  await Promise.all(getCache().bases.map((base) => ensureBaseInCache(base.id)))
 
   return {
     restored: true,

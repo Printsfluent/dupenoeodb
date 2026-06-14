@@ -35,6 +35,7 @@ import {
 import { sheetsToTables } from '../lib/importSpreadsheet'
 import { canCreateBase } from '../lib/planLimits'
 import { createId } from '../lib/id'
+import { baseUrl } from '../lib/lastTable'
 import type { Base, Workspace } from '../types'
 import type { ParsedSheet } from '../lib/importSpreadsheet'
 
@@ -133,7 +134,7 @@ export default function WorkspacePage() {
     refreshBases()
     setNewBaseName('')
     setShowNewBaseIconPicker(false)
-    navigate(`/app/w/${workspaceId}/bases/${withIcon.id}`)
+    navigate(baseUrl(workspaceId, withIcon.id))
   }
 
   function handleUpdateBaseIcon(baseId: string, icon: string | null) {
@@ -178,7 +179,7 @@ export default function WorkspacePage() {
     }
     await upsertBaseAsync(base)
     refreshBases()
-    navigate(`/app/w/${workspaceId}/bases/${base.id}`)
+    navigate(baseUrl(workspaceId, base.id))
   }
 
   function handleAction(actionId: string) {
@@ -233,9 +234,9 @@ export default function WorkspacePage() {
                       key={base.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => navigate(`/app/w/${workspaceId}/bases/${base.id}`)}
+                      onClick={() => navigate(baseUrl(workspaceId!, base.id))}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') navigate(`/app/w/${workspaceId}/bases/${base.id}`)
+                        if (e.key === 'Enter') navigate(baseUrl(workspaceId!, base.id))
                       }}
                       className="group flex items-center gap-4 px-4 py-3 rounded-xl border border-app-border bg-app-surface hover:border-app-border-strong hover:bg-app-surface-hover cursor-pointer transition-all"
                     >

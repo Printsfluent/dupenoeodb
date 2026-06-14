@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocFromCache,
   getDocs,
   limit,
   query,
@@ -22,7 +23,7 @@ import type {
   WorkspaceMember,
 } from '../types'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
-import { pickRicherBase } from './baseMerge'
+import { pickRicherBase, countBaseRows } from './baseMerge'
 import { normalizeBase } from './tableSchema'
 import {
   getCache,
@@ -134,6 +135,54 @@ export async function ensureWorkspaceBasesInCache(workspaceId: string) {
     }
   } catch (error) {
     logSyncError('ensureWorkspaceBasesInCache', error)
+  }
+}
+
+/** Fetch one database by id from offline cache and server, keeping the richest row data. */
+export async function ensureBaseInCache(baseId: string): Promise<Base | null> {
+  const cached = getCache().bases.find((base) => base.id === baseId)
+  if (skipCloudSync()) return cached ?? null
+
+  try {
+    const ref = doc(getFirestoreDb(), COL.bases, baseId)
+    let remote: Base | null = null
+
+    try {
+      const cacheSnap = await getDocFromCache(ref)
+      if (cacheSnap.exists()) {
+        remote = normalizeBase({ id: cacheSnap.id, ...cacheSnap.data() } as Base)
+      }
+    } catch {
+      // no offline copy yet
+    }
+
+    try {
+      const serverSnap = await getDoc(ref)
+      if (serverSnap.exists()) {
+        const serverBase = normalizeBase({ id: serverSnap.id, ...serverSnap.data() } as Base)
+        remote = remote ? pickRicherBase(remote, serverBase) : serverBase
+      }
+    } catch (error) {
+      logSyncError('ensureBaseInCache:getDoc', error)
+    }
+
+    if (!remote) return cached ?? null
+
+    const merged = cached ? pickRicherBase(cached, remote) : remote
+    setBases([merged])
+
+    if (!cached || countBaseRows(merged) > countBaseRows(cached)) {
+      try {
+        await setDoc(ref, merged, { merge: true })
+      } catch (error) {
+        logSyncError('ensureBaseInCache:push', error)
+      }
+    }
+
+    return merged
+  } catch (error) {
+    logSyncError('ensureBaseInCache', error)
+    return cached ?? null
   }
 }
 

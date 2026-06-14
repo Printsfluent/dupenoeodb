@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
+import { doc, onSnapshot } from 'firebase/firestore'
 import { ArrowLeft, Plus, Upload, Users, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
@@ -26,8 +27,12 @@ import {
 import { isTableStructureChange } from '../lib/tableSchema'
 import { useToast } from '../context/ToastContext'
 import { repairWorkspaceForUser } from '../lib/storage'
-import { getCache } from '../lib/dataStore'
-import { isFirebaseConfigured } from '../lib/firebase'
+import { getCache, setBases } from '../lib/dataStore'
+import { isFirebaseConfigured, getFirestoreDb } from '../lib/firebase'
+import { COL, ensureBaseInCache } from '../lib/firestoreSync'
+import { pickRicherBase } from '../lib/baseMerge'
+import { rememberLastTable } from '../lib/lastTable'
+import { normalizeBase } from '../lib/tableSchema'
 import { sheetsToTables } from '../lib/importSpreadsheet'
 import { createId } from '../lib/id'
 import { canAddRows, canAddTables } from '../lib/planLimits'
@@ -127,6 +132,30 @@ export default function BasePage() {
     seededTableUrlRef.current = true
     selectActiveTable(fallback)
   }, [base, tableParam, visibleTables, selectActiveTable])
+
+  useEffect(() => {
+    if (!baseId || !activeTableId) return
+    rememberLastTable(baseId, activeTableId)
+  }, [baseId, activeTableId])
+
+  useEffect(() => {
+    if (!baseId || !isFirebaseConfigured() || !user || !ready) return
+
+    void ensureBaseInCache(baseId)
+
+    const firestore = getFirestoreDb()
+    return onSnapshot(
+      doc(firestore, COL.bases, baseId),
+      (snapshot) => {
+        if (!snapshot.exists()) return
+        const remote = normalizeBase({ id: snapshot.id, ...snapshot.data() } as Base)
+        const cached = getCache().bases.find((item) => item.id === baseId)
+        const merged = cached ? pickRicherBase(cached, remote) : remote
+        setBases([merged])
+      },
+      (error) => console.warn('Firestore base listener:', error),
+    )
+  }, [baseId, user, ready])
 
   useEffect(() => {
     if (leavingRef.current) return

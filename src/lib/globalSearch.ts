@@ -1,4 +1,5 @@
 import { getCache } from './dataStore'
+import { baseUrl } from './lastTable'
 import {
   getMemberForUser,
   hasFullWorkspaceAccess,
@@ -76,7 +77,7 @@ export function globalSearch(
         type: 'database',
         label: db.name,
         subtitle: 'Database',
-        href: `/app/w/${db.workspaceId}/bases/${db.id}`,
+        href: baseUrl(db.workspaceId, db.id),
       })
     })
 
