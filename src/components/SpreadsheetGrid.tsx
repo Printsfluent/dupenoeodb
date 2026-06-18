@@ -35,6 +35,7 @@ interface SpreadsheetGridProps {
   onManageTableTeams?: () => void
   tableTeamCount?: number
   onAddRow?: () => boolean
+  variant?: 'grid' | 'gallery'
 }
 
 type SortDirection = 'asc' | 'desc'
@@ -60,6 +61,7 @@ export default function SpreadsheetGrid({
   onManageTableTeams,
   tableTeamCount = 0,
   onAddRow,
+  variant = 'grid',
 }: SpreadsheetGridProps) {
   const { theme } = useTheme()
   const { success } = useToast()
@@ -88,29 +90,15 @@ export default function SpreadsheetGrid({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const headerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const gridRef = useRef<HTMLDivElement>(null)
-  const headerScrollRef = useRef<HTMLDivElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
-
-  function syncHeaderScroll() {
-    if (headerScrollRef.current && gridRef.current) {
-      headerScrollRef.current.scrollLeft = gridRef.current.scrollLeft
-    }
-  }
+  const isGallery = variant === 'gallery'
 
   const visibleColumns = useMemo(
     () => table.columns.filter((col) => view.showHidden || !col.hidden),
     [table.columns, view.showHidden],
   )
 
-  const pinnedColumnId = useMemo(() => {
-    const display = visibleColumns.find((col) => col.isDisplayValue)
-    if (display) return display.id
-    const named = visibleColumns.find((col) => {
-      const n = col.name.trim().toLowerCase()
-      return n === 'username' || n === 'user name' || n === 'title' || n === 'name'
-    })
-    return named?.id ?? visibleColumns[0]?.id ?? null
-  }, [visibleColumns])
+  const pinnedColumnId = useMemo(() => null, [])
 
   const hiddenCount = table.columns.filter((col) => col.hidden).length
   const schemaEditable = canEditFields && canModifySchema
@@ -774,8 +762,8 @@ export default function SpreadsheetGrid({
     ? table.columns.find((col) => col.id === fieldModal.columnId)
     : null
 
-  const stickyIndexClass = `sticky left-0 z-[20] ${bodyBg} ${cellDivider}`
-  const stickyIndexHeadClass = `sticky left-0 z-[40] ${headBg} ${cellDivider}`
+  const stickyIndexClass = `${bodyBg} ${cellDivider}`
+  const stickyIndexHeadClass = `${headBg} ${cellDivider}`
   const stickyPinnedStyle = { left: ROW_INDEX_WIDTH_PX }
   const stickyPinnedClass = `sticky z-[18] ${bodyBg} ${cellDivider} border-r-brand-500/45 shadow-[2px_0_6px_-3px_rgba(0,0,0,0.18),inset_-1px_0_0_0_rgba(51,136,252,0.35)]`
   const stickyPinnedHeadClass =
@@ -954,6 +942,9 @@ export default function SpreadsheetGrid({
     <div className="flex flex-col flex-1 min-h-0">
       <div className={`shrink-0 border-b border-app-border ${toolbar}`}>
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        {isGallery ? (
+          <span className="text-sm font-medium text-app-text">Gallery</span>
+        ) : (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-app-border bg-app-bg min-w-[220px] max-w-[360px] flex-1">
           <Search className="w-4 h-4 text-app-faint shrink-0" />
           <input
@@ -976,8 +967,9 @@ export default function SpreadsheetGrid({
             </button>
           )}
         </div>
+        )}
         <div className="flex items-center gap-2 shrink-0">
-          {hiddenCount > 0 && schemaEditable && (
+          {!isGallery && hiddenCount > 0 && schemaEditable && (
             <button
               type="button"
               onClick={() => setView((v) => ({ ...v, showHidden: !v.showHidden }))}
@@ -987,7 +979,7 @@ export default function SpreadsheetGrid({
               {view.showHidden ? 'Hide hidden fields' : `Show ${hiddenCount} hidden`}
             </button>
           )}
-          {(view.sortColumnId || view.filterColumnId || view.groupColumnId || view.searchQuery) && (
+          {!isGallery && (view.sortColumnId || view.filterColumnId || view.groupColumnId || view.searchQuery) && (
             <button
               type="button"
               onClick={clearViewOverrides}
@@ -997,7 +989,7 @@ export default function SpreadsheetGrid({
               Clear view
             </button>
           )}
-          {schemaEditable && onManageTableTeams && (
+          {!isGallery && schemaEditable && onManageTableTeams && (
             <button
               type="button"
               onClick={onManageTableTeams}
@@ -1027,6 +1019,7 @@ export default function SpreadsheetGrid({
               Add row
             </button>
           )}
+          {!isGallery && (
           <div className="relative" ref={exportMenuRef}>
             <button
               type="button"
@@ -1061,17 +1054,15 @@ export default function SpreadsheetGrid({
               </div>
             )}
           </div>
+          )}
         </div>
         </div>
       </div>
 
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <div
-        ref={headerScrollRef}
-        className={`shrink-0 overflow-x-auto overflow-y-hidden border-b border-app-border ${headBg} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
-      >
+      <div ref={gridRef} className="flex-1 min-h-0 overflow-auto isolate border-t border-app-border select-none">
         <table className={tableClass}>
-          <thead>
+          <thead className="sticky top-0 z-[30]">
             <tr>
               <th
                 className={`w-10 px-2 py-2.5 text-xs font-medium ${thText} ${stickyIndexHeadClass}`}
@@ -1147,11 +1138,6 @@ export default function SpreadsheetGrid({
               <th className={`w-10 ${scrollHeadClass}`} />
             </tr>
           </thead>
-        </table>
-      </div>
-
-      <div ref={gridRef} onScroll={syncHeaderScroll} className="flex-1 min-h-0 overflow-auto isolate border-t border-app-border select-none">
-        <table className={tableClass}>
           <tbody>
             {groupedRows
               ? groupedRows.flatMap(([group, rows]) => [
@@ -1169,7 +1155,22 @@ export default function SpreadsheetGrid({
           </tbody>
         </table>
 
-        {processedRows.length === 0 && (
+        {isGallery && table.columns.length === 0 && (
+          <div className={`flex flex-col items-center justify-center py-16 ${emptyText}`}>
+            <p className="text-sm">Add columns and rows to build your gallery.</p>
+            {schemaEditable && (
+              <button
+                type="button"
+                onClick={addColumn}
+                className="mt-3 text-sm font-medium text-brand-400 hover:text-brand-300"
+              >
+                Add your first column
+              </button>
+            )}
+          </div>
+        )}
+
+        {!isGallery && processedRows.length === 0 && (
           <div className={`flex flex-col items-center justify-center py-16 ${thText}`}>
             <p className="text-sm">
               {table.rows.length === 0

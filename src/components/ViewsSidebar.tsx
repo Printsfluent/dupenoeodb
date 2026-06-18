@@ -10,7 +10,7 @@ interface ViewOption {
 
 const VIEW_OPTIONS: ViewOption[] = [
   { type: 'grid', label: 'Grid view', icon: Table2 },
-  { type: 'gallery', label: 'Gallery view', icon: Image },
+  { type: 'gallery', label: 'Gallery', icon: Image },
 ]
 
 interface ViewsSidebarProps {

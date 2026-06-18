@@ -5,7 +5,6 @@ import { ArrowLeft, Plus, Upload, Users, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
-import GalleryView from '../components/GalleryView'
 import ViewsSidebar from '../components/ViewsSidebar'
 import EditableName from '../components/EditableName'
 import NameModal from '../components/NameModal'
@@ -66,6 +65,7 @@ export default function BasePage() {
   const [showBaseIconPicker, setShowBaseIconPicker] = useState(false)
   const [activeViewType, setActiveViewType] = useState<TableViewType>('grid')
   const [viewsSidebarCollapsed, setViewsSidebarCollapsed] = useState(false)
+  const [pendingTableId, setPendingTableId] = useState<string | null>(null)
   const toast = useToast()
 
   const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
@@ -123,9 +123,18 @@ export default function BasePage() {
   }, [base, member, hasFullAccess, cacheVersion])
 
   const activeTableId = useMemo(() => {
+    if (pendingTableId && visibleTables.some((table) => table.id === pendingTableId)) {
+      return pendingTableId
+    }
     if (tableParam && visibleTables.some((table) => table.id === tableParam)) return tableParam
     return visibleTables[0]?.id ?? null
-  }, [tableParam, visibleTables])
+  }, [tableParam, visibleTables, pendingTableId])
+
+  useEffect(() => {
+    if (pendingTableId && tableParam === pendingTableId) {
+      setPendingTableId(null)
+    }
+  }, [tableParam, pendingTableId])
 
   useEffect(() => {
     seededTableUrlRef.current = false
@@ -287,6 +296,7 @@ export default function BasePage() {
     const updated = { ...base, tables: [...base.tables, ...imported] }
     saveBase(updated)
     selectActiveTable(imported[0]?.id ?? activeTableId)
+    if (imported[0]?.id) setPendingTableId(imported[0].id)
   }
 
   function handleConfirmNewTable(name: string) {
@@ -303,19 +313,24 @@ export default function BasePage() {
 
   function handleCreateNewTableWithIcon(icon: string | null) {
     if (!base || !user || !hasFullAccess || !newTableName.trim()) return
-    const col = createId()
     const table: Table = {
       id: createId(),
       name: newTableName.trim(),
       icon: normalizeTableIcon(icon ?? suggestTableIconFromName(newTableName)) ?? null,
-      columns: [{ id: col, name: 'Title', type: 'singleLineText' }],
+      columns: [],
       rows: [],
     }
-    const updated = { ...base, tables: [...base.tables, table] }
+    const latest =
+      getWorkspaceBases(base.workspaceId).find((item) => item.id === base.id)
+      ?? getCache().bases.find((item) => item.id === base.id)
+      ?? base
+    const updated = { ...latest, tables: [...latest.tables, table] }
     saveBase(updated)
+    setPendingTableId(table.id)
     selectActiveTable(table.id)
     setNewTableName('')
     setShowNewTableIconPicker(false)
+    toast.success(`Created ${table.name}`)
   }
 
   if (!base) {
@@ -482,13 +497,6 @@ export default function BasePage() {
           />
         )}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {activeTable && visibleTables.length > 0 && (
-          <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-app-border bg-app-surface">
-            <span className="text-sm font-medium text-app-text">
-              {activeViewType === 'gallery' ? 'Gallery view' : 'Grid view'}
-            </span>
-          </div>
-        )}
         {visibleTables.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-app-faint text-sm">
             {base.tables.length === 0 && hasFullAccess ? (
@@ -508,18 +516,17 @@ export default function BasePage() {
             )}
           </div>
         ) : activeTable ? (
-          activeViewType === 'gallery' ? (
-            <GalleryView />
-          ) : (
           <SpreadsheetGrid
+            key={`${activeTable.id}-${activeViewType}`}
             table={activeTable}
             onChange={updateTable}
+            variant={activeViewType === 'gallery' ? 'gallery' : 'grid'}
             readOnly={!canEdit}
             canEditFields={canManageSchema}
             canModifySchema={canManageSchema}
             isWorkspaceAdmin={canManageSchema}
             onManageTableTeams={
-              hasFullAccess
+              hasFullAccess && activeViewType !== 'gallery'
                 ? () => {
                     setTableTeamIds(activeTable.teamIds ?? [])
                     setShowTableTeams(true)
@@ -537,7 +544,6 @@ export default function BasePage() {
               return true
             }}
           />
-          )
         ) : (
           <div className="flex items-center justify-center h-full text-app-faint text-sm">
             Select or create a table to get started
