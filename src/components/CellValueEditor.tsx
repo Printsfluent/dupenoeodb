@@ -3,6 +3,7 @@ import { Star } from 'lucide-react'
 import type { ColumnType, SelectOption } from '../types'
 import { normalizeColumnType } from '../lib/fieldTypes'
 import SelectCellEditor from './SelectCellEditor'
+import AttachmentCellEditor from './AttachmentCellEditor'
 
 interface CellValueEditorProps {
   type: ColumnType
@@ -285,19 +286,11 @@ export default function CellValueEditor({
 
     case 'attachment':
       return (
-        <CellInputForm>
-          <input
-            autoFocus
-            type="text"
-            value={draft}
-            onChange={(e) => updateDraft(e.target.value)}
-            onBlur={() => commit(draft)}
-            onKeyDown={handleKeyDown}
-            placeholder="Image URLs — one per line, or comma-separated"
-            className={cls}
-            {...disableBrowserAutocomplete}
-          />
-        </CellInputForm>
+        <AttachmentCellEditor
+          value={value}
+          onChange={commit}
+          onDone={onDone}
+        />
       )
 
     case 'user':

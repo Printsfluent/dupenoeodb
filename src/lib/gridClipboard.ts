@@ -2,6 +2,7 @@ import type { Column } from '../types'
 import { normalizeColumnType, isSelectFieldType } from './fieldTypes'
 import { findSelectOption, parseMultiSelectValue } from './selectOptions'
 import { formatDateTimeDisplay } from './dates'
+import { mergeAttachmentValues, parseAttachments } from './attachments'
 
 export interface CellCoord {
   rowId: string
@@ -67,6 +68,14 @@ export function formatCellForClipboard(col: Column, raw: string): string {
   switch (normalized) {
     case 'checkbox':
       return isCheckedValue(raw) ? 'Yes' : ''
+    case 'attachment': {
+      const items = parseAttachments(raw)
+      if (items.length > 0) {
+        return items.map((item) => item.name ?? item.url).join(', ')
+      }
+      return raw
+    }
+
     case 'singleSelect': {
       const option = findSelectOption(col.options ?? [], raw)
       return option?.label ?? raw
@@ -84,9 +93,14 @@ export function formatCellForClipboard(col: Column, raw: string): string {
   }
 }
 
-export function resolvePastedValue(col: Column, pasted: string): string {
+export function resolvePastedValue(col: Column, pasted: string, existing = ''): string {
   const trimmed = pasted.trim()
   const normalized = normalizeColumnType(col.type)
+
+  if (normalized === 'attachment') {
+    if (!trimmed) return existing
+    return mergeAttachmentValues(existing, trimmed)
+  }
 
   if (normalized === 'checkbox') {
     if (!trimmed) return ''

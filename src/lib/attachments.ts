@@ -46,6 +46,7 @@ export function parseAttachments(raw: string): AttachmentItem[] {
 }
 
 export function isImageUrl(url: string): boolean {
+  if (url.startsWith('data:image/')) return true
   if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)(\?|#|$)/i.test(url)) return true
   if (/redgifs\.com|i\.redgifs\.com|imgur\.com|i\.redd\.it|cloudinary|unsplash|picsum|googleusercontent/i.test(url)) {
     return true
@@ -55,6 +56,35 @@ export function isImageUrl(url: string): boolean {
 
 export function serializeAttachments(items: AttachmentItem[]): string {
   if (!items.length) return ''
-  if (items.length === 1 && !items[0].name) return items[0].url
-  return JSON.stringify(items)
+  return JSON.stringify(items.map(({ url, name }) => (name ? { url, name } : { url })))
+}
+
+export function mergeAttachmentValues(existing: string, incoming: string): string {
+  const merged = [...parseAttachments(existing), ...parseAttachments(incoming)]
+  if (!merged.length) return ''
+
+  const seen = new Set<string>()
+  const unique = merged.filter((item) => {
+    if (seen.has(item.url)) return false
+    seen.add(item.url)
+    return true
+  })
+
+  return serializeAttachments(unique)
+}
+
+export function removeAttachmentAt(raw: string, index: number): string {
+  const items = parseAttachments(raw)
+  if (index < 0 || index >= items.length) return raw
+  items.splice(index, 1)
+  return serializeAttachments(items)
+}
+
+export function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
 }

@@ -124,7 +124,7 @@ export default function CellValueDisplay({
     case 'attachment': {
       const items = parseAttachments(value)
       if (items.length > 0) {
-        return <AttachmentThumbnails value={value} size="sm" maxVisible={10} />
+        return <AttachmentThumbnails value={value} size="sm" maxVisible={24} />
       }
       return (
         <span className={`inline-flex items-center gap-1.5 ${cellText}`}>

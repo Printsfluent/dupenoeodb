@@ -18,6 +18,7 @@ import {
   resolvePastedValue,
   type SelectionRange,
 } from '../lib/gridClipboard'
+import { mergeAttachmentValues, readFileAsDataUrl } from '../lib/attachments'
 import { downloadTableAsCsv, downloadTableAsXlsx } from '../lib/exportSpreadsheet'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
@@ -35,7 +36,6 @@ interface SpreadsheetGridProps {
   onManageTableTeams?: () => void
   tableTeamCount?: number
   onAddRow?: () => boolean
-  variant?: 'grid' | 'gallery'
 }
 
 type SortDirection = 'asc' | 'desc'
@@ -61,7 +61,6 @@ export default function SpreadsheetGrid({
   onManageTableTeams,
   tableTeamCount = 0,
   onAddRow,
-  variant = 'grid',
 }: SpreadsheetGridProps) {
   const { theme } = useTheme()
   const { success } = useToast()
@@ -91,7 +90,6 @@ export default function SpreadsheetGrid({
   const headerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const gridRef = useRef<HTMLDivElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
-  const isGallery = variant === 'gallery'
 
   const visibleColumns = useMemo(
     () => table.columns.filter((col) => view.showHidden || !col.hidden),
@@ -485,7 +483,7 @@ export default function SpreadsheetGrid({
           updates.push({
             rowId: row.id,
             colId: col.id,
-            value: resolvePastedValue(col, value),
+            value: resolvePastedValue(col, value, row.cells[col.id] ?? ''),
           })
         }
       }
@@ -502,7 +500,7 @@ export default function SpreadsheetGrid({
           updates.push({
             rowId: row.id,
             colId: col.id,
-            value: resolvePastedValue(col, grid[r][c] ?? ''),
+            value: resolvePastedValue(col, grid[r][c] ?? '', row.cells[col.id] ?? ''),
           })
         }
       }
@@ -573,12 +571,10 @@ export default function SpreadsheetGrid({
   })
 
   useEffect(() => {
-    function onPaste(e: ClipboardEvent) {
+    async function onPaste(e: ClipboardEvent) {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
-
-      const pasted = e.clipboardData?.getData('text/plain')
-      if (pasted === undefined) return
+      if (!e.clipboardData) return
 
       const {
         selection: currentSelection,
@@ -589,9 +585,43 @@ export default function SpreadsheetGrid({
       if (!currentSelection || !bounds) return
 
       const active = currentSelection.focus
+      const actions = gridActionsRef.current
+      const pasted = e.clipboardData.getData('text/plain')
+
+      if (
+        bounds.rowStart === bounds.rowEnd &&
+        bounds.colStart === bounds.colEnd
+      ) {
+        const col = columns.find((item) => item.id === active.colId)
+        const row = rows.find((item) => item.id === active.rowId)
+        if (col && row && normalizeColumnType(col.type) === 'attachment' && actions.canPasteInto(col)) {
+          const imageItems = Array.from(e.clipboardData.items).filter(
+            (item) => item.kind === 'file' && item.type.startsWith('image/'),
+          )
+          if (imageItems.length || pasted.trim()) {
+            e.preventDefault()
+            let merged = row.cells[col.id] ?? ''
+            for (const item of imageItems) {
+              const file = item.getAsFile()
+              if (!file) continue
+              try {
+                const dataUrl = await readFileAsDataUrl(file)
+                if (dataUrl) merged = mergeAttachmentValues(merged, dataUrl)
+              } catch {
+                /* skip */
+              }
+            }
+            if (pasted.trim()) merged = mergeAttachmentValues(merged, pasted)
+            actions.updateCell(active.rowId, active.colId, merged)
+            return
+          }
+        }
+      }
+
+      if (pasted === undefined) return
+
       const grid = parseClipboardGrid(pasted)
       const isSingleValue = grid.length === 1 && grid[0].length === 1
-      const actions = gridActionsRef.current
 
       if (isSingleValue) {
         if (bounds.rowStart === bounds.rowEnd && bounds.colStart === bounds.colEnd) {
@@ -942,9 +972,6 @@ export default function SpreadsheetGrid({
     <div className="flex flex-col flex-1 min-h-0">
       <div className={`shrink-0 border-b border-app-border ${toolbar}`}>
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-        {isGallery ? (
-          <span className="text-sm font-medium text-app-text">Gallery</span>
-        ) : (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-app-border bg-app-bg min-w-[220px] max-w-[360px] flex-1">
           <Search className="w-4 h-4 text-app-faint shrink-0" />
           <input
@@ -967,9 +994,8 @@ export default function SpreadsheetGrid({
             </button>
           )}
         </div>
-        )}
         <div className="flex items-center gap-2 shrink-0">
-          {!isGallery && hiddenCount > 0 && schemaEditable && (
+          {hiddenCount > 0 && schemaEditable && (
             <button
               type="button"
               onClick={() => setView((v) => ({ ...v, showHidden: !v.showHidden }))}
@@ -979,7 +1005,7 @@ export default function SpreadsheetGrid({
               {view.showHidden ? 'Hide hidden fields' : `Show ${hiddenCount} hidden`}
             </button>
           )}
-          {!isGallery && (view.sortColumnId || view.filterColumnId || view.groupColumnId || view.searchQuery) && (
+          {(view.sortColumnId || view.filterColumnId || view.groupColumnId || view.searchQuery) && (
             <button
               type="button"
               onClick={clearViewOverrides}
@@ -989,7 +1015,7 @@ export default function SpreadsheetGrid({
               Clear view
             </button>
           )}
-          {!isGallery && schemaEditable && onManageTableTeams && (
+          {schemaEditable && onManageTableTeams && (
             <button
               type="button"
               onClick={onManageTableTeams}
@@ -1019,7 +1045,6 @@ export default function SpreadsheetGrid({
               Add row
             </button>
           )}
-          {!isGallery && (
           <div className="relative" ref={exportMenuRef}>
             <button
               type="button"
@@ -1054,7 +1079,6 @@ export default function SpreadsheetGrid({
               </div>
             )}
           </div>
-          )}
         </div>
         </div>
       </div>
@@ -1155,22 +1179,7 @@ export default function SpreadsheetGrid({
           </tbody>
         </table>
 
-        {isGallery && table.columns.length === 0 && (
-          <div className={`flex flex-col items-center justify-center py-16 ${emptyText}`}>
-            <p className="text-sm">Add columns and rows to build your gallery.</p>
-            {schemaEditable && (
-              <button
-                type="button"
-                onClick={addColumn}
-                className="mt-3 text-sm font-medium text-brand-400 hover:text-brand-300"
-              >
-                Add your first column
-              </button>
-            )}
-          </div>
-        )}
-
-        {!isGallery && processedRows.length === 0 && (
+        {processedRows.length === 0 && (
           <div className={`flex flex-col items-center justify-center py-16 ${thText}`}>
             <p className="text-sm">
               {table.rows.length === 0

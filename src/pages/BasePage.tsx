@@ -5,7 +5,6 @@ import { ArrowLeft, Plus, Upload, Users, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
-import ViewsSidebar from '../components/ViewsSidebar'
 import EditableName from '../components/EditableName'
 import NameModal from '../components/NameModal'
 import ImportDataModal from '../components/ImportDataModal'
@@ -38,8 +37,7 @@ import { normalizeBase } from '../lib/tableSchema'
 import { sheetsToTables } from '../lib/importSpreadsheet'
 import { createId } from '../lib/id'
 import { canAddRows, canAddTables } from '../lib/planLimits'
-import { loadTableView, saveTableView } from '../lib/tableViewPrefs'
-import type { Base, Table, TableViewType } from '../types'
+import type { Base, Table } from '../types'
 import type { ParsedSheet } from '../lib/importSpreadsheet'
 
 export default function BasePage() {
@@ -63,8 +61,6 @@ export default function BasePage() {
   const [newTableName, setNewTableName] = useState('')
   const [showNewTableIconPicker, setShowNewTableIconPicker] = useState(false)
   const [showBaseIconPicker, setShowBaseIconPicker] = useState(false)
-  const [activeViewType, setActiveViewType] = useState<TableViewType>('grid')
-  const [viewsSidebarCollapsed, setViewsSidebarCollapsed] = useState(false)
   const [pendingTableId, setPendingTableId] = useState<string | null>(null)
   const toast = useToast()
 
@@ -152,16 +148,6 @@ export default function BasePage() {
     if (!baseId || !activeTableId) return
     rememberLastTable(baseId, activeTableId)
   }, [baseId, activeTableId])
-
-  useEffect(() => {
-    if (!baseId || !activeTableId) return
-    setActiveViewType(loadTableView(baseId, activeTableId))
-  }, [baseId, activeTableId])
-
-  useEffect(() => {
-    if (!baseId || !activeTableId) return
-    saveTableView(baseId, activeTableId, activeViewType)
-  }, [baseId, activeTableId, activeViewType])
 
   useEffect(() => {
     if (!baseId || !isFirebaseConfigured() || !user || !ready) return
@@ -405,7 +391,7 @@ export default function BasePage() {
       </nav>
 
       <header className="sticky top-12 z-40 shrink-0 bg-app-bg border-b border-app-border">
-        <div className="flex items-center gap-1 px-4 overflow-x-auto">
+        <div className="flex items-center gap-1 px-2 overflow-x-auto scrollbar-thin">
           {visibleTables.map((table) => (
             <div
               key={table.id}
@@ -487,16 +473,7 @@ export default function BasePage() {
         </div>
       </header>
 
-      <main className="flex-1 min-h-0 overflow-hidden flex flex-row bg-app-bg">
-        {activeTable && visibleTables.length > 0 && (
-          <ViewsSidebar
-            activeView={activeViewType}
-            onViewChange={setActiveViewType}
-            collapsed={viewsSidebarCollapsed}
-            onToggleCollapsed={() => setViewsSidebarCollapsed((open) => !open)}
-          />
-        )}
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+      <main className="flex-1 min-h-0 overflow-hidden flex flex-col bg-app-bg">
         {visibleTables.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-app-faint text-sm">
             {base.tables.length === 0 && hasFullAccess ? (
@@ -517,16 +494,15 @@ export default function BasePage() {
           </div>
         ) : activeTable ? (
           <SpreadsheetGrid
-            key={`${activeTable.id}-${activeViewType}`}
+            key={activeTable.id}
             table={activeTable}
             onChange={updateTable}
-            variant={activeViewType === 'gallery' ? 'gallery' : 'grid'}
             readOnly={!canEdit}
             canEditFields={canManageSchema}
             canModifySchema={canManageSchema}
             isWorkspaceAdmin={canManageSchema}
             onManageTableTeams={
-              hasFullAccess && activeViewType !== 'gallery'
+              hasFullAccess
                 ? () => {
                     setTableTeamIds(activeTable.teamIds ?? [])
                     setShowTableTeams(true)
@@ -549,7 +525,6 @@ export default function BasePage() {
             Select or create a table to get started
           </div>
         )}
-        </div>
       </main>
 
       <NameModal
