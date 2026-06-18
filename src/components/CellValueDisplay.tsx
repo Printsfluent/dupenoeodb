@@ -6,6 +6,8 @@ import { findSelectOption, parseMultiSelectValue } from '../lib/selectOptions'
 import SelectOptionBadge from './SelectOptionBadge'
 import { formatDateTimeDisplay } from '../lib/dates'
 import { extractLinkHref } from '../lib/links'
+import { parseAttachments } from '../lib/attachments'
+import AttachmentThumbnails from './AttachmentThumbnails'
 
 interface CellValueDisplayProps {
   type: ColumnType
@@ -70,7 +72,7 @@ export default function CellValueDisplay({
     return null
   }
 
-  if (linkHref) {
+  if (linkHref && normalized !== 'attachment') {
     return (
       <span className="text-brand-400 underline decoration-brand-400/50 underline-offset-2">
         {renderHighlighted(value, highlightQuery)}
@@ -119,13 +121,18 @@ export default function CellValueDisplay({
         </span>
       )
 
-    case 'attachment':
+    case 'attachment': {
+      const items = parseAttachments(value)
+      if (items.length > 0) {
+        return <AttachmentThumbnails value={value} size="sm" maxVisible={10} />
+      }
       return (
         <span className={`inline-flex items-center gap-1.5 ${cellText}`}>
           <Paperclip className="w-3.5 h-3.5 text-app-faint" />
           {renderHighlighted(value, highlightQuery)}
         </span>
       )
+    }
 
     case 'user':
       return (

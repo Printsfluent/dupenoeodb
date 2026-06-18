@@ -814,6 +814,9 @@ export default function SpreadsheetGrid({
               : value
           const isPinned = col.id === pinnedColumnId
           const interaction = getCellInteraction(col.type)
+          const isAttachment = normalizeColumnType(col.type) === 'attachment'
+          const cellMinHeight = isAttachment ? 'min-h-[52px]' : 'min-h-[36px]'
+          const cellOverflow = isAttachment ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden'
           const stickyClass = isPinned ? stickyPinnedClass : scrollCellClass
           const stickyStyle = isPinned ? stickyPinnedStyle : undefined
           const displayCellText = isPinned ? pinnedCellText : cellText
@@ -827,7 +830,7 @@ export default function SpreadsheetGrid({
           return (
             <td
               key={col.id}
-              className={`px-0 py-0 min-w-[160px] ${stickyClass}`}
+              className={`px-0 py-0 ${isAttachment ? 'min-w-[280px]' : 'min-w-[160px]'} ${stickyClass}`}
               style={stickyStyle}
             >
               {!canEditCell(col) ? (
@@ -839,7 +842,7 @@ export default function SpreadsheetGrid({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') applySelection(row, col)
                   }}
-                  className={`w-full text-left px-3 py-2 min-h-[36px] cursor-default overflow-hidden ${selectedClass}`}
+                  className={`w-full text-left px-3 py-2 ${cellMinHeight} cursor-default ${cellOverflow} ${selectedClass}`}
                   title={col.description}
                 >
                   <CellValueDisplay
@@ -896,7 +899,7 @@ export default function SpreadsheetGrid({
                   onMouseEnter={() => extendSelectionTo(row, col)}
                   onClick={(e) => handleCellClick(row, col, value, e)}
                   onDoubleClick={() => handleCellDoubleClick(row, col)}
-                  className={`w-full text-left px-3 py-2 min-h-[36px] transition-colors overflow-hidden ${selectedClass} ${
+                  className={`w-full text-left px-3 py-2 ${cellMinHeight} transition-colors ${cellOverflow} ${selectedClass} ${
                     interaction === 'readonly'
                       ? 'cursor-default'
                       : extractLinkHref(value)
@@ -1078,10 +1081,11 @@ export default function SpreadsheetGrid({
               {visibleColumns.map((col) => {
                 const isPinned = col.id === pinnedColumnId
                 const headText = isPinned ? pinnedHeadText : thText
+                const isAttachmentCol = normalizeColumnType(col.type) === 'attachment'
                 return (
                 <th
                   key={col.id}
-                  className={`px-1 py-1 min-w-[160px] group/col ${
+                  className={`px-1 py-1 ${isAttachmentCol ? 'min-w-[280px]' : 'min-w-[160px]'} group/col ${
                     isPinned ? stickyPinnedHeadClass : scrollHeadClass
                   }`}
                   style={isPinned ? stickyPinnedStyle : undefined}

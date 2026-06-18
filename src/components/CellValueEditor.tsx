@@ -293,7 +293,7 @@ export default function CellValueEditor({
             onChange={(e) => updateDraft(e.target.value)}
             onBlur={() => commit(draft)}
             onKeyDown={handleKeyDown}
-            placeholder="filename.pdf or URL"
+            placeholder="Image URLs — one per line, or comma-separated"
             className={cls}
             {...disableBrowserAutocomplete}
           />

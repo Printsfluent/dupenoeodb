@@ -5,6 +5,8 @@ import { ArrowLeft, Plus, Upload, Users, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
+import GalleryView from '../components/GalleryView'
+import ViewsSidebar from '../components/ViewsSidebar'
 import EditableName from '../components/EditableName'
 import NameModal from '../components/NameModal'
 import ImportDataModal from '../components/ImportDataModal'
@@ -37,7 +39,8 @@ import { normalizeBase } from '../lib/tableSchema'
 import { sheetsToTables } from '../lib/importSpreadsheet'
 import { createId } from '../lib/id'
 import { canAddRows, canAddTables } from '../lib/planLimits'
-import type { Base, Table } from '../types'
+import { loadTableView, saveTableView } from '../lib/tableViewPrefs'
+import type { Base, Table, TableViewType } from '../types'
 import type { ParsedSheet } from '../lib/importSpreadsheet'
 
 export default function BasePage() {
@@ -61,6 +64,8 @@ export default function BasePage() {
   const [newTableName, setNewTableName] = useState('')
   const [showNewTableIconPicker, setShowNewTableIconPicker] = useState(false)
   const [showBaseIconPicker, setShowBaseIconPicker] = useState(false)
+  const [activeViewType, setActiveViewType] = useState<TableViewType>('grid')
+  const [viewsSidebarCollapsed, setViewsSidebarCollapsed] = useState(false)
   const toast = useToast()
 
   const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
@@ -138,6 +143,16 @@ export default function BasePage() {
     if (!baseId || !activeTableId) return
     rememberLastTable(baseId, activeTableId)
   }, [baseId, activeTableId])
+
+  useEffect(() => {
+    if (!baseId || !activeTableId) return
+    setActiveViewType(loadTableView(baseId, activeTableId))
+  }, [baseId, activeTableId])
+
+  useEffect(() => {
+    if (!baseId || !activeTableId) return
+    saveTableView(baseId, activeTableId, activeViewType)
+  }, [baseId, activeTableId, activeViewType])
 
   useEffect(() => {
     if (!baseId || !isFirebaseConfigured() || !user || !ready) return
@@ -457,7 +472,28 @@ export default function BasePage() {
         </div>
       </header>
 
-      <main className="flex-1 min-h-0 overflow-hidden flex flex-col bg-app-bg">
+      <main className="flex-1 min-h-0 overflow-hidden flex flex-row bg-app-bg">
+        {activeTable && visibleTables.length > 0 && (
+          <ViewsSidebar
+            activeView={activeViewType}
+            onViewChange={setActiveViewType}
+            collapsed={viewsSidebarCollapsed}
+            onToggleCollapsed={() => setViewsSidebarCollapsed((open) => !open)}
+          />
+        )}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {activeTable && visibleTables.length > 0 && (
+          <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-app-border bg-app-surface">
+            <span className="text-sm font-medium text-app-text">
+              {activeViewType === 'gallery' ? 'Gallery view' : 'Grid view'}
+            </span>
+            {activeViewType === 'gallery' && (
+              <span className="text-xs text-app-faint">
+                Attachment fields show image previews
+              </span>
+            )}
+          </div>
+        )}
         {visibleTables.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-app-faint text-sm">
             {base.tables.length === 0 && hasFullAccess ? (
@@ -477,6 +513,9 @@ export default function BasePage() {
             )}
           </div>
         ) : activeTable ? (
+          activeViewType === 'gallery' ? (
+            <GalleryView table={activeTable} readOnly={!canEdit} />
+          ) : (
           <SpreadsheetGrid
             table={activeTable}
             onChange={updateTable}
@@ -503,11 +542,13 @@ export default function BasePage() {
               return true
             }}
           />
+          )
         ) : (
           <div className="flex items-center justify-center h-full text-app-faint text-sm">
             Select or create a table to get started
           </div>
         )}
+        </div>
       </main>
 
       <NameModal
