@@ -1,19 +1,16 @@
 import { useMemo, useState } from 'react'
-import { Calendar, ChevronLeft, ChevronRight, Columns3, Image, Search, Table2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Image, Search, Table2 } from 'lucide-react'
 import type { TableViewType } from '../types'
 
 interface ViewOption {
   type: TableViewType
   label: string
   icon: typeof Table2
-  enabled: boolean
 }
 
 const VIEW_OPTIONS: ViewOption[] = [
-  { type: 'grid', label: 'Grid view', icon: Table2, enabled: true },
-  { type: 'gallery', label: 'Gallery view', icon: Image, enabled: true },
-  { type: 'kanban', label: 'Kanban view', icon: Columns3, enabled: false },
-  { type: 'calendar', label: 'Calendar view', icon: Calendar, enabled: false },
+  { type: 'grid', label: 'Grid view', icon: Table2 },
+  { type: 'gallery', label: 'Gallery view', icon: Image },
 ]
 
 interface ViewsSidebarProps {
@@ -49,7 +46,7 @@ export default function ViewsSidebar({
         >
           <ChevronRight className="w-4 h-4" />
         </button>
-        {VIEW_OPTIONS.filter((view) => view.enabled).map((view) => {
+        {VIEW_OPTIONS.map((view) => {
           const Icon = view.icon
           const active = activeView === view.type
           return (
@@ -110,21 +107,15 @@ export default function ViewsSidebar({
             <button
               key={view.type}
               type="button"
-              disabled={!view.enabled}
-              onClick={() => view.enabled && onViewChange(view.type)}
+              onClick={() => onViewChange(view.type)}
               className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-left transition-colors ${
                 active
                   ? 'bg-brand-500/12 text-brand-500 font-medium'
-                  : view.enabled
-                    ? 'text-app-text hover:bg-app-surface-active'
-                    : 'text-app-faint/60 cursor-not-allowed'
+                  : 'text-app-text hover:bg-app-surface-active'
               }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
               <span className="truncate">{view.label}</span>
-              {!view.enabled && (
-                <span className="ml-auto text-[10px] uppercase tracking-wide text-app-faint">Soon</span>
-              )}
             </button>
           )
         })}

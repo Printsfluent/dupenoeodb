@@ -487,11 +487,6 @@ export default function BasePage() {
             <span className="text-sm font-medium text-app-text">
               {activeViewType === 'gallery' ? 'Gallery view' : 'Grid view'}
             </span>
-            {activeViewType === 'gallery' && (
-              <span className="text-xs text-app-faint">
-                Attachment fields show image previews
-              </span>
-            )}
           </div>
         )}
         {visibleTables.length === 0 ? (
@@ -514,7 +509,7 @@ export default function BasePage() {
           </div>
         ) : activeTable ? (
           activeViewType === 'gallery' ? (
-            <GalleryView table={activeTable} readOnly={!canEdit} />
+            <GalleryView />
           ) : (
           <SpreadsheetGrid
             table={activeTable}
