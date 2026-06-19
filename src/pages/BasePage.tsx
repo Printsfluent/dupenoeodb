@@ -49,6 +49,7 @@ export default function BasePage() {
   const tableParam = searchParams.get('table')
   const leavingRef = useRef(false)
   const seededTableUrlRef = useRef(false)
+  const prevTableParamRef = useRef<string | null>(null)
   const [base, setBase] = useState<Base | null>(null)
   const [showNewTable, setShowNewTable] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -103,7 +104,7 @@ export default function BasePage() {
 
   const selectActiveTable = useCallback((tableId: string | null) => {
     setSelectedTableId(tableId)
-    const next = new URLSearchParams(searchParams)
+    const next = new URLSearchParams(location.search)
     if (tableId) next.set('table', tableId)
     else next.delete('table')
     const search = next.toString()
@@ -111,7 +112,7 @@ export default function BasePage() {
       { pathname: location.pathname, search: search ? `?${search}` : '' },
       { replace: true },
     )
-  }, [navigate, location.pathname, searchParams])
+  }, [navigate, location.pathname, location.search])
 
   const visibleTables = useMemo(() => {
     if (!base) return []
@@ -122,28 +123,48 @@ export default function BasePage() {
     if (selectedTableId && visibleTables.some((table) => table.id === selectedTableId)) {
       return selectedTableId
     }
-    if (tableParam && visibleTables.some((table) => table.id === tableParam)) return tableParam
     return visibleTables[0]?.id ?? null
-  }, [selectedTableId, tableParam, visibleTables])
+  }, [selectedTableId, visibleTables])
 
   useEffect(() => {
     setSelectedTableId(null)
     seededTableUrlRef.current = false
+    prevTableParamRef.current = null
   }, [baseId])
 
   useEffect(() => {
+    if (!base || seededTableUrlRef.current) return
+
+    const fromUrl =
+      tableParam && visibleTables.some((table) => table.id === tableParam)
+        ? tableParam
+        : null
+    const initial = fromUrl ?? visibleTables[0]?.id ?? null
+    if (!initial) return
+
+    seededTableUrlRef.current = true
+    prevTableParamRef.current = fromUrl ?? tableParam
+    setSelectedTableId(initial)
+
+    if (!fromUrl) {
+      const next = new URLSearchParams(location.search)
+      next.set('table', initial)
+      navigate(
+        { pathname: location.pathname, search: `?${next.toString()}` },
+        { replace: true },
+      )
+    }
+  }, [base, tableParam, visibleTables, navigate, location.pathname, location.search])
+
+  useEffect(() => {
+    if (!seededTableUrlRef.current) return
+    if (tableParam === prevTableParamRef.current) return
+    prevTableParamRef.current = tableParam
+
     if (tableParam && visibleTables.some((table) => table.id === tableParam)) {
       setSelectedTableId(tableParam)
     }
   }, [tableParam, visibleTables])
-
-  useEffect(() => {
-    if (!base || tableParam || seededTableUrlRef.current) return
-    const fallback = visibleTables[0]?.id
-    if (!fallback) return
-    seededTableUrlRef.current = true
-    selectActiveTable(fallback)
-  }, [base, tableParam, visibleTables, selectActiveTable])
 
   useEffect(() => {
     if (!baseId || !activeTableId) return
@@ -230,7 +251,7 @@ export default function BasePage() {
 
   function updateTable(table: Table) {
     if (!base || !baseId) return
-    if (activeTableId && table.id !== activeTableId) return
+    if (selectedTableId && table.id !== selectedTableId) return
     const latest =
       getWorkspaceBases(base.workspaceId).find((item) => item.id === baseId)
       ?? getCache().bases.find((item) => item.id === baseId)
@@ -332,6 +353,15 @@ export default function BasePage() {
     toast.success(`Created ${table.name}`)
   }
 
+  const activeTable = useMemo(() => {
+    if (!base) return undefined
+    if (!activeTableId) return visibleTables[0]
+    return (
+      visibleTables.find((table) => table.id === activeTableId)
+      ?? base.tables.find((table) => table.id === activeTableId)
+    )
+  }, [activeTableId, visibleTables, base])
+
   if (!base) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -342,9 +372,6 @@ export default function BasePage() {
 
   const workspaceTeams = workspaceId ? getWorkspaceTeams(workspaceId) : []
 
-  const activeTable = activeTableId
-    ? visibleTables.find((t) => t.id === activeTableId)
-    : visibleTables[0]
   const iconPickerTable = iconPickerTableId
     ? visibleTables.find((table) => table.id === iconPickerTableId)
     : undefined
