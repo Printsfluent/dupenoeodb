@@ -2,53 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Copy, X, Maximize2 } from 'lucide-react'
 import {
-  isImageUrl,
   parseAttachments,
   removeAttachmentAt,
-  resolveAttachmentUrl,
   resolveAttachmentsForClipboard,
   serializeAttachments,
 } from '../lib/attachments'
 import { copyToClipboard } from '../lib/copy'
 import { useToast } from '../context/ToastContext'
-
-function CarouselImage({ url, name, bold = false }: { url: string; name?: string; bold?: boolean }) {
-  const [src, setSrc] = useState(url)
-  const [failed, setFailed] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    setFailed(false)
-    void resolveAttachmentUrl(url).then((resolved) => {
-      if (!cancelled) setSrc(resolved)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [url])
-
-  if (!isImageUrl(url) || failed) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-2 text-app-faint text-sm px-6 text-center max-w-lg">
-        <span className="text-base font-medium text-app-text">{name ?? 'Attachment'}</span>
-        <span className="text-xs break-all opacity-70">{url}</span>
-      </div>
-    )
-  }
-
-  return (
-    <img
-      src={src}
-      alt={name ?? 'Attachment'}
-      className={
-        bold
-          ? 'max-h-[min(82vh,720px)] max-w-[min(92vw,960px)] object-contain rounded-lg shadow-lg'
-          : 'max-h-[min(52vh,360px)] max-w-full object-contain rounded'
-      }
-      onError={() => setFailed(true)}
-    />
-  )
-}
+import AttachmentMediaView from './AttachmentMediaView'
 
 interface AttachmentLightboxProps {
   value: string
@@ -185,7 +146,7 @@ export default function AttachmentLightbox({
           <ChevronLeft className="w-6 h-6" />
         </button>
 
-        {current && <CarouselImage url={current.url} name={current.name} bold={bold} />}
+        {current && <AttachmentMediaView url={current.url} name={current.name} bold={bold} />}
 
         <button
           type="button"

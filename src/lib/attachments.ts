@@ -60,6 +60,37 @@ export function isImageUrl(url: string): boolean {
   return false
 }
 
+export function isVideoUrl(url: string): boolean {
+  if (url.startsWith('data:video/')) return true
+  if (/\.(mp4|webm|mov|m4v|ogg|ogv|avi|mkv|gifv)(\?|#|$)/i.test(url)) return true
+  if (/youtube\.com|youtu\.be|vimeo\.com|streamable\.com/i.test(url)) return true
+  return false
+}
+
+export type AttachmentMediaKind = 'image' | 'video' | 'file'
+
+export function mediaKindFromDataUrl(url: string): AttachmentMediaKind | null {
+  if (url.startsWith('data:image/')) return 'image'
+  if (url.startsWith('data:video/')) return 'video'
+  return null
+}
+
+export function mediaKindFromUrl(url: string): AttachmentMediaKind {
+  const fromData = mediaKindFromDataUrl(url)
+  if (fromData) return fromData
+  if (isVideoUrl(url)) return 'video'
+  if (isImageUrl(url)) return 'image'
+  return 'file'
+}
+
+export function isMediaFileType(mime: string): boolean {
+  return mime.startsWith('image/') || mime.startsWith('video/')
+}
+
+export function isMediaDataUrl(value: string): boolean {
+  return value.includes('data:image/') || value.includes('data:video/')
+}
+
 export function serializeAttachments(items: AttachmentItem[]): string {
   if (!items.length) return ''
   return JSON.stringify(items.map(({ url, name }) => (name ? { url, name } : { url })))
@@ -190,7 +221,7 @@ export async function resolveAttachmentsForClipboard(raw: string): Promise<{
       if (blob) imageBlobs.push(blob)
       continue
     }
-    if (/^https?:\/\//i.test(item.url) && isImageUrl(item.url)) {
+    if (/^https?:\/\//i.test(item.url) && (isImageUrl(item.url) || isVideoUrl(item.url))) {
       try {
         const response = await fetch(item.url)
         if (response.ok) imageBlobs.push(await response.blob())

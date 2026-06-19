@@ -1,57 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react'
 import {
-  isImageUrl,
+  isMediaFileType,
   mergeAttachmentValues,
   parseAttachments,
   persistAttachmentsForStorage,
   readFileAsDataUrl,
   removeAttachmentAt,
-  resolveAttachmentUrl,
   resolveAttachmentsForClipboard,
   serializeAttachments,
 } from '../lib/attachments'
 import { copyToClipboard } from '../lib/copy'
 import AttachmentLightbox from './AttachmentLightbox'
+import AttachmentMediaView from './AttachmentMediaView'
 
 interface AttachmentCellEditorProps {
   value: string
   onChange: (value: string) => void
   onDone?: () => void
-}
-
-function CarouselImage({ url, name }: { url: string; name?: string }) {
-  const [src, setSrc] = useState(url)
-  const [failed, setFailed] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    setFailed(false)
-    void resolveAttachmentUrl(url).then((resolved) => {
-      if (!cancelled) setSrc(resolved)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [url])
-
-  if (!isImageUrl(url) || failed) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-2 text-app-faint text-sm px-4 text-center">
-        <span>{name ?? 'Attachment'}</span>
-        <span className="text-xs break-all max-w-full opacity-70">{url}</span>
-      </div>
-    )
-  }
-
-  return (
-    <img
-      src={src}
-      alt={name ?? 'Attachment'}
-      className="max-h-[min(52vh,360px)] max-w-full object-contain rounded"
-      onError={() => setFailed(true)}
-    />
-  )
 }
 
 export default function AttachmentCellEditor({ value, onChange, onDone }: AttachmentCellEditorProps) {
@@ -96,16 +62,16 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
 
   async function handlePaste(e: React.ClipboardEvent) {
     const textItems = parseAttachments(e.clipboardData.getData('text/plain'))
-    const imageFiles: File[] = []
+    const mediaFiles: File[] = []
 
     for (const entry of Array.from(e.clipboardData.items)) {
-      if (entry.kind === 'file' && entry.type.startsWith('image/')) {
+      if (entry.kind === 'file' && isMediaFileType(entry.type)) {
         const file = entry.getAsFile()
-        if (file) imageFiles.push(file)
+        if (file) mediaFiles.push(file)
       }
     }
 
-    if (!textItems.length && imageFiles.length === 0) return
+    if (!textItems.length && mediaFiles.length === 0) return
 
     e.preventDefault()
     e.stopPropagation()
@@ -114,7 +80,7 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
       appendAttachments(serializeAttachments(textItems))
     }
 
-    for (const file of imageFiles) {
+    for (const file of mediaFiles) {
       try {
         const dataUrl = await readFileAsDataUrl(file)
         if (dataUrl) appendAttachments(dataUrl)
@@ -210,7 +176,7 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
               <ChevronLeft className="w-5 h-5" />
             </button>
 
-            <CarouselImage url={current.url} name={current.name} />
+            <AttachmentMediaView url={current.url} name={current.name} />
 
             <button
               type="button"
@@ -269,7 +235,7 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
           onFocus={showExpanded}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => void commit(draft)}
-          placeholder="Paste image URLs or images — one per line"
+          placeholder="Paste images, videos, or URLs — one per line"
           rows={expanded ? 2 : 2}
           className="w-full resize-none bg-transparent text-sm text-app-text outline-none placeholder:text-app-faint"
           spellCheck={false}

@@ -18,7 +18,7 @@ import {
   resolvePastedValue,
   type SelectionRange,
 } from '../lib/gridClipboard'
-import { mergeAttachmentValues, persistAttachmentsForStorage, readFileAsDataUrl } from '../lib/attachments'
+import { mergeAttachmentValues, persistAttachmentsForStorage, readFileAsDataUrl, isMediaFileType, isMediaDataUrl } from '../lib/attachments'
 import { downloadTableAsCsv, downloadTableAsXlsx } from '../lib/exportSpreadsheet'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
@@ -140,7 +140,7 @@ export default function SpreadsheetGrid({
       })
     }
 
-    if (col && normalizeColumnType(col.type) === 'attachment' && value.includes('data:image/')) {
+    if (col && normalizeColumnType(col.type) === 'attachment' && isMediaDataUrl(value)) {
       void persistAttachmentsForStorage(value).then(applyValue)
       return
     }
@@ -623,13 +623,13 @@ export default function SpreadsheetGrid({
         const col = columns.find((item) => item.id === active.colId)
         const row = rows.find((item) => item.id === active.rowId)
         if (col && row && normalizeColumnType(col.type) === 'attachment' && actions.canPasteInto(col)) {
-          const imageItems = Array.from(e.clipboardData.items).filter(
-            (item) => item.kind === 'file' && item.type.startsWith('image/'),
+          const mediaItems = Array.from(e.clipboardData.items).filter(
+            (item) => item.kind === 'file' && isMediaFileType(item.type),
           )
-          if (imageItems.length || pasted.trim()) {
+          if (mediaItems.length || pasted.trim()) {
             e.preventDefault()
             let merged = row.cells[col.id] ?? ''
-            for (const item of imageItems) {
+            for (const item of mediaItems) {
               const file = item.getAsFile()
               if (!file) continue
               try {

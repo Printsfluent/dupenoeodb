@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react'
-import { FileImage, Paperclip } from 'lucide-react'
-import { isAttachmentBlobRef, isImageUrl, parseAttachments, resolveAttachmentUrl } from '../lib/attachments'
+import { FileImage, Film, Paperclip } from 'lucide-react'
+import {
+  isAttachmentBlobRef,
+  isImageUrl,
+  isVideoUrl,
+  mediaKindFromDataUrl,
+  parseAttachments,
+  resolveAttachmentUrl,
+  type AttachmentMediaKind,
+} from '../lib/attachments'
 import { openLink } from '../lib/links'
+import AttachmentMediaView from './AttachmentMediaView'
 
 interface AttachmentThumbnailsProps {
   value: string
@@ -24,47 +33,48 @@ function Thumbnail({
   name?: string
   size: 'sm' | 'md'
 }) {
-  const [src, setSrc] = useState(url)
-  const [failed, setFailed] = useState(false)
+  const [openUrl, setOpenUrl] = useState(url)
+  const [kind, setKind] = useState<AttachmentMediaKind>('file')
 
   useEffect(() => {
     let cancelled = false
-    setFailed(false)
-    if (isAttachmentBlobRef(url)) {
-      void resolveAttachmentUrl(url).then((resolved) => {
-        if (!cancelled) setSrc(resolved)
-      })
-    } else {
-      setSrc(url)
-    }
+    void resolveAttachmentUrl(url).then((resolved) => {
+      if (cancelled) return
+      setOpenUrl(resolved)
+      const fromData = mediaKindFromDataUrl(resolved)
+      if (fromData) setKind(fromData)
+      else if (isVideoUrl(resolved)) setKind('video')
+      else if (isImageUrl(resolved) || isAttachmentBlobRef(url)) setKind('image')
+      else setKind('file')
+    })
     return () => {
       cancelled = true
     }
   }, [url])
 
-  const showImage = (isImageUrl(url) || isAttachmentBlobRef(url)) && !failed
+  const previewable = kind === 'image' || kind === 'video'
 
   return (
     <button
       type="button"
       onClick={(e) => {
         e.stopPropagation()
-        openLink(src.startsWith('data:') ? url : src)
+        openLink(openUrl.startsWith('data:') ? openUrl : openUrl)
       }}
-      className={`${sizeClasses[size]} shrink-0 rounded overflow-hidden border border-app-border bg-app-surface-muted hover:ring-2 hover:ring-brand-500/50 transition-shadow`}
+      className={`${sizeClasses[size]} shrink-0 rounded overflow-hidden border border-app-border bg-app-surface-muted hover:ring-2 hover:ring-brand-500/50 transition-shadow relative`}
       title={name ?? url}
     >
-      {showImage ? (
-        <img
-          src={src}
-          alt={name ?? 'Attachment'}
-          className="w-full h-full object-cover"
-          loading="lazy"
-          onError={() => setFailed(true)}
-        />
+      {previewable ? (
+        <AttachmentMediaView url={url} name={name} thumbnail />
       ) : (
         <span className="w-full h-full flex items-center justify-center text-app-faint">
-          {isImageUrl(url) ? <FileImage className="w-4 h-4" /> : <Paperclip className="w-4 h-4" />}
+          {isVideoUrl(url) ? (
+            <Film className="w-4 h-4" />
+          ) : isImageUrl(url) ? (
+            <FileImage className="w-4 h-4" />
+          ) : (
+            <Paperclip className="w-4 h-4" />
+          )}
         </span>
       )}
     </button>

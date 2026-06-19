@@ -257,7 +257,9 @@ export default function BasePage() {
       return
     }
     const hasAttachments = table.rows.some((row) =>
-      Object.values(row.cells).some((cell) => cell.includes('sf-att://') || cell.includes('data:image/')),
+      Object.values(row.cells).some(
+        (cell) => cell.includes('sf-att://') || cell.includes('data:image/') || cell.includes('data:video/'),
+      ),
     )
     const structureChanged = previous ? isTableStructureChange(previous, table) : false
     saveBase(
