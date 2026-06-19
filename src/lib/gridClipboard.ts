@@ -2,7 +2,7 @@ import type { Column } from '../types'
 import { normalizeColumnType, isSelectFieldType } from './fieldTypes'
 import { findSelectOption, parseMultiSelectValue } from './selectOptions'
 import { formatDateTimeDisplay } from './dates'
-import { mergeAttachmentValues, parseAttachments, resolveAttachmentsForClipboard, serializeAttachments } from './attachments'
+import { mergeAttachmentValues, parseAttachments, resolveAttachmentBlobForClipboard, resolveAttachmentsForClipboard, serializeAttachments } from './attachments'
 
 export interface CellCoord {
   rowId: string
@@ -181,6 +181,7 @@ export function buildCopyText(
 export interface CopyPayload {
   text: string
   imageBlobs: Blob[]
+  mediaOnly?: boolean
 }
 
 export async function buildCopyPayload(
@@ -188,6 +189,24 @@ export async function buildCopyPayload(
   rows: { id: string; cells: Record<string, string> }[],
   columns: Column[],
 ): Promise<CopyPayload> {
+  const isSingleCell =
+    bounds.rowStart === bounds.rowEnd && bounds.colStart === bounds.colEnd
+
+  if (isSingleCell) {
+    const col = columns[bounds.colStart]
+    const row = rows[bounds.rowStart]
+    const raw = row.cells[col.id] ?? ''
+    if (normalizeColumnType(col.type) === 'attachment' && raw.trim()) {
+      const items = parseAttachments(raw)
+      if (items.length > 0) {
+        const blob = await resolveAttachmentBlobForClipboard(items[0])
+        if (blob) {
+          return { text: '', imageBlobs: [blob], mediaOnly: true }
+        }
+      }
+    }
+  }
+
   const lines: string[] = []
   const imageBlobs: Blob[] = []
 

@@ -4,10 +4,9 @@ import { ChevronLeft, ChevronRight, Copy, X, Maximize2 } from 'lucide-react'
 import {
   parseAttachments,
   removeAttachmentAt,
-  resolveAttachmentsForClipboard,
-  serializeAttachments,
+  resolveAttachmentBlobForClipboard,
 } from '../lib/attachments'
-import { copyToClipboard } from '../lib/copy'
+import { copyMediaToClipboard } from '../lib/copy'
 import { useToast } from '../context/ToastContext'
 import AttachmentMediaView from './AttachmentMediaView'
 
@@ -55,9 +54,9 @@ export default function AttachmentLightbox({
   const handleCopy = useCallback(() => {
     const current = attachments[viewIndex]
     if (!current) return
-    const single = serializeAttachments([current])
-    void resolveAttachmentsForClipboard(single).then(({ text, imageBlobs }) => {
-      void copyToClipboard(text, imageBlobs).then((ok) => {
+    void resolveAttachmentBlobForClipboard(current).then((blob) => {
+      if (!blob) return
+      void copyMediaToClipboard(blob).then((ok) => {
         if (ok) success('Copied attachment', 'left')
       })
     })

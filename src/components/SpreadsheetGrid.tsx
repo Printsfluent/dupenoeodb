@@ -705,8 +705,8 @@ export default function SpreadsheetGrid({
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
         e.preventDefault()
-        void buildCopyPayload(bounds, rows, columns).then(({ text, imageBlobs }) =>
-          copyToClipboard(text, imageBlobs).then((ok) => {
+        void buildCopyPayload(bounds, rows, columns).then(({ text, imageBlobs, mediaOnly }) =>
+          copyToClipboard(text, imageBlobs, { mediaOnly }).then((ok) => {
             if (ok) {
               actions.notify(
                 bounds.rowStart === bounds.rowEnd && bounds.colStart === bounds.colEnd

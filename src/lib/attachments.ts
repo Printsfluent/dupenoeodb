@@ -202,6 +202,22 @@ export function dataUrlToBlob(dataUrl: string): Blob | null {
   }
 }
 
+export async function resolveAttachmentBlobForClipboard(item: AttachmentItem): Promise<Blob | null> {
+  const url = await resolveAttachmentUrl(item.url)
+  if (url.startsWith('data:')) {
+    return dataUrlToBlob(url)
+  }
+  if (/^https?:\/\//i.test(url) && (isImageUrl(url) || isVideoUrl(url))) {
+    try {
+      const response = await fetch(url)
+      if (response.ok) return await response.blob()
+    } catch {
+      /* skip unreachable media */
+    }
+  }
+  return null
+}
+
 export async function resolveAttachmentsForClipboard(raw: string): Promise<{
   text: string
   imageBlobs: Blob[]
@@ -216,19 +232,8 @@ export async function resolveAttachmentsForClipboard(raw: string): Promise<{
   )
   const imageBlobs: Blob[] = []
   for (const item of resolved) {
-    if (item.url.startsWith('data:')) {
-      const blob = dataUrlToBlob(item.url)
-      if (blob) imageBlobs.push(blob)
-      continue
-    }
-    if (/^https?:\/\//i.test(item.url) && (isImageUrl(item.url) || isVideoUrl(item.url))) {
-      try {
-        const response = await fetch(item.url)
-        if (response.ok) imageBlobs.push(await response.blob())
-      } catch {
-        /* skip unreachable image */
-      }
-    }
+    const blob = await resolveAttachmentBlobForClipboard(item)
+    if (blob) imageBlobs.push(blob)
   }
   return { text: serializeAttachments(resolved), imageBlobs }
 }

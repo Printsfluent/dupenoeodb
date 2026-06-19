@@ -7,10 +7,10 @@ import {
   persistAttachmentsForStorage,
   readFileAsDataUrl,
   removeAttachmentAt,
-  resolveAttachmentsForClipboard,
+  resolveAttachmentBlobForClipboard,
   serializeAttachments,
 } from '../lib/attachments'
-import { copyToClipboard } from '../lib/copy'
+import { copyMediaToClipboard } from '../lib/copy'
 import AttachmentLightbox from './AttachmentLightbox'
 import AttachmentMediaView from './AttachmentMediaView'
 
@@ -119,12 +119,13 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
   }
 
   function handleCopy(e: React.ClipboardEvent) {
-    if (!attachments.length) return
+    const current = attachments[viewIndex]
+    if (!current) return
     e.preventDefault()
     e.stopPropagation()
-    void resolveAttachmentsForClipboard(draft).then(({ text, imageBlobs }) =>
-      copyToClipboard(text, imageBlobs),
-    )
+    void resolveAttachmentBlobForClipboard(current).then((blob) => {
+      if (blob) void copyMediaToClipboard(blob)
+    })
   }
 
   function handleRemove(index: number) {
