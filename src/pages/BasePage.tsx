@@ -46,7 +46,7 @@ export default function BasePage() {
   const { ready, cacheVersion } = useData()
   const navigate = useNavigate()
   const location = useLocation()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const tableParam = searchParams.get('table')
   const leavingRef = useRef(false)
   const seededTableUrlRef = useRef(false)
@@ -61,6 +61,7 @@ export default function BasePage() {
   const [newTableName, setNewTableName] = useState('')
   const [showNewTableIconPicker, setShowNewTableIconPicker] = useState(false)
   const [showBaseIconPicker, setShowBaseIconPicker] = useState(false)
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
   const toast = useToast()
 
   const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
@@ -102,15 +103,16 @@ export default function BasePage() {
   }, [navigate, workspaceId, base?.workspaceId])
 
   const selectActiveTable = useCallback((tableId: string | null) => {
-    setSearchParams((prev) => {
-      const current = prev.get('table')
-      if ((tableId ?? null) === (current ?? null)) return prev
-      const next = new URLSearchParams(prev)
-      if (tableId) next.set('table', tableId)
-      else next.delete('table')
-      return next
-    }, { replace: true })
-  }, [setSearchParams])
+    setSelectedTableId(tableId)
+    const next = new URLSearchParams(searchParams)
+    if (tableId) next.set('table', tableId)
+    else next.delete('table')
+    const search = next.toString()
+    navigate(
+      { pathname: location.pathname, search: search ? `?${search}` : '' },
+      { replace: true },
+    )
+  }, [navigate, location.pathname, searchParams])
 
   const visibleTables = useMemo(() => {
     if (!base) return []
@@ -118,13 +120,23 @@ export default function BasePage() {
   }, [base, member, hasFullAccess, cacheVersion])
 
   const activeTableId = useMemo(() => {
+    if (selectedTableId && visibleTables.some((table) => table.id === selectedTableId)) {
+      return selectedTableId
+    }
     if (tableParam && visibleTables.some((table) => table.id === tableParam)) return tableParam
     return visibleTables[0]?.id ?? null
-  }, [tableParam, visibleTables])
+  }, [selectedTableId, tableParam, visibleTables])
 
   useEffect(() => {
+    setSelectedTableId(null)
     seededTableUrlRef.current = false
   }, [baseId])
+
+  useEffect(() => {
+    if (tableParam && visibleTables.some((table) => table.id === tableParam)) {
+      setSelectedTableId(tableParam)
+    }
+  }, [tableParam, visibleTables])
 
   useEffect(() => {
     if (!base || tableParam || seededTableUrlRef.current) return
@@ -252,8 +264,12 @@ export default function BasePage() {
   function deleteTable(tableId: string, tableName: string) {
     if (!base || !hasFullAccess) return
     if (!confirm(`Delete table "${tableName}" and all its data?`)) return
-    const remaining = base.tables.filter((table) => table.id !== tableId)
-    saveBase({ ...base, tables: remaining })
+    const latest =
+      getWorkspaceBases(base.workspaceId).find((item) => item.id === base.id)
+      ?? getCache().bases.find((item) => item.id === base.id)
+      ?? base
+    const remaining = latest.tables.filter((table) => table.id !== tableId)
+    saveBase({ ...latest, tables: remaining })
     if (activeTableId === tableId) {
       const accessible = getAccessibleTables(member, remaining, hasFullAccess)
       selectActiveTable(accessible[0]?.id ?? null)
@@ -389,7 +405,16 @@ export default function BasePage() {
               return (
                 <div
                   key={table.id}
-                  className={`group/tab relative flex items-center gap-1 rounded-lg transition-colors ${
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => selectActiveTable(table.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      selectActiveTable(table.id)
+                    }
+                  }}
+                  className={`group/tab relative flex items-center gap-1 rounded-lg transition-colors cursor-pointer ${
                     isActive
                       ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
                       : 'text-app-faint hover:bg-app-surface-active hover:text-app-muted'
@@ -398,7 +423,10 @@ export default function BasePage() {
                   {canEdit ? (
                     <button
                       type="button"
-                      onClick={() => setIconPickerTableId(table.id)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setIconPickerTableId(table.id)
+                      }}
                       className="ml-1.5 p-1 rounded hover:bg-app-surface-active transition-colors shrink-0"
                       title="Change table logo"
                       aria-label={`Change logo for ${table.name}`}
@@ -410,19 +438,20 @@ export default function BasePage() {
                       <TableIcon icon={table.icon} size="xs" />
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => selectActiveTable(table.id)}
-                    className={`flex-1 min-w-0 text-left px-1 py-2 text-sm font-medium truncate transition-colors ${
+                  <span
+                    className={`flex-1 min-w-0 px-1 py-2 text-sm font-medium truncate ${
                       isActive ? 'text-brand-600 dark:text-brand-400' : ''
                     }`}
                   >
                     {table.name}
-                  </button>
+                  </span>
                   {hasFullAccess && (
                     <button
                       type="button"
-                      onClick={() => deleteTable(table.id, table.name)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        deleteTable(table.id, table.name)
+                      }}
                       className={`mr-1 p-1 rounded text-app-faint hover:text-red-400 transition-all shrink-0 ${
                         isActive
                           ? 'opacity-70 hover:opacity-100'

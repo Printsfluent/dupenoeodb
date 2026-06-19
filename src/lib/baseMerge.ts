@@ -27,16 +27,12 @@ function unionTableRows(winner: Table, other: Table): Table {
   }
 }
 
-function unionTables(winnerTables: Table[], otherTables: Table[]): Table[] {
+/** Merge row data for tables present in winner; tables removed from winner stay removed. */
+function mergeTablesFromWinner(winnerTables: Table[], otherTables: Table[]): Table[] {
   const otherById = new Map(otherTables.map((table) => [table.id, table]))
-  const winnerById = new Map(winnerTables.map((table) => [table.id, table]))
-  const ids = new Set([...winnerById.keys(), ...otherById.keys()])
-
-  return Array.from(ids).map((id) => {
-    const winner = winnerById.get(id)
-    const other = otherById.get(id)
-    if (winner && other) return unionTableRows(winner, other)
-    return (winner ?? other)!
+  return winnerTables.map((winnerTable) => {
+    const other = otherById.get(winnerTable.id)
+    return other ? unionTableRows(winnerTable, other) : winnerTable
   })
 }
 
@@ -49,10 +45,10 @@ export function resolveBaseConflict(a: Base, b: Base): Base {
   const remote = normalizeBase(b)
 
   if (isBaseNewer(local, remote) && !isBaseNewer(remote, local)) {
-    return { ...local, tables: unionTables(local.tables, remote.tables) }
+    return { ...local, tables: mergeTablesFromWinner(local.tables, remote.tables) }
   }
   if (isBaseNewer(remote, local) && !isBaseNewer(local, remote)) {
-    return { ...remote, tables: unionTables(remote.tables, local.tables) }
+    return { ...remote, tables: mergeTablesFromWinner(remote.tables, local.tables) }
   }
 
   const localRows = countBaseRows(local)
@@ -63,7 +59,7 @@ export function resolveBaseConflict(a: Base, b: Base): Base {
 
   return {
     ...winner,
-    tables: unionTables(winner.tables, loser.tables),
+    tables: mergeTablesFromWinner(winner.tables, loser.tables),
     updatedAt: winner.updatedAt ?? loser.updatedAt,
   }
 }
