@@ -8,8 +8,10 @@ import {
   readFileAsDataUrl,
   removeAttachmentAt,
   resolveAttachmentUrl,
+  resolveAttachmentsForClipboard,
   serializeAttachments,
 } from '../lib/attachments'
+import { copyToClipboard } from '../lib/copy'
 
 interface AttachmentCellEditorProps {
   value: string
@@ -148,6 +150,15 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
     }
   }
 
+  function handleCopy(e: React.ClipboardEvent) {
+    if (!attachments.length) return
+    e.preventDefault()
+    e.stopPropagation()
+    void resolveAttachmentsForClipboard(draft).then(({ text, imageBlobs }) =>
+      copyToClipboard(text, imageBlobs),
+    )
+  }
+
   function handleRemove(index: number) {
     applyDraft(removeAttachmentAt(draft, index))
   }
@@ -164,6 +175,7 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
         expanded && attachments.length > 0 ? 'min-h-[280px]' : 'min-h-[52px]'
       }`}
       onPaste={handlePaste}
+      onCopy={handleCopy}
       onKeyDown={handleKeyDown}
     >
       {expanded && attachments.length > 0 && current && (

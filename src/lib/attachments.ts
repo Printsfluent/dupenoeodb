@@ -1,4 +1,4 @@
-import { storeAttachmentBlob } from './attachmentBlobStore'
+import { resolveAttachmentUrl, storeAttachmentBlob } from './attachmentBlobStore'
 
 export { isAttachmentBlobRef, resolveAttachmentUrl } from './attachmentBlobStore'
 
@@ -105,4 +105,49 @@ export async function persistAttachmentsForStorage(raw: string): Promise<string>
     })),
   )
   return serializeAttachments(stored)
+}
+
+export function dataUrlToBlob(dataUrl: string): Blob | null {
+  try {
+    const [header, base64] = dataUrl.split(',')
+    if (!base64) return null
+    const mime = header.match(/:(.*?);/)?.[1] ?? 'image/png'
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return new Blob([bytes], { type: mime })
+  } catch {
+    return null
+  }
+}
+
+export async function resolveAttachmentsForClipboard(raw: string): Promise<{
+  text: string
+  imageBlobs: Blob[]
+}> {
+  const items = parseAttachments(raw)
+  if (!items.length) return { text: '', imageBlobs: [] }
+  const resolved = await Promise.all(
+    items.map(async (item) => ({
+      ...item,
+      url: await resolveAttachmentUrl(item.url),
+    })),
+  )
+  const imageBlobs: Blob[] = []
+  for (const item of resolved) {
+    if (item.url.startsWith('data:')) {
+      const blob = dataUrlToBlob(item.url)
+      if (blob) imageBlobs.push(blob)
+      continue
+    }
+    if (/^https?:\/\//i.test(item.url) && isImageUrl(item.url)) {
+      try {
+        const response = await fetch(item.url)
+        if (response.ok) imageBlobs.push(await response.blob())
+      } catch {
+        /* skip unreachable image */
+      }
+    }
+  }
+  return { text: serializeAttachments(resolved), imageBlobs }
 }

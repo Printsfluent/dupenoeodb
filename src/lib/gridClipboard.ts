@@ -2,7 +2,7 @@ import type { Column } from '../types'
 import { normalizeColumnType, isSelectFieldType } from './fieldTypes'
 import { findSelectOption, parseMultiSelectValue } from './selectOptions'
 import { formatDateTimeDisplay } from './dates'
-import { mergeAttachmentValues, parseAttachments } from './attachments'
+import { mergeAttachmentValues, parseAttachments, resolveAttachmentsForClipboard, serializeAttachments } from './attachments'
 
 export interface CellCoord {
   rowId: string
@@ -70,10 +70,7 @@ export function formatCellForClipboard(col: Column, raw: string): string {
       return isCheckedValue(raw) ? 'Yes' : ''
     case 'attachment': {
       const items = parseAttachments(raw)
-      if (items.length > 0) {
-        return items.map((item) => item.name ?? item.url).join(', ')
-      }
-      return raw
+      return items.length > 0 ? serializeAttachments(items) : raw
     }
 
     case 'singleSelect': {
@@ -179,4 +176,37 @@ export function buildCopyText(
     lines.push(cells.join('\t'))
   }
   return lines.join('\n')
+}
+
+export interface CopyPayload {
+  text: string
+  imageBlobs: Blob[]
+}
+
+export async function buildCopyPayload(
+  bounds: GridBounds,
+  rows: { id: string; cells: Record<string, string> }[],
+  columns: Column[],
+): Promise<CopyPayload> {
+  const lines: string[] = []
+  const imageBlobs: Blob[] = []
+
+  for (let r = bounds.rowStart; r <= bounds.rowEnd; r++) {
+    const row = rows[r]
+    const cells: string[] = []
+    for (let c = bounds.colStart; c <= bounds.colEnd; c++) {
+      const col = columns[c]
+      const raw = row.cells[col.id] ?? ''
+      if (normalizeColumnType(col.type) === 'attachment' && raw.trim()) {
+        const { text, imageBlobs: cellBlobs } = await resolveAttachmentsForClipboard(raw)
+        cells.push(text)
+        imageBlobs.push(...cellBlobs)
+      } else {
+        cells.push(formatCellForClipboard(col, raw))
+      }
+    }
+    lines.push(cells.join('\t'))
+  }
+
+  return { text: lines.join('\n'), imageBlobs }
 }

@@ -11,7 +11,7 @@ import { createSelectOption, getDefaultCellValue, findSelectOption, parseMultiSe
 import { extractLinkHref, openLink } from '../lib/links'
 import { copyToClipboard } from '../lib/copy'
 import {
-  buildCopyText,
+  buildCopyPayload,
   buildSelectedCellKeys,
   getSelectionBounds,
   parseClipboardGrid,
@@ -705,16 +705,17 @@ export default function SpreadsheetGrid({
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
         e.preventDefault()
-        const text = buildCopyText(bounds, rows, columns)
-        void copyToClipboard(text).then((ok) => {
-          if (ok) {
-            actions.notify(
-              bounds.rowStart === bounds.rowEnd && bounds.colStart === bounds.colEnd
-                ? 'Copied'
-                : 'Copied selection',
-            )
-          }
-        })
+        void buildCopyPayload(bounds, rows, columns).then(({ text, imageBlobs }) =>
+          copyToClipboard(text, imageBlobs).then((ok) => {
+            if (ok) {
+              actions.notify(
+                bounds.rowStart === bounds.rowEnd && bounds.colStart === bounds.colEnd
+                  ? 'Copied'
+                  : 'Copied selection',
+              )
+            }
+          }),
+        )
         return
       }
 
