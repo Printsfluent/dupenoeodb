@@ -114,7 +114,15 @@ export default function SpreadsheetGrid({
     [table.columns, view.showHidden],
   )
 
-  const pinnedColumnId = useMemo(() => null, [])
+  const pinnedColumnId = useMemo(() => {
+    const usernameCol = visibleColumns.find(
+      (col) => col.name.trim().toLowerCase() === 'username',
+    )
+    if (usernameCol) return usernameCol.id
+    const displayCol = visibleColumns.find((col) => col.isDisplayValue)
+    if (displayCol) return displayCol.id
+    return visibleColumns[0]?.id ?? null
+  }, [visibleColumns])
 
   const hiddenCount = table.columns.filter((col) => col.hidden).length
   const schemaEditable = canEditFields && canModifySchema
@@ -821,8 +829,9 @@ export default function SpreadsheetGrid({
     ? table.columns.find((col) => col.id === fieldModal.columnId)
     : null
 
-  const stickyIndexClass = `${bodyBg} ${cellDivider}`
-  const stickyIndexHeadClass = `${headBg} ${cellDivider}`
+  const stickyIndexStyle = { left: 0 }
+  const stickyIndexClass = `sticky left-0 z-[20] ${bodyBg} ${cellDivider}`
+  const stickyIndexHeadClass = `sticky left-0 z-[40] ${headBg} ${cellDivider}`
   const stickyPinnedStyle = { left: ROW_INDEX_WIDTH_PX }
   const stickyPinnedClass = `sticky z-[18] ${bodyBg} ${cellDivider} border-r-brand-500/45 shadow-[2px_0_6px_-3px_rgba(0,0,0,0.18),inset_-1px_0_0_0_rgba(51,136,252,0.35)]`
   const stickyPinnedHeadClass =
@@ -848,6 +857,7 @@ export default function SpreadsheetGrid({
       <tr key={row.id} className={`${rowHover} group`}>
         <td
           className={`w-10 px-2 py-2 text-xs ${thText} text-center ${stickyIndexClass}`}
+          style={stickyIndexStyle}
         >
           {index + 1}
         </td>
@@ -877,7 +887,7 @@ export default function SpreadsheetGrid({
           return (
             <td
               key={col.id}
-              className={`px-0 py-0 ${isAttachment ? 'min-w-[280px]' : 'min-w-[160px]'} ${stickyClass}`}
+              className={`px-0 py-0 ${isAttachment ? 'min-w-[280px]' : isPinned ? 'min-w-[180px]' : 'min-w-[160px]'} ${stickyClass}`}
               style={stickyStyle}
             >
               {!canEditCell(col) ? (
@@ -1121,6 +1131,7 @@ export default function SpreadsheetGrid({
             <tr>
               <th
                 className={`w-10 px-2 py-2.5 text-xs font-medium ${thText} ${stickyIndexHeadClass}`}
+                style={stickyIndexStyle}
               >
                 #
               </th>
@@ -1131,7 +1142,7 @@ export default function SpreadsheetGrid({
                 return (
                 <th
                   key={col.id}
-                  className={`px-1 py-1 ${isAttachmentCol ? 'min-w-[280px]' : 'min-w-[160px]'} group/col ${
+                  className={`px-1 py-1 ${isAttachmentCol ? 'min-w-[280px]' : isPinned ? 'min-w-[180px]' : 'min-w-[160px]'} group/col ${
                     isPinned ? stickyPinnedHeadClass : scrollHeadClass
                   }`}
                   style={isPinned ? stickyPinnedStyle : undefined}

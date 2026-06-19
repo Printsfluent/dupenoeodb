@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { doc, onSnapshot } from 'firebase/firestore'
-import { ArrowLeft, Plus, Upload, Users, X } from 'lucide-react'
+import { ArrowLeft, Plus, Upload, Users, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import SpreadsheetGrid from '../components/SpreadsheetGrid'
@@ -63,7 +63,14 @@ export default function BasePage() {
   const [showNewTableIconPicker, setShowNewTableIconPicker] = useState(false)
   const [showBaseIconPicker, setShowBaseIconPicker] = useState(false)
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
+  const [tablesSidebarCollapsed, setTablesSidebarCollapsed] = useState(
+    () => localStorage.getItem('sheetflow_tables_sidebar_collapsed') === 'true',
+  )
   const toast = useToast()
+
+  useEffect(() => {
+    localStorage.setItem('sheetflow_tables_sidebar_collapsed', String(tablesSidebarCollapsed))
+  }, [tablesSidebarCollapsed])
 
   const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
   const workspace = useMemo(() => {
@@ -444,15 +451,57 @@ export default function BasePage() {
       </nav>
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        <aside className="w-52 shrink-0 border-r border-app-border bg-app-bg flex flex-col overflow-hidden">
-          <div className="px-3 pt-3 pb-2">
-            <span className="text-[10px] font-semibold tracking-widest text-app-faint uppercase">
-              Tables
-            </span>
+        <aside
+          className={`${
+            tablesSidebarCollapsed ? 'w-12' : 'w-52'
+          } shrink-0 border-r border-app-border bg-app-bg flex flex-col overflow-hidden transition-[width] duration-200`}
+        >
+          <div className="shrink-0 flex items-center justify-between gap-1 px-2 py-2 border-b border-app-border">
+            {!tablesSidebarCollapsed && (
+              <span className="text-[10px] font-semibold tracking-widest text-app-faint uppercase px-1">
+                Tables
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setTablesSidebarCollapsed((collapsed) => !collapsed)}
+              className={`p-1.5 rounded-md text-app-faint hover:text-app-muted hover:bg-app-surface-active transition-colors ${
+                tablesSidebarCollapsed ? 'mx-auto' : 'ml-auto'
+              }`}
+              title={tablesSidebarCollapsed ? 'Expand tables sidebar' : 'Collapse tables sidebar'}
+              aria-label={tablesSidebarCollapsed ? 'Expand tables sidebar' : 'Collapse tables sidebar'}
+            >
+              {tablesSidebarCollapsed ? (
+                <PanelLeftOpen className="w-4 h-4" />
+              ) : (
+                <PanelLeftClose className="w-4 h-4" />
+              )}
+            </button>
           </div>
-          <div className="flex-1 overflow-y-auto px-2 space-y-0.5 scrollbar-thin">
+          <div
+            className={`flex-1 overflow-y-auto scrollbar-thin ${
+              tablesSidebarCollapsed ? 'px-1 py-2 space-y-1' : 'px-2 pt-1 pb-2 space-y-0.5'
+            }`}
+          >
             {visibleTables.map((table) => {
               const isActive = activeTableId === table.id
+              if (tablesSidebarCollapsed) {
+                return (
+                  <button
+                    key={table.id}
+                    type="button"
+                    onClick={() => selectActiveTable(table.id)}
+                    title={table.name}
+                    className={`w-full flex items-center justify-center p-2 rounded-lg transition-colors ${
+                      isActive
+                        ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 ring-1 ring-brand-500/30'
+                        : 'text-app-faint hover:bg-app-surface-active hover:text-app-muted'
+                    }`}
+                  >
+                    <TableIcon icon={table.icon} size="xs" />
+                  </button>
+                )
+              }
               return (
                 <div
                   key={table.id}
@@ -535,7 +584,7 @@ export default function BasePage() {
               )
             })}
           </div>
-          {hasFullAccess && (
+          {hasFullAccess && !tablesSidebarCollapsed && (
             <div className="shrink-0 border-t border-app-border p-2 space-y-0.5">
               <button
                 type="button"
@@ -560,6 +609,34 @@ export default function BasePage() {
               >
                 <Plus className="w-4 h-4 shrink-0" />
                 New table
+              </button>
+            </div>
+          )}
+          {hasFullAccess && tablesSidebarCollapsed && (
+            <div className="shrink-0 border-t border-app-border p-1 space-y-1">
+              <button
+                type="button"
+                onClick={() => setShowImport(true)}
+                className="w-full flex items-center justify-center p-2 rounded-lg text-app-faint hover:text-brand-400 hover:bg-app-surface-active transition-colors"
+                title="Import"
+              >
+                <Upload className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!user) return
+                  const check = canAddTables(base.tables.length, 1, user.plan)
+                  if (!check.ok) {
+                    alert(check.error)
+                    return
+                  }
+                  setShowNewTable(true)
+                }}
+                className="w-full flex items-center justify-center p-2 rounded-lg text-app-faint hover:text-brand-400 hover:bg-app-surface-active transition-colors"
+                title="New table"
+              >
+                <Plus className="w-4 h-4" />
               </button>
             </div>
           )}
