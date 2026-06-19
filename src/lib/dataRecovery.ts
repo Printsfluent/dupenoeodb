@@ -1,6 +1,6 @@
 import { collection, getDocsFromCache, query, where } from 'firebase/firestore'
 import type { Base, Table } from '../types'
-import { countAllBaseRows, mergeBasesList } from './baseMerge'
+import { countAllBaseRows, countBaseRows, mergeBasesList, resolveBaseConflict } from './baseMerge'
 import { getCache, setBases } from './dataStore'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 import { COL, ensureBaseInCache } from './firestoreSync'
@@ -157,6 +157,79 @@ export interface RecoveryResult {
   sources: string[]
 }
 
+/** True when older browser/offline copies have more row data than the current cache. */
+export async function canOfferDataRecovery(workspaceIds: string[]): Promise<boolean> {
+  const current = getCache().bases
+  let candidates = collectRecoverableBases()
+
+  if (candidates.length === 0 && workspaceIds.length > 0) {
+    candidates = await recoverBasesFromFirestoreCache(workspaceIds)
+  }
+  if (candidates.length === 0) return false
+
+  if (current.length === 0) {
+    return countAllBaseRows(candidates) > 0
+  }
+
+  const currentById = new Map(
+    current.map((base) => [base.id, countBaseRows(normalizeBase(base))]),
+  )
+  return candidates.some((base) => {
+    const recoveredRows = countBaseRows(normalizeBase(base))
+    const existingRows = currentById.get(base.id) ?? 0
+    return recoveredRows > existingRows
+  })
+}
+
+/** Merge richer offline copies into the current cache without overwriting intentional deletes. */
+export async function runManualDataRecovery(workspaceIds: string[]): Promise<RecoveryResult> {
+  const current = getCache().bases.map(normalizeBase)
+  const previousRows = countAllBaseRows(current)
+
+  if (!(await canOfferDataRecovery(workspaceIds))) {
+    return { restored: false, previousRows, recoveredRows: previousRows, sources: [] }
+  }
+
+  const sources: string[] = []
+  let candidates = collectRecoverableBases()
+  if (candidates.length > 0) sources.push('localStorage')
+
+  const cached = await recoverBasesFromFirestoreCache(workspaceIds)
+  candidates = mergeBasesList(candidates, cached)
+  if (cached.length > 0) sources.push('firestore-cache')
+
+  const byId = new Map(current.map((base) => [base.id, base]))
+  let changed = false
+
+  for (const candidate of candidates) {
+    const normalized = normalizeBase(candidate)
+    const existing = byId.get(normalized.id)
+    if (!existing) {
+      byId.set(normalized.id, normalized)
+      changed = true
+      continue
+    }
+    if (countBaseRows(normalized) <= countBaseRows(existing)) continue
+    byId.set(normalized.id, resolveBaseConflict(existing, normalized))
+    changed = true
+  }
+
+  if (!changed) {
+    return { restored: false, previousRows, recoveredRows: previousRows, sources: [] }
+  }
+
+  const nextBases = Array.from(byId.values())
+  setBases(nextBases)
+  appendBasesHistory(nextBases)
+
+  return {
+    restored: true,
+    previousRows,
+    recoveredRows: countAllBaseRows(nextBases),
+    sources: [...new Set(sources)],
+  }
+}
+
 export async function runStartupDataRecovery(workspaceIds: string[]): Promise<RecoveryResult> {
   const current = getCache().bases
   const previousRows = countAllBaseRows(current)
@@ -210,7 +283,7 @@ export function installRecoveryConsoleHelper() {
       ...new Set(getCache().bases.map((base) => base.workspaceId).filter(Boolean)),
       ...new Set(getCache().workspaces.map((workspace) => workspace.id)),
     ]
-    const result = await runStartupDataRecovery(workspaceIds)
+    const result = await runManualDataRecovery(workspaceIds)
     console.info('SheetFlow recovery result:', result)
     return result
   }

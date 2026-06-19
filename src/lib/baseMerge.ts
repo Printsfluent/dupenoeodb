@@ -10,16 +10,48 @@ export function countAllBaseRows(bases: Base[]): number {
   return bases.reduce((sum, base) => sum + countBaseRows(base), 0)
 }
 
-/** Keep winner rows intact; only append rows that exist on the other copy. Never blend cell values or resurrect deleted columns. */
+/** Keep winner rows intact; fill empty cells from the other copy; append rows only on the other side. */
 function unionTableRows(winner: Table, other: Table): Table {
+  const otherByRowId = new Map(other.rows.map((row) => [row.id, row]))
   const winnerRowIds = new Set(winner.rows.map((row) => row.id))
   const extraRows = other.rows.filter((row) => !winnerRowIds.has(row.id))
+
+  const mergedRows = winner.rows.map((winnerRow) => {
+    const otherRow = otherByRowId.get(winnerRow.id)
+    if (!otherRow) return winnerRow
+    const cells = { ...winnerRow.cells }
+    for (const [colId, value] of Object.entries(otherRow.cells)) {
+      if (!cells[colId]?.trim() && value?.trim()) {
+        cells[colId] = value
+      }
+    }
+    return Object.keys(cells).length !== Object.keys(winnerRow.cells).length ||
+      Object.entries(cells).some(([colId, value]) => value !== winnerRow.cells[colId])
+      ? { ...winnerRow, cells }
+      : winnerRow
+  })
 
   return {
     ...winner,
     columns: winner.columns,
-    rows: extraRows.length ? [...winner.rows, ...extraRows] : winner.rows,
+    rows: extraRows.length ? [...mergedRows, ...extraRows] : mergedRows,
   }
+}
+
+/** True when local removed tables that still exist on remote (intentional delete on this device). */
+function localDeletedTables(local: Base, remote: Base): boolean {
+  if (local.tables.length >= remote.tables.length) return false
+  const localIds = new Set(local.tables.map((table) => table.id))
+  const remoteOnly = remote.tables.some((table) => !localIds.has(table.id))
+  const allLocalOnRemote = local.tables.every((table) => remote.tables.some((rt) => rt.id === table.id))
+  return remoteOnly && allLocalOnRemote
+}
+
+function mergeTablesRespectingLocalDeletes(local: Base, remote: Base): Table[] {
+  return local.tables.map((localTable) => {
+    const remoteTable = remote.tables.find((table) => table.id === localTable.id)
+    return remoteTable ? unionTableRows(localTable, remoteTable) : localTable
+  })
 }
 
 /** Merge row data for tables present in winner; tables removed from winner stay removed. */
@@ -38,6 +70,14 @@ function mergeTablesFromWinner(winnerTables: Table[], otherTables: Table[]): Tab
 export function resolveBaseConflict(a: Base, b: Base): Base {
   const local = normalizeBase(a)
   const remote = normalizeBase(b)
+
+  if (localDeletedTables(local, remote)) {
+    return {
+      ...local,
+      updatedAt: isBaseNewer(local, remote) ? local.updatedAt : remote.updatedAt,
+      tables: mergeTablesRespectingLocalDeletes(local, remote),
+    }
+  }
 
   if (isBaseNewer(local, remote) && !isBaseNewer(remote, local)) {
     return { ...local, tables: mergeTablesFromWinner(local.tables, remote.tables) }
@@ -90,6 +130,8 @@ export function mergeWorkspaceBases(workspaceId: string, existing: Base[], incom
     if (isBaseNewer(localBase, remoteBase) && !isBaseNewer(remoteBase, localBase)) {
       needsCloudSync.push(resolved)
     } else if (baseUpdatedAt(localBase) === baseUpdatedAt(remoteBase)) {
+      needsCloudSync.push(resolved)
+    } else if (resolved.tables.length < remoteBase.tables.length) {
       needsCloudSync.push(resolved)
     }
     return resolved

@@ -25,12 +25,13 @@ import {
   migrateWorkspaceMemberRoles,
 } from '../lib/members'
 import { isTableStructureChange } from '../lib/tableSchema'
+import { normalizeColumnType } from '../lib/fieldTypes'
 import { useToast } from '../context/ToastContext'
 import { repairWorkspaceForUser } from '../lib/storage'
 import { flushCacheToLocalStorage } from '../lib/localPersistence'
 import { getCache, setBases } from '../lib/dataStore'
 import { isFirebaseConfigured, getFirestoreDb } from '../lib/firebase'
-import { COL, ensureBaseInCache } from '../lib/firestoreSync'
+import { COL, ensureBaseInCache, flushPersistBase } from '../lib/firestoreSync'
 import { isBaseNewer, stampBase } from '../lib/baseUpdated'
 import { resolveBaseConflict } from '../lib/baseMerge'
 import { rememberLastTable } from '../lib/lastTable'
@@ -184,6 +185,9 @@ export default function BasePage() {
         if (isBaseNewer(cached, remote)) return
         const next = resolveBaseConflict(cached, remote)
         setBases([next])
+        if (next.tables.length < remote.tables.length || isBaseNewer(next, cached)) {
+          void flushPersistBase(baseId)
+        }
       },
       (error) => console.warn('Firestore base listener:', error),
     )
@@ -261,13 +265,24 @@ export default function BasePage() {
         (cell) => cell.includes('sf-att://') || cell.includes('data:image/') || cell.includes('data:video/'),
       ),
     )
+    const attachmentDataChanged =
+      !!previous &&
+      table.rows.some((row) =>
+        table.columns.some((col) => {
+          if (normalizeColumnType(col.type) !== 'attachment') return false
+          const prev =
+            previous.rows.find((item) => item.id === row.id)?.cells[col.id] ?? ''
+          const next = row.cells[col.id] ?? ''
+          return prev !== next
+        }),
+      )
     const structureChanged = previous ? isTableStructureChange(previous, table) : false
     saveBase(
       {
         ...latest,
         tables: latest.tables.map((t) => (t.id === table.id ? table : t)),
       },
-      { flush: structureChanged || hasAttachments },
+      { flush: structureChanged || hasAttachments || attachmentDataChanged },
     )
   }
 

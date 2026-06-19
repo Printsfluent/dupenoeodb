@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore'
 import { getFirestoreDb, isFirebaseConfigured } from '../lib/firebase'
 import { hydrateCacheFromLocalStorage, persistCacheToLocalStorage } from '../lib/localPersistence'
-import { installRecoveryConsoleHelper, runStartupDataRecovery } from '../lib/dataRecovery'
+import { installRecoveryConsoleHelper, runStartupDataRecovery, runManualDataRecovery, canOfferDataRecovery } from '../lib/dataRecovery'
 import { COL, persistBases } from '../lib/firestoreSync'
 import {
   clearDataCache,
@@ -40,6 +40,7 @@ interface DataContextValue {
   localMode: boolean
   workspaceIds: string[]
   cacheVersion: number
+  recoveryOffered: boolean
   recoveryMessage: string | null
   clearRecoveryMessage: () => void
   tryRecoverData: () => Promise<void>
@@ -51,6 +52,7 @@ const DataContext = createContext<DataContextValue>({
   localMode: false,
   workspaceIds: [],
   cacheVersion: 0,
+  recoveryOffered: false,
   recoveryMessage: null,
   clearRecoveryMessage: () => {},
   tryRecoverData: async () => {},
@@ -87,6 +89,7 @@ export function DataProvider({
   )
   const [workspaceIds, setWorkspaceIds] = useState<string[]>([])
   const [cacheVersion, setCacheVersion] = useState(0)
+  const [recoveryOffered, setRecoveryOffered] = useState(false)
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null)
 
   const clearRecoveryMessage = useCallback(() => setRecoveryMessage(null), [])
@@ -94,7 +97,7 @@ export function DataProvider({
   const tryRecoverData = useCallback(async () => {
     if (!userId || !userEmail) return
     const ids = computeWorkspaceIds(userId, userEmail)
-    const result = await runStartupDataRecovery(ids)
+    const result = await runManualDataRecovery(ids)
     if (result.restored) {
       setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
       setCacheVersion((v) => v + 1)
@@ -372,6 +375,21 @@ export function DataProvider({
     return () => unsubs.forEach((unsub) => unsub())
   }, [userId, userEmail, workspaceIdsKey])
 
+  useEffect(() => {
+    if (!ready || !userId || !userEmail || !isFirebaseConfigured()) {
+      setRecoveryOffered(false)
+      return
+    }
+    let cancelled = false
+    const ids = computeWorkspaceIds(userId, userEmail)
+    void canOfferDataRecovery(ids).then((offered) => {
+      if (!cancelled) setRecoveryOffered(offered)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [ready, userId, userEmail, cacheVersion])
+
   const value = useMemo(
     () => ({
       ready,
@@ -379,11 +397,21 @@ export function DataProvider({
       localMode: !isFirebaseConfigured(),
       workspaceIds,
       cacheVersion,
+      recoveryOffered,
       recoveryMessage,
       clearRecoveryMessage,
       tryRecoverData,
     }),
-    [ready, online, workspaceIds, cacheVersion, recoveryMessage, clearRecoveryMessage, tryRecoverData],
+    [
+      ready,
+      online,
+      workspaceIds,
+      cacheVersion,
+      recoveryOffered,
+      recoveryMessage,
+      clearRecoveryMessage,
+      tryRecoverData,
+    ],
   )
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>

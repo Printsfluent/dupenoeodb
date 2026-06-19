@@ -1,6 +1,6 @@
 import type { Base, PlanId, Session } from '../types'
-import { mergeBasesList } from './baseMerge'
 import { isBaseNewer } from './baseUpdated'
+import { normalizeBase } from './tableSchema'
 import {
   getCache,
   setActivityEvents,
@@ -49,9 +49,13 @@ export function hydrateCacheFromLocalStorage() {
   pruneOversizedHistoryOnStartup()
   setUsers(read(KEYS.users, []))
   setWorkspaces(read(KEYS.workspaces, []))
-  const storedBases = read(KEYS.bases, [])
-  const backupBases = read(KEYS.basesBackup, [])
-  setBases(mergeBasesList(storedBases, backupBases))
+  const storedBases = read<Base[]>(KEYS.bases, [])
+  if (storedBases.length > 0) {
+    setBases(storedBases.map(normalizeBase))
+  } else {
+    const backupBases = read<Base[]>(KEYS.basesBackup, [])
+    if (backupBases.length > 0) setBases(backupBases.map(normalizeBase))
+  }
   setMembers(read(KEYS.members, []))
   setTeams(read(KEYS.teams, []))
   setInvites(read(KEYS.invites, []))

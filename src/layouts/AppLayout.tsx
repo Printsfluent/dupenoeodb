@@ -43,7 +43,7 @@ export default function AppLayout() {
     user?.userId,
     user?.email,
   )
-  const { online, localMode, cacheVersion, recoveryMessage, clearRecoveryMessage, tryRecoverData } = useData()
+  const { online, localMode, cacheVersion, recoveryOffered, recoveryMessage, clearRecoveryMessage, tryRecoverData } = useData()
   const toast = useToast()
   const [recovering, setRecovering] = useState(false)
   const { theme } = useTheme()
@@ -285,24 +285,26 @@ export default function AppLayout() {
             You&apos;re offline. Cached data is available and changes will sync when you reconnect.
           </div>
         )}
-        <div className="shrink-0 px-4 py-2 bg-app-surface border-b border-app-border text-xs text-app-muted flex items-center justify-between gap-3">
-          <span>Missing records? SheetFlow can scan this browser and offline cache for older copies.</span>
-          <button
-            type="button"
-            disabled={recovering}
-            onClick={async () => {
-              setRecovering(true)
-              try {
-                await tryRecoverData()
-              } finally {
-                setRecovering(false)
-              }
-            }}
-            className="shrink-0 px-3 py-1.5 rounded-md bg-brand-500 text-white text-xs font-medium hover:bg-brand-600 disabled:opacity-60"
-          >
-            {recovering ? 'Scanning…' : 'Restore records'}
-          </button>
-        </div>
+        {recoveryOffered && (
+          <div className="shrink-0 px-4 py-2 bg-app-surface border-b border-app-border text-xs text-app-muted flex items-center justify-between gap-3">
+            <span>Missing records? SheetFlow can scan this browser and offline cache for older copies.</span>
+            <button
+              type="button"
+              disabled={recovering}
+              onClick={async () => {
+                setRecovering(true)
+                try {
+                  await tryRecoverData()
+                } finally {
+                  setRecovering(false)
+                }
+              }}
+              className="shrink-0 px-3 py-1.5 rounded-md bg-brand-500 text-white text-xs font-medium hover:bg-brand-600 disabled:opacity-60"
+            >
+              {recovering ? 'Scanning…' : 'Restore records'}
+            </button>
+          </div>
+        )}
         {user && (
           <PendingInvitesBanner
             onUpdate={() => {
