@@ -1,3 +1,7 @@
+import { storeAttachmentBlob } from './attachmentBlobStore'
+
+export { isAttachmentBlobRef, resolveAttachmentUrl } from './attachmentBlobStore'
+
 export interface AttachmentItem {
   url: string
   name?: string
@@ -47,6 +51,7 @@ export function parseAttachments(raw: string): AttachmentItem[] {
 
 export function isImageUrl(url: string): boolean {
   if (url.startsWith('data:image/')) return true
+  if (url.startsWith('sf-att://')) return true
   if (/\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)(\?|#|$)/i.test(url)) return true
   if (/redgifs\.com|i\.redgifs\.com|imgur\.com|i\.redd\.it|cloudinary|unsplash|picsum|googleusercontent/i.test(url)) {
     return true
@@ -87,4 +92,17 @@ export function readFileAsDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(file)
   })
+}
+
+/** Move pasted data URLs into IndexedDB and return compact serialized value for cells. */
+export async function persistAttachmentsForStorage(raw: string): Promise<string> {
+  const items = parseAttachments(raw)
+  if (!items.length) return ''
+  const stored = await Promise.all(
+    items.map(async (item) => ({
+      ...item,
+      url: item.url.startsWith('data:') ? await storeAttachmentBlob(item.url) : item.url,
+    })),
+  )
+  return serializeAttachments(stored)
 }

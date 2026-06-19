@@ -10,6 +10,7 @@ import {
   deleteWorkspaceCascade,
   persistBase,
   persistBases,
+  flushPersistBase,
   persistPendingPlan,
   persistUser,
   persistWorkspace,
@@ -241,8 +242,9 @@ export function upsertWorkspace(workspace: Workspace) {
   void persistWorkspace(workspace)
 }
 
-export function upsertBase(base: Base) {
+export function upsertBase(base: Base, options?: { flush?: boolean }) {
   void persistBase(base)
+  if (options?.flush) void flushPersistBase(base.id)
 }
 
 export async function upsertBaseAsync(base: Base) {

@@ -1,5 +1,6 @@
-import type { PlanId, Session } from '../types'
-import { countAllBaseRows, mergeBasesList } from './baseMerge'
+import type { Base, PlanId, Session } from '../types'
+import { mergeBasesList } from './baseMerge'
+import { isBaseNewer } from './baseUpdated'
 import {
   getCache,
   setActivityEvents,
@@ -62,23 +63,26 @@ export function hydrateCacheFromLocalStorage() {
 function writeCacheNow() {
   try {
     const cache = getCache()
-    const previousBases = read(KEYS.bases, [])
-    const backupBases = read(KEYS.basesBackup, [])
-    const mergedBases = mergeBasesList(previousBases, cache.bases)
-    const safeBases =
-      countAllBaseRows(mergedBases) >= countAllBaseRows(previousBases)
-        ? mergedBases
-        : mergeBasesList(previousBases, mergedBases)
-
-    if (countAllBaseRows(safeBases) > countAllBaseRows(cache.bases)) {
-      setBases(safeBases)
-    }
+    const previousBases = read<Base[]>(KEYS.bases, [])
+    const previousById = new Map<string, Base>(previousBases.map((base) => [base.id, base]))
+    const safeBases = cache.bases.map((incoming) => {
+      const previous = previousById.get(incoming.id)
+      if (!previous) return incoming
+      if (isBaseNewer(previous, incoming) && !isBaseNewer(incoming, previous)) return previous
+      return incoming
+    })
 
     write(KEYS.users, cache.users)
     write(KEYS.workspaces, cache.workspaces)
     write(KEYS.bases, safeBases)
 
-    if (countAllBaseRows(safeBases) > countAllBaseRows(backupBases)) {
+    const backupBases = read<Base[]>(KEYS.basesBackup, [])
+    const backupById = new Map<string, Base>(backupBases.map((base) => [base.id, base]))
+    const shouldUpdateBackup = safeBases.some((base) => {
+      const backup = backupById.get(base.id)
+      return !backup || isBaseNewer(base, backup)
+    })
+    if (shouldUpdateBackup) {
       write(KEYS.basesBackup, safeBases)
     }
 

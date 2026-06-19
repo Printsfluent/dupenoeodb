@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FileImage, Paperclip } from 'lucide-react'
-import { isImageUrl, parseAttachments } from '../lib/attachments'
+import { isAttachmentBlobRef, isImageUrl, parseAttachments, resolveAttachmentUrl } from '../lib/attachments'
 import { openLink } from '../lib/links'
 
 interface AttachmentThumbnailsProps {
@@ -24,22 +24,39 @@ function Thumbnail({
   name?: string
   size: 'sm' | 'md'
 }) {
+  const [src, setSrc] = useState(url)
   const [failed, setFailed] = useState(false)
-  const showImage = isImageUrl(url) && !failed
+
+  useEffect(() => {
+    let cancelled = false
+    setFailed(false)
+    if (isAttachmentBlobRef(url)) {
+      void resolveAttachmentUrl(url).then((resolved) => {
+        if (!cancelled) setSrc(resolved)
+      })
+    } else {
+      setSrc(url)
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [url])
+
+  const showImage = (isImageUrl(url) || isAttachmentBlobRef(url)) && !failed
 
   return (
     <button
       type="button"
       onClick={(e) => {
         e.stopPropagation()
-        openLink(url)
+        openLink(src.startsWith('data:') ? url : src)
       }}
       className={`${sizeClasses[size]} shrink-0 rounded overflow-hidden border border-app-border bg-app-surface-muted hover:ring-2 hover:ring-brand-500/50 transition-shadow`}
       title={name ?? url}
     >
       {showImage ? (
         <img
-          src={url}
+          src={src}
           alt={name ?? 'Attachment'}
           className="w-full h-full object-cover"
           loading="lazy"

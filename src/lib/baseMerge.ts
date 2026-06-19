@@ -1,5 +1,5 @@
 import { normalizeBase } from './tableSchema'
-import { isBaseNewer } from './baseUpdated'
+import { isBaseNewer, baseUpdatedAt } from './baseUpdated'
 import type { Base, Table } from '../types'
 
 export function countBaseRows(base: Base): number {
@@ -57,6 +57,11 @@ export function resolveBaseConflict(a: Base, b: Base): Base {
   const winner = preferLocal ? local : remote
   const loser = preferLocal ? remote : local
 
+  // Equal timestamps — prefer local so intentional deletes are not resurrected.
+  if (baseUpdatedAt(local) === baseUpdatedAt(remote)) {
+    return { ...local, tables: mergeTablesFromWinner(local.tables, remote.tables) }
+  }
+
   return {
     ...winner,
     tables: mergeTablesFromWinner(winner.tables, loser.tables),
@@ -78,7 +83,11 @@ export function mergeBasesList(primary: Base[], secondary: Base[]): Base[] {
   return Array.from(ids).map((id) => {
     const a = primaryById.get(id)
     const b = secondaryById.get(id)
-    if (a && b) return resolveBaseConflict(a, b)
+    if (a && b) {
+      if (isBaseNewer(a, b) && !isBaseNewer(b, a)) return a
+      if (isBaseNewer(b, a) && !isBaseNewer(a, b)) return b
+      return a
+    }
     return (a ?? b)!
   })
 }

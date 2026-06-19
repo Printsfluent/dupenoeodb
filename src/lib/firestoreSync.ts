@@ -23,7 +23,7 @@ import type {
   WorkspaceMember,
 } from '../types'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
-import { pickRicherBase, countBaseRows, resolveBaseConflict } from './baseMerge'
+import { pickRicherBase, resolveBaseConflict } from './baseMerge'
 import { isBaseNewer, stampBase } from './baseUpdated'
 import { normalizeBase } from './tableSchema'
 import {
@@ -180,9 +180,9 @@ export async function ensureBaseInCache(baseId: string): Promise<Base | null> {
       : remote
     setBases([merged])
 
-    if (!cached || countBaseRows(merged) > countBaseRows(cached)) {
+    if (cached && isBaseNewer(merged, cached)) {
       try {
-        await setDoc(ref, merged, { merge: true })
+        await writeBaseToCloud(merged)
       } catch (error) {
         logSyncError('ensureBaseInCache:push', error)
       }
@@ -271,6 +271,27 @@ export async function deleteWorkspaceCascade(
 const cloudPersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const CLOUD_PERSIST_DEBOUNCE_MS = 450
 
+async function writeBaseToCloud(base: Base) {
+  const stamped = stampBase(normalizeBase(base))
+  await setDoc(doc(getFirestoreDb(), COL.bases, stamped.id), stamped)
+}
+
+export async function flushPersistBase(baseId: string) {
+  const existing = cloudPersistTimers.get(baseId)
+  if (existing) {
+    clearTimeout(existing)
+    cloudPersistTimers.delete(baseId)
+  }
+  if (skipCloudSync()) return
+  const latest = getCache().bases.find((item) => item.id === baseId)
+  if (!latest) return
+  try {
+    await writeBaseToCloud(latest)
+  } catch (error) {
+    logSyncError('flushPersistBase', error)
+  }
+}
+
 export async function persistBase(base: Base) {
   const stamped = stampBase(normalizeBase(base))
   setBases([stamped])
@@ -285,13 +306,7 @@ export async function persistBase(base: Base) {
     setTimeout(() => {
       cloudPersistTimers.delete(baseId)
       const latest = getCache().bases.find((item) => item.id === baseId) ?? stamped
-      void (async () => {
-        try {
-          await setDoc(doc(getFirestoreDb(), COL.bases, baseId), latest, { merge: true })
-        } catch (error) {
-          logSyncError('persistBase', error)
-        }
-      })()
+      void writeBaseToCloud(latest).catch((error) => logSyncError('persistBase', error))
     }, CLOUD_PERSIST_DEBOUNCE_MS),
   )
 }

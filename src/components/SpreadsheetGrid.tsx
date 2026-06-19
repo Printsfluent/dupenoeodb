@@ -18,7 +18,7 @@ import {
   resolvePastedValue,
   type SelectionRange,
 } from '../lib/gridClipboard'
-import { mergeAttachmentValues, readFileAsDataUrl } from '../lib/attachments'
+import { mergeAttachmentValues, persistAttachmentsForStorage, readFileAsDataUrl } from '../lib/attachments'
 import { downloadTableAsCsv, downloadTableAsXlsx } from '../lib/exportSpreadsheet'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
@@ -130,12 +130,22 @@ export default function SpreadsheetGrid({
   }
 
   function updateCell(rowId: string, colId: string, value: string) {
-    onChange({
-      ...table,
-      rows: table.rows.map((row) =>
-        row.id === rowId ? { ...row, cells: { ...row.cells, [colId]: value } } : row,
-      ),
-    })
+    const col = table.columns.find((column) => column.id === colId)
+    const applyValue = (nextValue: string) => {
+      onChange({
+        ...table,
+        rows: table.rows.map((row) =>
+          row.id === rowId ? { ...row, cells: { ...row.cells, [colId]: nextValue } } : row,
+        ),
+      })
+    }
+
+    if (col && normalizeColumnType(col.type) === 'attachment' && value.includes('data:image/')) {
+      void persistAttachmentsForStorage(value).then(applyValue)
+      return
+    }
+
+    applyValue(value)
   }
 
   function getNextAutoNumber(colId: string) {

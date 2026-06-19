@@ -27,6 +27,7 @@ import {
 import { isTableStructureChange } from '../lib/tableSchema'
 import { useToast } from '../context/ToastContext'
 import { repairWorkspaceForUser } from '../lib/storage'
+import { flushCacheToLocalStorage } from '../lib/localPersistence'
 import { getCache, setBases } from '../lib/dataStore'
 import { isFirebaseConfigured, getFirestoreDb } from '../lib/firebase'
 import { COL, ensureBaseInCache } from '../lib/firestoreSync'
@@ -48,8 +49,7 @@ export default function BasePage() {
   const [searchParams] = useSearchParams()
   const tableParam = searchParams.get('table')
   const leavingRef = useRef(false)
-  const seededTableUrlRef = useRef(false)
-  const prevTableParamRef = useRef<string | null>(null)
+  const initializedBaseRef = useRef<string | null>(null)
   const [base, setBase] = useState<Base | null>(null)
   const [showNewTable, setShowNewTable] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -104,72 +104,66 @@ export default function BasePage() {
 
   const selectActiveTable = useCallback((tableId: string | null) => {
     setSelectedTableId(tableId)
-    const next = new URLSearchParams(location.search)
-    if (tableId) next.set('table', tableId)
-    else next.delete('table')
-    const search = next.toString()
-    navigate(
-      { pathname: location.pathname, search: search ? `?${search}` : '' },
-      { replace: true },
-    )
-  }, [navigate, location.pathname, location.search])
+    const url = new URL(window.location.href)
+    if (tableId) url.searchParams.set('table', tableId)
+    else url.searchParams.delete('table')
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`)
+  }, [])
 
   const visibleTables = useMemo(() => {
     if (!base) return []
     return getAccessibleTables(member, base.tables, hasFullAccess)
   }, [base, member, hasFullAccess, cacheVersion])
 
-  const activeTableId = useMemo(() => {
-    if (selectedTableId && visibleTables.some((table) => table.id === selectedTableId)) {
-      return selectedTableId
+  const activeTable = useMemo(() => {
+    if (!base) return undefined
+    if (selectedTableId) {
+      const match = base.tables.find((table) => table.id === selectedTableId)
+      if (match) return match
     }
-    return visibleTables[0]?.id ?? null
-  }, [selectedTableId, visibleTables])
+    return visibleTables[0]
+  }, [base, selectedTableId, visibleTables])
 
   useEffect(() => {
+    initializedBaseRef.current = null
     setSelectedTableId(null)
-    seededTableUrlRef.current = false
-    prevTableParamRef.current = null
   }, [baseId])
 
   useEffect(() => {
-    if (!base || seededTableUrlRef.current) return
+    if (!base || initializedBaseRef.current === base.id) return
 
     const fromUrl =
-      tableParam && visibleTables.some((table) => table.id === tableParam)
+      tableParam && base.tables.some((table) => table.id === tableParam)
         ? tableParam
         : null
     const initial = fromUrl ?? visibleTables[0]?.id ?? null
     if (!initial) return
 
-    seededTableUrlRef.current = true
-    prevTableParamRef.current = fromUrl ?? tableParam
+    initializedBaseRef.current = base.id
     setSelectedTableId(initial)
 
     if (!fromUrl) {
-      const next = new URLSearchParams(location.search)
-      next.set('table', initial)
-      navigate(
-        { pathname: location.pathname, search: `?${next.toString()}` },
-        { replace: true },
-      )
+      const url = new URL(window.location.href)
+      url.searchParams.set('table', initial)
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`)
     }
-  }, [base, tableParam, visibleTables, navigate, location.pathname, location.search])
+  }, [base, tableParam, visibleTables])
 
   useEffect(() => {
-    if (!seededTableUrlRef.current) return
-    if (tableParam === prevTableParamRef.current) return
-    prevTableParamRef.current = tableParam
-
-    if (tableParam && visibleTables.some((table) => table.id === tableParam)) {
-      setSelectedTableId(tableParam)
+    function onPopState() {
+      const param = new URLSearchParams(window.location.search).get('table')
+      if (param && base?.tables.some((table) => table.id === param)) {
+        setSelectedTableId(param)
+      }
     }
-  }, [tableParam, visibleTables])
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [base])
 
   useEffect(() => {
-    if (!baseId || !activeTableId) return
-    rememberLastTable(baseId, activeTableId)
-  }, [baseId, activeTableId])
+    if (!baseId || !activeTable?.id) return
+    rememberLastTable(baseId, activeTable.id)
+  }, [baseId, activeTable?.id])
 
   useEffect(() => {
     if (!baseId || !isFirebaseConfigured() || !user || !ready) return
@@ -238,10 +232,11 @@ export default function BasePage() {
     })
   }, [user, workspaceId, baseId, navigate, cacheVersion, workspace, location.pathname, ready])
 
-  function saveBase(updated: Base) {
+  function saveBase(updated: Base, options?: { flush?: boolean }) {
     const stamped = stampBase(updated)
-    upsertBase(stamped)
+    upsertBase(stamped, { flush: options?.flush })
     setBase(stamped)
+    flushCacheToLocalStorage()
   }
 
   function renameBase(name: string) {
@@ -261,10 +256,16 @@ export default function BasePage() {
       toast.error('Only workspace admins can change fields, columns, or table structure')
       return
     }
-    saveBase({
-      ...latest,
-      tables: latest.tables.map((t) => (t.id === table.id ? table : t)),
-    })
+    const hasAttachments = table.rows.some((row) =>
+      Object.values(row.cells).some((cell) => cell.includes('sf-att://') || cell.includes('data:image/')),
+    )
+    saveBase(
+      {
+        ...latest,
+        tables: latest.tables.map((t) => (t.id === table.id ? table : t)),
+      },
+      { flush: hasAttachments },
+    )
   }
 
   function updateTableIcon(tableId: string, icon: string | null) {
@@ -304,8 +305,8 @@ export default function BasePage() {
       ?? getCache().bases.find((item) => item.id === base.id)
       ?? base
     const remaining = latest.tables.filter((table) => table.id !== tableId)
-    saveBase({ ...latest, tables: remaining })
-    if (activeTableId === tableId) {
+    saveBase({ ...latest, tables: remaining }, { flush: true })
+    if (selectedTableId === tableId) {
       const accessible = getAccessibleTables(member, remaining, hasFullAccess)
       selectActiveTable(accessible[0]?.id ?? null)
     }
@@ -353,14 +354,7 @@ export default function BasePage() {
     toast.success(`Created ${table.name}`)
   }
 
-  const activeTable = useMemo(() => {
-    if (!base) return undefined
-    if (!activeTableId) return visibleTables[0]
-    return (
-      visibleTables.find((table) => table.id === activeTableId)
-      ?? base.tables.find((table) => table.id === activeTableId)
-    )
-  }, [activeTableId, visibleTables, base])
+  const activeTableId = activeTable?.id ?? null
 
   if (!base) {
     return (
