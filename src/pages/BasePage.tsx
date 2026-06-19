@@ -61,7 +61,6 @@ export default function BasePage() {
   const [newTableName, setNewTableName] = useState('')
   const [showNewTableIconPicker, setShowNewTableIconPicker] = useState(false)
   const [showBaseIconPicker, setShowBaseIconPicker] = useState(false)
-  const [pendingTableId, setPendingTableId] = useState<string | null>(null)
   const toast = useToast()
 
   const rawWorkspace = getWorkspaces().find((w) => w.id === workspaceId)
@@ -119,18 +118,9 @@ export default function BasePage() {
   }, [base, member, hasFullAccess, cacheVersion])
 
   const activeTableId = useMemo(() => {
-    if (pendingTableId && visibleTables.some((table) => table.id === pendingTableId)) {
-      return pendingTableId
-    }
     if (tableParam && visibleTables.some((table) => table.id === tableParam)) return tableParam
     return visibleTables[0]?.id ?? null
-  }, [tableParam, visibleTables, pendingTableId])
-
-  useEffect(() => {
-    if (pendingTableId && tableParam === pendingTableId) {
-      setPendingTableId(null)
-    }
-  }, [tableParam, pendingTableId])
+  }, [tableParam, visibleTables])
 
   useEffect(() => {
     seededTableUrlRef.current = false
@@ -281,8 +271,6 @@ export default function BasePage() {
     const imported = sheetsToTables(sheets)
     const updated = { ...base, tables: [...base.tables, ...imported] }
     saveBase(updated)
-    selectActiveTable(imported[0]?.id ?? activeTableId)
-    if (imported[0]?.id) setPendingTableId(imported[0].id)
   }
 
   function handleConfirmNewTable(name: string) {
@@ -312,8 +300,6 @@ export default function BasePage() {
       ?? base
     const updated = { ...latest, tables: [...latest.tables, table] }
     saveBase(updated)
-    setPendingTableId(table.id)
-    selectActiveTable(table.id)
     setNewTableName('')
     setShowNewTableIconPicker(false)
     toast.success(`Created ${table.name}`)
@@ -390,66 +376,76 @@ export default function BasePage() {
         )}
       </nav>
 
-      <header className="sticky top-12 z-40 shrink-0 bg-app-bg border-b border-app-border">
-        <div className="flex items-center gap-1 px-2 overflow-x-auto scrollbar-thin">
-          {visibleTables.map((table) => (
-            <div
-              key={table.id}
-              className={`group/tab relative inline-flex items-center gap-1 border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                activeTableId === table.id
-                  ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                  : 'border-transparent text-app-faint hover:text-app-muted'
-              }`}
-            >
-              {canEdit ? (
-                <button
-                  type="button"
-                  onClick={() => setIconPickerTableId(table.id)}
-                  className="ml-2 p-1 rounded hover:bg-app-surface-active transition-colors"
-                  title="Change table logo"
-                  aria-label={`Change logo for ${table.name}`}
-                >
-                  <TableIcon icon={table.icon} size="xs" />
-                </button>
-              ) : (
-                <span className="ml-2">
-                  <TableIcon icon={table.icon} size="xs" />
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => selectActiveTable(table.id)}
-                className={`px-2 py-2.5 text-sm font-medium hover:text-app-muted transition-colors ${
-                  activeTableId === table.id ? 'text-brand-600 dark:text-brand-400' : ''
-                }`}
-              >
-                {table.name}
-              </button>
-              {hasFullAccess && (
-                <button
-                  type="button"
-                  onClick={() => deleteTable(table.id, table.name)}
-                  className={`mr-1 p-1 rounded text-app-faint hover:text-red-400 transition-all ${
-                    activeTableId === table.id
-                      ? 'opacity-70 hover:opacity-100'
-                      : 'opacity-0 group-hover/tab:opacity-100'
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <aside className="w-52 shrink-0 border-r border-app-border bg-app-bg flex flex-col overflow-hidden">
+          <div className="px-3 pt-3 pb-2">
+            <span className="text-[10px] font-semibold tracking-widest text-app-faint uppercase">
+              Tables
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-2 space-y-0.5 scrollbar-thin">
+            {visibleTables.map((table) => {
+              const isActive = activeTableId === table.id
+              return (
+                <div
+                  key={table.id}
+                  className={`group/tab relative flex items-center gap-1 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
+                      : 'text-app-faint hover:bg-app-surface-active hover:text-app-muted'
                   }`}
-                  title={`Delete ${table.name}`}
-                  aria-label={`Delete ${table.name}`}
                 >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      onClick={() => setIconPickerTableId(table.id)}
+                      className="ml-1.5 p-1 rounded hover:bg-app-surface-active transition-colors shrink-0"
+                      title="Change table logo"
+                      aria-label={`Change logo for ${table.name}`}
+                    >
+                      <TableIcon icon={table.icon} size="xs" />
+                    </button>
+                  ) : (
+                    <span className="ml-1.5 shrink-0">
+                      <TableIcon icon={table.icon} size="xs" />
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => selectActiveTable(table.id)}
+                    className={`flex-1 min-w-0 text-left px-1 py-2 text-sm font-medium truncate transition-colors ${
+                      isActive ? 'text-brand-600 dark:text-brand-400' : ''
+                    }`}
+                  >
+                    {table.name}
+                  </button>
+                  {hasFullAccess && (
+                    <button
+                      type="button"
+                      onClick={() => deleteTable(table.id, table.name)}
+                      className={`mr-1 p-1 rounded text-app-faint hover:text-red-400 transition-all shrink-0 ${
+                        isActive
+                          ? 'opacity-70 hover:opacity-100'
+                          : 'opacity-0 group-hover/tab:opacity-100'
+                      }`}
+                      title={`Delete ${table.name}`}
+                      aria-label={`Delete ${table.name}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
           {hasFullAccess && (
-            <>
+            <div className="shrink-0 border-t border-app-border p-2 space-y-0.5">
               <button
                 type="button"
                 onClick={() => setShowImport(true)}
-                className="inline-flex items-center gap-1 px-3 py-2.5 text-sm text-app-faint hover:text-brand-400 transition-colors"
+                className="w-full inline-flex items-center gap-2 px-2.5 py-2 text-sm text-app-faint hover:text-brand-400 hover:bg-app-surface-active rounded-lg transition-colors"
               >
-                <Upload className="w-4 h-4" />
+                <Upload className="w-4 h-4 shrink-0" />
                 Import
               </button>
               <button
@@ -463,17 +459,16 @@ export default function BasePage() {
                   }
                   setShowNewTable(true)
                 }}
-                className="inline-flex items-center gap-1 px-3 py-2.5 text-sm text-app-faint hover:text-brand-400 transition-colors"
+                className="w-full inline-flex items-center gap-2 px-2.5 py-2 text-sm text-app-faint hover:text-brand-400 hover:bg-app-surface-active rounded-lg transition-colors"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 shrink-0" />
                 New table
               </button>
-            </>
+            </div>
           )}
-        </div>
-      </header>
+        </aside>
 
-      <main className="flex-1 min-h-0 overflow-hidden flex flex-col bg-app-bg">
+        <main className="flex-1 min-h-0 overflow-hidden flex flex-col bg-app-bg">
         {visibleTables.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-app-faint text-sm">
             {base.tables.length === 0 && hasFullAccess ? (
@@ -526,6 +521,7 @@ export default function BasePage() {
           </div>
         )}
       </main>
+      </div>
 
       <NameModal
         open={showNewTable}
