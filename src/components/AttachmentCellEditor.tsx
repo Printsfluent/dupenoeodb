@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react'
 import {
   isImageUrl,
   mergeAttachmentValues,
@@ -12,6 +12,7 @@ import {
   serializeAttachments,
 } from '../lib/attachments'
 import { copyToClipboard } from '../lib/copy'
+import AttachmentLightbox from './AttachmentLightbox'
 
 interface AttachmentCellEditorProps {
   value: string
@@ -57,6 +58,7 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
   const [draft, setDraft] = useState(value)
   const [viewIndex, setViewIndex] = useState(0)
   const [expanded, setExpanded] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   useEffect(() => {
     setDraft(value)
@@ -180,6 +182,20 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
     >
       {expanded && attachments.length > 0 && current && (
         <div className="px-3 pt-3 pb-2">
+          <div className="flex justify-end mb-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setLightboxOpen(true)
+              }}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-brand-500 hover:bg-brand-500/10 transition-colors"
+              title="Expand cell"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              Expand
+            </button>
+          </div>
           <div className="relative flex items-center justify-center min-h-[220px] bg-app-bg/50 rounded-lg border border-app-border">
             <button
               type="button"
@@ -259,6 +275,19 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
           spellCheck={false}
         />
       </div>
+
+      <AttachmentLightbox
+        value={draft}
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        initialIndex={viewIndex}
+        bold
+        editable
+        onChange={(next) => {
+          applyDraft(next)
+          setViewIndex((index) => Math.min(index, Math.max(0, parseAttachments(next).length - 1)))
+        }}
+      />
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Paperclip, Star, User, MapPin, Braces } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { ColumnType, SelectOption } from '../types'
@@ -8,6 +9,7 @@ import { formatDateTimeDisplay } from '../lib/dates'
 import { extractLinkHref } from '../lib/links'
 import { parseAttachments } from '../lib/attachments'
 import AttachmentThumbnails from './AttachmentThumbnails'
+import AttachmentLightbox, { AttachmentExpandButton } from './AttachmentLightbox'
 
 interface CellValueDisplayProps {
   type: ColumnType
@@ -18,6 +20,7 @@ interface CellValueDisplayProps {
   emptyText: string
   cellText: string
   highlightQuery?: string
+  attachmentExpandVisible?: boolean
 }
 
 function escapeRegExp(value: string) {
@@ -64,6 +67,7 @@ export default function CellValueDisplay({
   emptyText: _emptyText,
   cellText,
   highlightQuery,
+  attachmentExpandVisible = false,
 }: CellValueDisplayProps) {
   const normalized = normalizeColumnType(type)
   const linkHref = extractLinkHref(value)
@@ -124,7 +128,7 @@ export default function CellValueDisplay({
     case 'attachment': {
       const items = parseAttachments(value)
       if (items.length > 0) {
-        return <AttachmentThumbnails value={value} size="sm" maxVisible={24} />
+        return <AttachmentCellPreview value={value} expandVisible={attachmentExpandVisible} />
       }
       return (
         <span className={`inline-flex items-center gap-1.5 ${cellText}`}>
@@ -217,4 +221,35 @@ export default function CellValueDisplay({
       }
       return <span className={cellText}>{renderHighlighted(value, highlightQuery)}</span>
   }
+}
+
+function AttachmentCellPreview({
+  value,
+  expandVisible = false,
+}: {
+  value: string
+  expandVisible?: boolean
+}) {
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+
+  return (
+    <>
+      <div className="relative flex items-center min-w-0 pr-7 group/att">
+        <AttachmentThumbnails value={value} size="sm" maxVisible={24} />
+        <AttachmentExpandButton
+          className={expandVisible ? 'opacity-100' : ''}
+          onClick={(e) => {
+            e.stopPropagation()
+            setLightboxOpen(true)
+          }}
+        />
+      </div>
+      <AttachmentLightbox
+        value={value}
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        bold
+      />
+    </>
+  )
 }

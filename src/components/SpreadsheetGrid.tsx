@@ -901,6 +901,7 @@ export default function SpreadsheetGrid({
                     emptyText={emptyText}
                     cellText={displayCellText}
                     highlightQuery={searchHighlight}
+                    attachmentExpandVisible={isAttachment && isSelected}
                   />
                 </div>
               ) : isEditing ? (
@@ -974,6 +975,7 @@ export default function SpreadsheetGrid({
                     emptyText={emptyText}
                     cellText={displayCellText}
                     highlightQuery={searchHighlight}
+                    attachmentExpandVisible={isAttachment && isSelected}
                   />
                 </button>
               )}
