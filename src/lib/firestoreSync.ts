@@ -25,6 +25,7 @@ import type {
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 import { pickRicherBase, resolveBaseConflict } from './baseMerge'
 import { isBaseNewer, stampBase } from './baseUpdated'
+import { inlineAttachmentRefsInBase } from './attachments'
 import { normalizeBase } from './tableSchema'
 import {
   getCache,
@@ -169,18 +170,10 @@ export async function ensureBaseInCache(baseId: string): Promise<Base | null> {
 
     if (!remote) return cached ?? null
 
-    if (cached && isBaseNewer(cached, remote)) {
-      return cached
-    }
-
-    const merged = cached
-      ? isBaseNewer(remote, cached)
-        ? remote
-        : resolveBaseConflict(cached, remote)
-      : remote
+    const merged = cached ? resolveBaseConflict(cached, remote) : remote
     setBases([merged])
 
-    if (cached && isBaseNewer(merged, cached)) {
+    if (cached && isBaseNewer(merged, remote)) {
       try {
         await writeBaseToCloud(merged)
       } catch (error) {
@@ -272,7 +265,9 @@ const cloudPersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const CLOUD_PERSIST_DEBOUNCE_MS = 450
 
 async function writeBaseToCloud(base: Base) {
-  const stamped = stampBase(normalizeBase(base))
+  const normalized = normalizeBase(base)
+  const withAttachments = await inlineAttachmentRefsInBase(normalized)
+  const stamped = stampBase(withAttachments)
   await setDoc(doc(getFirestoreDb(), COL.bases, stamped.id), stamped)
 }
 
@@ -316,9 +311,11 @@ export async function persistBases(bases: Base[]) {
   if (skipCloudSync()) return
   try {
     const batch = writeBatch(getFirestoreDb())
-    bases.forEach((base) => {
-      batch.set(doc(getFirestoreDb(), COL.bases, base.id), base, { merge: true })
-    })
+    for (const base of bases) {
+      const normalized = normalizeBase(base)
+      const withAttachments = await inlineAttachmentRefsInBase(normalized)
+      batch.set(doc(getFirestoreDb(), COL.bases, base.id), stampBase(withAttachments))
+    }
     await batch.commit()
   } catch (error) {
     logSyncError('persistBases', error)

@@ -182,7 +182,7 @@ export default function BasePage() {
           return
         }
         if (isBaseNewer(cached, remote)) return
-        const next = isBaseNewer(remote, cached) ? remote : resolveBaseConflict(cached, remote)
+        const next = resolveBaseConflict(cached, remote)
         setBases([next])
       },
       (error) => console.warn('Firestore base listener:', error),
@@ -259,12 +259,13 @@ export default function BasePage() {
     const hasAttachments = table.rows.some((row) =>
       Object.values(row.cells).some((cell) => cell.includes('sf-att://') || cell.includes('data:image/')),
     )
+    const structureChanged = previous ? isTableStructureChange(previous, table) : false
     saveBase(
       {
         ...latest,
         tables: latest.tables.map((t) => (t.id === table.id ? table : t)),
       },
-      { flush: hasAttachments },
+      { flush: structureChanged || hasAttachments },
     )
   }
 
@@ -294,7 +295,7 @@ export default function BasePage() {
       tables: latest.tables.map((table) =>
         table.id === tableId ? { ...table, name: name.trim() } : table,
       ),
-    })
+    }, { flush: true })
   }
 
   function deleteTable(tableId: string, tableName: string) {

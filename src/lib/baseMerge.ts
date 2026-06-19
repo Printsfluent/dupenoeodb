@@ -10,19 +10,14 @@ export function countAllBaseRows(bases: Base[]): number {
   return bases.reduce((sum, base) => sum + countBaseRows(base), 0)
 }
 
-/** Keep winner rows intact; only append rows that exist on the other copy. Never blend cell values. */
+/** Keep winner rows intact; only append rows that exist on the other copy. Never blend cell values or resurrect deleted columns. */
 function unionTableRows(winner: Table, other: Table): Table {
   const winnerRowIds = new Set(winner.rows.map((row) => row.id))
   const extraRows = other.rows.filter((row) => !winnerRowIds.has(row.id))
 
-  const columnById = new Map(winner.columns.map((col) => [col.id, col]))
-  other.columns.forEach((col) => {
-    if (!columnById.has(col.id)) columnById.set(col.id, col)
-  })
-
   return {
     ...winner,
-    columns: Array.from(columnById.values()),
+    columns: winner.columns,
     rows: extraRows.length ? [...winner.rows, ...extraRows] : winner.rows,
   }
 }
@@ -51,22 +46,8 @@ export function resolveBaseConflict(a: Base, b: Base): Base {
     return { ...remote, tables: mergeTablesFromWinner(remote.tables, local.tables) }
   }
 
-  const localRows = countBaseRows(local)
-  const remoteRows = countBaseRows(remote)
-  const preferLocal = localRows >= remoteRows
-  const winner = preferLocal ? local : remote
-  const loser = preferLocal ? remote : local
-
   // Equal timestamps — prefer local so intentional deletes are not resurrected.
-  if (baseUpdatedAt(local) === baseUpdatedAt(remote)) {
-    return { ...local, tables: mergeTablesFromWinner(local.tables, remote.tables) }
-  }
-
-  return {
-    ...winner,
-    tables: mergeTablesFromWinner(winner.tables, loser.tables),
-    updatedAt: winner.updatedAt ?? loser.updatedAt,
-  }
+  return { ...local, tables: mergeTablesFromWinner(local.tables, remote.tables) }
 }
 
 /** @deprecated Use resolveBaseConflict — kept for existing call sites. */
@@ -83,11 +64,7 @@ export function mergeBasesList(primary: Base[], secondary: Base[]): Base[] {
   return Array.from(ids).map((id) => {
     const a = primaryById.get(id)
     const b = secondaryById.get(id)
-    if (a && b) {
-      if (isBaseNewer(a, b) && !isBaseNewer(b, a)) return a
-      if (isBaseNewer(b, a) && !isBaseNewer(a, b)) return b
-      return a
-    }
+    if (a && b) return resolveBaseConflict(a, b)
     return (a ?? b)!
   })
 }
@@ -108,18 +85,11 @@ export function mergeWorkspaceBases(workspaceId: string, existing: Base[], incom
   const merged = remote.map((remoteBase) => {
     const localBase = localById.get(remoteBase.id)
     if (!localBase) return remoteBase
-    if (isBaseNewer(localBase, remoteBase)) {
-      needsCloudSync.push(localBase)
-      return localBase
-    }
-    if (isBaseNewer(remoteBase, localBase)) {
-      return remoteBase
-    }
 
     const resolved = resolveBaseConflict(localBase, remoteBase)
-    const localRows = countBaseRows(localBase)
-    const remoteRows = countBaseRows(remoteBase)
-    if (localRows > remoteRows || countBaseRows(resolved) > remoteRows) {
+    if (isBaseNewer(localBase, remoteBase) && !isBaseNewer(remoteBase, localBase)) {
+      needsCloudSync.push(resolved)
+    } else if (baseUpdatedAt(localBase) === baseUpdatedAt(remoteBase)) {
       needsCloudSync.push(resolved)
     }
     return resolved

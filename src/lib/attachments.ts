@@ -1,4 +1,5 @@
-import { resolveAttachmentUrl, storeAttachmentBlob } from './attachmentBlobStore'
+import { resolveAttachmentUrl, storeAttachmentBlob, isAttachmentBlobRef } from './attachmentBlobStore'
+import type { Base } from '../types'
 
 export { isAttachmentBlobRef, resolveAttachmentUrl } from './attachmentBlobStore'
 
@@ -105,6 +106,55 @@ export async function persistAttachmentsForStorage(raw: string): Promise<string>
     })),
   )
   return serializeAttachments(stored)
+}
+
+const MAX_INLINE_ATTACHMENT_BYTES = 750_000
+
+async function inlineAttachmentUrl(url: string): Promise<string> {
+  if (!isAttachmentBlobRef(url)) return url
+  const resolved = await resolveAttachmentUrl(url)
+  if (!resolved.startsWith('data:')) return url
+  const blob = dataUrlToBlob(resolved)
+  if (blob && blob.size > MAX_INLINE_ATTACHMENT_BYTES) return url
+  return resolved
+}
+
+async function inlineAttachmentRefsInRaw(raw: string): Promise<string> {
+  if (!raw.includes('sf-att://')) return raw
+  const items = parseAttachments(raw)
+  if (!items.length) return raw
+  const inlined = await Promise.all(
+    items.map(async (item) => ({
+      ...item,
+      url: await inlineAttachmentUrl(item.url),
+    })),
+  )
+  return serializeAttachments(inlined)
+}
+
+/** Resolve local blob refs to inline data URLs so Firestore carries image bytes. */
+export async function inlineAttachmentRefsInBase(base: Base): Promise<Base> {
+  const tables = await Promise.all(
+    base.tables.map(async (table) => ({
+      ...table,
+      rows: await Promise.all(
+        table.rows.map(async (row) => {
+          let changed = false
+          const cells = { ...row.cells }
+          for (const [colId, value] of Object.entries(cells)) {
+            if (!value.includes('sf-att://')) continue
+            const next = await inlineAttachmentRefsInRaw(value)
+            if (next !== value) {
+              cells[colId] = next
+              changed = true
+            }
+          }
+          return changed ? { ...row, cells } : row
+        }),
+      ),
+    })),
+  )
+  return { ...base, tables }
 }
 
 export function dataUrlToBlob(dataUrl: string): Blob | null {
