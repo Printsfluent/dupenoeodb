@@ -91,6 +91,24 @@ export default function SpreadsheetGrid({
   const gridRef = useRef<HTMLDivElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    setEditingCell(null)
+    setEditSession(null)
+    setSelection(null)
+    setFieldMenu(null)
+    setFieldModal(null)
+    setShowExportMenu(false)
+    setView({
+      sortColumnId: null,
+      sortDirection: 'asc',
+      filterColumnId: null,
+      filterValue: '',
+      groupColumnId: null,
+      showHidden: false,
+      searchQuery: '',
+    })
+  }, [table.id])
+
   const visibleColumns = useMemo(
     () => table.columns.filter((col) => view.showHidden || !col.hidden),
     [table.columns, view.showHidden],

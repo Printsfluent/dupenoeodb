@@ -171,6 +171,17 @@ export function createEmptyTable(name = 'Table 1'): Table {
   }
 }
 
+/** New table with no columns or rows — user defines structure themselves. */
+export function createBlankTable(name: string): Table {
+  return {
+    id: createId(),
+    name: name.trim(),
+    icon: null,
+    columns: [],
+    rows: [],
+  }
+}
+
 export function createWorkspace(ownerId: string, name: string, colorIndex = 0): Workspace {
   return {
     id: createId(),

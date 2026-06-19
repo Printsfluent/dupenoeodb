@@ -12,7 +12,7 @@ import TableTeamsModal from '../components/TableTeamsModal'
 import TableIcon from '../components/TableIcon'
 import TableIconPicker from '../components/TableIconPicker'
 import { normalizeTableIcon, suggestTableIconFromName } from '../lib/tableIcons'
-import { getWorkspaceBases, getWorkspaces, upsertBase } from '../lib/storage'
+import { createBlankTable, getWorkspaceBases, getWorkspaces, upsertBase } from '../lib/storage'
 import {
   assignBaseTeams,
   assignTableTeams,
@@ -35,7 +35,6 @@ import { resolveBaseConflict } from '../lib/baseMerge'
 import { rememberLastTable } from '../lib/lastTable'
 import { normalizeBase } from '../lib/tableSchema'
 import { sheetsToTables } from '../lib/importSpreadsheet'
-import { createId } from '../lib/id'
 import { canAddRows, canAddTables } from '../lib/planLimits'
 import type { Base, Table } from '../types'
 import type { ParsedSheet } from '../lib/importSpreadsheet'
@@ -231,6 +230,7 @@ export default function BasePage() {
 
   function updateTable(table: Table) {
     if (!base || !baseId) return
+    if (activeTableId && table.id !== activeTableId) return
     const latest =
       getWorkspaceBases(base.workspaceId).find((item) => item.id === baseId)
       ?? getCache().bases.find((item) => item.id === baseId)
@@ -259,6 +259,20 @@ export default function BasePage() {
   function updateBaseIcon(icon: string | null) {
     if (!base || !canEdit) return
     saveBase({ ...base, icon: normalizeTableIcon(icon) ?? null })
+  }
+
+  function renameTable(tableId: string, name: string) {
+    if (!base || !canManageSchema || !name.trim()) return
+    const latest =
+      getWorkspaceBases(base.workspaceId).find((item) => item.id === base.id)
+      ?? getCache().bases.find((item) => item.id === base.id)
+      ?? base
+    saveBase({
+      ...latest,
+      tables: latest.tables.map((table) =>
+        table.id === tableId ? { ...table, name: name.trim() } : table,
+      ),
+    })
   }
 
   function deleteTable(tableId: string, tableName: string) {
@@ -304,11 +318,8 @@ export default function BasePage() {
   function handleCreateNewTableWithIcon(icon: string | null) {
     if (!base || !user || !hasFullAccess || !newTableName.trim()) return
     const table: Table = {
-      id: createId(),
-      name: newTableName.trim(),
+      ...createBlankTable(newTableName),
       icon: normalizeTableIcon(icon ?? suggestTableIconFromName(newTableName)) ?? null,
-      columns: [],
-      rows: [],
     }
     const latest =
       getWorkspaceBases(base.workspaceId).find((item) => item.id === base.id)
@@ -331,8 +342,9 @@ export default function BasePage() {
 
   const workspaceTeams = workspaceId ? getWorkspaceTeams(workspaceId) : []
 
-  const activeTable = visibleTables.find((t) => t.id === activeTableId)
-    ?? visibleTables[0]
+  const activeTable = activeTableId
+    ? visibleTables.find((t) => t.id === activeTableId)
+    : visibleTables[0]
   const iconPickerTable = iconPickerTableId
     ? visibleTables.find((table) => table.id === iconPickerTableId)
     : undefined
@@ -438,13 +450,30 @@ export default function BasePage() {
                       <TableIcon icon={table.icon} size="xs" />
                     </span>
                   )}
-                  <span
-                    className={`flex-1 min-w-0 px-1 py-2 text-sm font-medium truncate ${
-                      isActive ? 'text-brand-600 dark:text-brand-400' : ''
-                    }`}
-                  >
-                    {table.name}
-                  </span>
+                  {canManageSchema && isActive ? (
+                    <div
+                      className="flex-1 min-w-0 px-1 py-1"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <EditableName
+                        value={table.name}
+                        onChange={(name) => renameTable(table.id, name)}
+                        placeholder="Table name"
+                        className={`text-sm font-medium ${
+                          isActive ? 'text-brand-600 dark:text-brand-400' : ''
+                        }`}
+                        inputClassName="text-sm"
+                      />
+                    </div>
+                  ) : (
+                    <span
+                      className={`flex-1 min-w-0 px-1 py-2 text-sm font-medium truncate ${
+                        isActive ? 'text-brand-600 dark:text-brand-400' : ''
+                      }`}
+                    >
+                      {table.name}
+                    </span>
+                  )}
                   {hasFullAccess && (
                     <button
                       type="button"
