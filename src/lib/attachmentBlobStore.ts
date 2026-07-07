@@ -65,8 +65,12 @@ export async function storeAttachmentBlob(dataUrl: string): Promise<string> {
   return ref
 }
 
-/** Resolve attachment refs to displayable URLs (uses memory cache, then IndexedDB). */
+/** Resolve attachment refs to displayable URLs (uses memory cache, then IndexedDB, then cloud). */
 export async function resolveAttachmentUrl(url: string): Promise<string> {
+  if (url.startsWith('sf-cloud://')) {
+    const { resolveCloudAttachmentUrl } = await import('./attachmentCloudSync')
+    return resolveCloudAttachmentUrl(url)
+  }
   if (!isAttachmentBlobRef(url)) return url
   const cached = memoryCache.get(url)
   if (cached) return cached

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FileImage, Film, Paperclip } from 'lucide-react'
 import {
   isAttachmentBlobRef,
+  isCloudAttachmentRef,
   isImageUrl,
   isVideoUrl,
   mediaKindFromDataUrl,
@@ -44,7 +45,7 @@ function Thumbnail({
       const fromData = mediaKindFromDataUrl(resolved)
       if (fromData) setKind(fromData)
       else if (isVideoUrl(resolved)) setKind('video')
-      else if (isImageUrl(resolved) || isAttachmentBlobRef(url)) setKind('image')
+      else if (isImageUrl(resolved) || isAttachmentBlobRef(url) || isCloudAttachmentRef(url)) setKind('image')
       else setKind('file')
     })
     return () => {

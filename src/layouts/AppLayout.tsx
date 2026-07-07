@@ -21,6 +21,7 @@ import { useData } from '../context/DataContext'
 import NotificationsPanel, { NotificationBell, useNotificationCount } from '../components/NotificationsPanel'
 import CommandPalette from '../components/CommandPalette'
 import PendingInvitesBanner from '../components/PendingInvitesBanner'
+import CloudSyncIndicator from '../components/CloudSyncIndicator'
 import ThemeToggle from '../components/ThemeToggle'
 import { useToast } from '../context/ToastContext'
 import { useTheme } from '../context/ThemeContext'
@@ -285,6 +286,7 @@ export default function AppLayout() {
             You&apos;re offline. Cached data is available and changes will sync when you reconnect.
           </div>
         )}
+        <CloudSyncIndicator />
         {recoveryOffered && (
           <div className="shrink-0 px-4 py-2 bg-app-surface border-b border-app-border text-xs text-app-muted flex items-center justify-between gap-3">
             <span>Missing records? SheetFlow can scan this browser and offline cache for older copies.</span>

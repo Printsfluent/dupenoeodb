@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Film, Paperclip } from 'lucide-react'
 import {
   isAttachmentBlobRef,
+  isCloudAttachmentRef,
   isImageUrl,
   isVideoUrl,
   mediaKindFromDataUrl,
@@ -13,7 +14,9 @@ function resolveMediaKind(resolved: string, original: string): AttachmentMediaKi
   const fromData = mediaKindFromDataUrl(resolved)
   if (fromData) return fromData
   if (isVideoUrl(resolved)) return 'video'
-  if (isImageUrl(resolved) || isAttachmentBlobRef(original)) return 'image'
+  if (isImageUrl(resolved) || isAttachmentBlobRef(original) || isCloudAttachmentRef(original)) {
+    return 'image'
+  }
   return 'file'
 }
 

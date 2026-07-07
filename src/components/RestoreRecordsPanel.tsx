@@ -65,6 +65,14 @@ export default function RestoreRecordsPanel() {
       )
       return
     }
+    if (progress.phase === 'attachments') {
+      const done = progress.attachmentsDone ?? 0
+      const total = progress.attachmentsTotal ?? 0
+      setSyncStatus(
+        total > 0 ? `Uploading attachments (${done}/${total})…` : 'Uploading attachments…',
+      )
+      return
+    }
     if (progress.phase === 'metadata') {
       setSyncStatus(`Uploading ${progress.baseName ?? 'database'} info…`)
       return
@@ -168,8 +176,8 @@ export default function RestoreRecordsPanel() {
           {needsCloudSync && (
             <p className="text-xs text-amber-300/90">
               Your cloud backup is behind this browser ({scan.cloudRows} vs {scan.currentRows}{' '}
-              records). Click <strong>Sync all records to cloud</strong> — row data uploads in under
-              a minute; images stay in this browser until synced separately.
+              records). Click <strong>Sync all records to cloud</strong> — rows and attachments upload
+              in the background; you can keep working while sync runs.
             </p>
           )}
           {syncStatus && (

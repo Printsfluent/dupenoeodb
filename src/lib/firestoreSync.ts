@@ -40,6 +40,7 @@ import {
 } from './baseMerge'
 import { isBaseNewer, stampBase } from './baseUpdated'
 import { inlineAttachmentRefsInBase } from './attachments'
+import { uploadAttachmentRefsInBase } from './attachmentCloudSync'
 import { loadAllBasesFromIdb } from './baseLocalStore'
 import {
   deleteTableRowsFromCloud,
@@ -301,17 +302,20 @@ const cloudPersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const CLOUD_PERSIST_DEBOUNCE_MS = 450
 
 export interface CloudSyncProgress {
-  phase: 'preparing' | 'metadata' | 'rows' | 'done'
+  phase: 'preparing' | 'attachments' | 'metadata' | 'rows' | 'done'
   baseName?: string
   tableName?: string
   tablesDone?: number
   tablesTotal?: number
   chunkIndex?: number
   chunkCount?: number
+  attachmentsDone?: number
+  attachmentsTotal?: number
 }
 
 interface WriteBaseOptions {
   inlineAttachments?: boolean
+  syncAttachments?: boolean
   skipCleanup?: boolean
   skipIdbMerge?: boolean
   onProgress?: (progress: CloudSyncProgress) => void
@@ -329,7 +333,13 @@ export function isCloudSyncInProgress() {
 }
 
 async function writeBaseToCloud(base: Base, options: WriteBaseOptions = {}) {
-  const { inlineAttachments = true, skipCleanup = false, skipIdbMerge = false, onProgress } = options
+  const {
+    inlineAttachments = false,
+    syncAttachments = true,
+    skipCleanup = false,
+    skipIdbMerge = false,
+    onProgress,
+  } = options
   let normalized = normalizeBase(base)
   if (!skipIdbMerge) {
     try {
@@ -345,7 +355,21 @@ async function writeBaseToCloud(base: Base, options: WriteBaseOptions = {}) {
   }
 
   onProgress?.({ phase: 'preparing', baseName: normalized.name })
-  const payload = inlineAttachments ? await inlineAttachmentRefsInBase(normalized) : normalized
+
+  let payload = normalized
+  if (syncAttachments && isFirebaseConfigured()) {
+    payload = await uploadAttachmentRefsInBase(normalized, ({ done, total }) => {
+      onProgress?.({
+        phase: 'attachments',
+        baseName: normalized.name,
+        attachmentsDone: done,
+        attachmentsTotal: total,
+      })
+    })
+  } else if (inlineAttachments) {
+    payload = await inlineAttachmentRefsInBase(normalized)
+  }
+
   const stamped = stampBase(payload)
   const metadata = stripRowsFromBaseMetadata(stamped)
   onProgress?.({ phase: 'metadata', baseName: stamped.name })
@@ -466,7 +490,7 @@ export async function syncAllCachedBasesToCloud(
         cloudPersistTimers.delete(base.id)
       }
       await writeBaseToCloud(base, {
-        inlineAttachments: false,
+        syncAttachments: true,
         skipCleanup: true,
         skipIdbMerge: true,
         onProgress: reportCloudSyncProgress,

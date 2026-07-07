@@ -17,7 +17,8 @@ import {
 import { getFirestoreDb, isFirebaseConfigured } from '../lib/firebase'
 import { hydrateCacheFromStorage, persistCacheToLocalStorage } from '../lib/localPersistence'
 import { installRecoveryConsoleHelper, runStartupDataRecovery, runManualDataRecovery, canOfferDataRecovery } from '../lib/dataRecovery'
-import { installRecordSafetyHooks, pushLocalToCloudIfAhead } from '../lib/recordSafety'
+import { installBackgroundCloudSync } from '../lib/backgroundCloudSync'
+import { installRecordSafetyHooks } from '../lib/recordSafety'
 import { hydrateBaseRowsFromCloud } from '../lib/baseRowSync'
 import { normalizeBase } from '../lib/tableSchema'
 import { COL, persistBases } from '../lib/firestoreSync'
@@ -151,6 +152,11 @@ export function DataProvider({
   }, [userId, userEmail])
 
   useEffect(() => {
+    if (!userId || !userEmail || !isFirebaseConfigured()) return
+    return installBackgroundCloudSync()
+  }, [userId, userEmail])
+
+  useEffect(() => {
     if (!userId || !userEmail) {
       clearDataCache()
       setWorkspaceIds([])
@@ -192,17 +198,6 @@ export function DataProvider({
             ? `Restored ${added} missing record${added === 1 ? '' : 's'} (${result.recoveredRows} total) from ${result.sources.join(' and ')}.`
             : `Restored ${result.recoveredRows} records from ${result.sources.join(' and ')}.`,
         )
-      }
-      // Defer auto cloud backup so manual "Sync all records" is not blocked on load.
-      if (!cancelled && isFirebaseConfigured()) {
-        window.setTimeout(() => {
-          if (cancelled) return
-          void pushLocalToCloudIfAhead(ids).then((backup) => {
-            if (backup.pushed) {
-              setRecoveryMessage(`Backed up ${backup.localRows} records to the cloud.`)
-            }
-          })
-        }, 120_000)
       }
       if (!cancelled) setReady(true)
     })()

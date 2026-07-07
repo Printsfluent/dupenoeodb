@@ -2,6 +2,7 @@ import { resolveAttachmentUrl, storeAttachmentBlob, isAttachmentBlobRef } from '
 import type { Base } from '../types'
 
 export { isAttachmentBlobRef, resolveAttachmentUrl } from './attachmentBlobStore'
+export { isCloudAttachmentRef } from './attachmentCloudSync'
 
 export interface AttachmentItem {
   url: string

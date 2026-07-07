@@ -12,6 +12,7 @@ import {
   disableNetwork,
   type Firestore,
 } from 'firebase/firestore'
+import { getStorage, type FirebaseStorage } from 'firebase/storage'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -77,6 +78,13 @@ export function getFirebaseAuth() {
 export function getFirestoreDb() {
   if (!dbInstance) dbInstance = getFirestore(getFirebaseApp())
   return dbInstance
+}
+
+let storageInstance: FirebaseStorage | undefined
+
+export function getFirebaseStorage() {
+  if (!storageInstance) storageInstance = getStorage(getFirebaseApp())
+  return storageInstance
 }
 
 let persistenceReady = false
