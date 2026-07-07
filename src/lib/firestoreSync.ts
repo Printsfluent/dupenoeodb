@@ -22,8 +22,16 @@ import type {
   WorkspaceInvite,
   WorkspaceMember,
 } from '../types'
-import { getFirestoreDb, isFirebaseConfigured } from './firebase'
-import { countBaseRows, pickRicherBase, resolveBaseConflict, mergeBaseRichest, baseHasMoreRowsThan, countAllBaseRows } from './baseMerge'
+import { getFirestoreDb, isFirebaseConfigured, getFirebaseAuth, waitForAuthReady } from './firebase'
+import {
+  countBaseRows,
+  pickRicherBase,
+  resolveBaseConflict,
+  mergeBaseRichest,
+  mergeBasesRichest,
+  baseHasMoreRowsThan,
+  countAllBaseRows,
+} from './baseMerge'
 import { isBaseNewer, stampBase } from './baseUpdated'
 import { inlineAttachmentRefsInBase } from './attachments'
 import { loadAllBasesFromIdb } from './baseLocalStore'
@@ -292,25 +300,37 @@ export interface CloudSyncProgress {
   tableName?: string
   tablesDone?: number
   tablesTotal?: number
+  chunkIndex?: number
+  chunkCount?: number
 }
 
 interface WriteBaseOptions {
   inlineAttachments?: boolean
+  skipCleanup?: boolean
+  skipIdbMerge?: boolean
   onProgress?: (progress: CloudSyncProgress) => void
 }
 
+let cloudSyncInFlight: Promise<{ synced: number; rows: number }> | null = null
+
+export function isCloudSyncInProgress() {
+  return cloudSyncInFlight !== null
+}
+
 async function writeBaseToCloud(base: Base, options: WriteBaseOptions = {}) {
-  const { inlineAttachments = true, onProgress } = options
+  const { inlineAttachments = true, skipCleanup = false, skipIdbMerge = false, onProgress } = options
   let normalized = normalizeBase(base)
-  try {
-    const idbBases = await loadAllBasesFromIdb()
-    const idb = idbBases.find((item) => item.id === normalized.id)
-    if (idb && baseHasMoreRowsThan(idb, normalized)) {
-      normalized = mergeBaseRichest(normalized, idb)
-      setBases([normalized])
+  if (!skipIdbMerge) {
+    try {
+      const idbBases = await loadAllBasesFromIdb()
+      const idb = idbBases.find((item) => item.id === normalized.id)
+      if (idb && baseHasMoreRowsThan(idb, normalized)) {
+        normalized = mergeBaseRichest(normalized, idb)
+        setBases([normalized])
+      }
+    } catch (error) {
+      logSyncError('writeBaseToCloud:idb', error)
     }
-  } catch (error) {
-    logSyncError('writeBaseToCloud:idb', error)
   }
 
   onProgress?.({ phase: 'preparing', baseName: normalized.name })
@@ -319,9 +339,21 @@ async function writeBaseToCloud(base: Base, options: WriteBaseOptions = {}) {
   const metadata = stripRowsFromBaseMetadata(stamped)
   onProgress?.({ phase: 'metadata', baseName: stamped.name })
   await setDoc(doc(getFirestoreDb(), COL.bases, stamped.id), metadata)
-  await writeTableRowsToCloud(stamped, ({ tableName, tablesDone, tablesTotal }) => {
-    onProgress?.({ phase: 'rows', baseName: stamped.name, tableName, tablesDone, tablesTotal })
-  })
+  await writeTableRowsToCloud(
+    stamped,
+    ({ tableName, tablesDone, tablesTotal, chunkIndex, chunkCount }) => {
+      onProgress?.({
+        phase: 'rows',
+        baseName: stamped.name,
+        tableName,
+        tablesDone,
+        tablesTotal,
+        chunkIndex,
+        chunkCount,
+      })
+    },
+    { skipCleanup },
+  )
 }
 
 export async function flushPersistBase(baseId: string) {
@@ -375,30 +407,55 @@ export async function persistBases(bases: Base[]) {
 export async function syncAllCachedBasesToCloud(
   onProgress?: (progress: CloudSyncProgress) => void,
 ): Promise<{ synced: number; rows: number }> {
-  const bases = getCache().bases.map(normalizeBase)
-  if (bases.length === 0) return { synced: 0, rows: 0 }
-  const rows = countAllBaseRows(bases)
-  if (skipCloudSync()) return { synced: bases.length, rows }
+  if (cloudSyncInFlight) return cloudSyncInFlight
 
-  onProgress?.({ phase: 'preparing' })
+  cloudSyncInFlight = (async () => {
+    const idbBases = await loadAllBasesFromIdb().catch(() => [] as Base[])
+    const cacheBases = getCache().bases.map(normalizeBase)
+    const bases = mergeBasesRichest([...cacheBases, ...idbBases])
+    if (bases.length === 0) return { synced: 0, rows: 0 }
+    setBases(bases)
+    const rows = countAllBaseRows(bases)
+    if (skipCloudSync()) return { synced: bases.length, rows }
 
-  try {
+    await Promise.race([
+      waitForAuthReady(),
+      new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error('Sign-in check timed out — refresh and try again.')), 20_000)
+      }),
+    ])
+    if (!getFirebaseAuth().currentUser) {
+      throw new Error('You must be signed in before syncing to the cloud.')
+    }
+
+    onProgress?.({ phase: 'preparing' })
+
     for (const base of bases) {
       const existing = cloudPersistTimers.get(base.id)
       if (existing) {
         clearTimeout(existing)
         cloudPersistTimers.delete(base.id)
       }
-      // Skip inlining attachment blobs — that can hang on 1000+ rows; row data syncs in seconds.
-      await writeBaseToCloud(base, { inlineAttachments: false, onProgress })
+      await writeBaseToCloud(base, {
+        inlineAttachments: false,
+        skipCleanup: true,
+        skipIdbMerge: true,
+        onProgress,
+      })
     }
+
+    onProgress?.({ phase: 'done' })
+    return { synced: bases.length, rows }
+  })().finally(() => {
+    cloudSyncInFlight = null
+  })
+
+  try {
+    return await cloudSyncInFlight
   } catch (error) {
     logSyncError('syncAllCachedBasesToCloud', error)
     throw error
   }
-
-  onProgress?.({ phase: 'done' })
-  return { synced: bases.length, rows }
 }
 
 export async function deleteBaseDoc(baseId: string) {

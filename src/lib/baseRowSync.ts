@@ -2,22 +2,34 @@ import {
   collection,
   doc,
   getDocs,
+  setDoc,
   writeBatch,
 } from 'firebase/firestore'
-import type { Base, Row } from '../types'
+import type { Base, Row, Table } from '../types'
 import { mergeTableRowSources } from './baseMerge'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 
 export const TABLE_ROWS_SUBCOL = 'tableRows'
 /** Stay under Firestore's 1 MiB document limit (leave headroom for metadata). */
-const MAX_CHUNK_BYTES = 900_000
+const MAX_CHUNK_BYTES = 700_000
+const MAX_ROWS_PER_CHUNK = 250
 const BATCH_LIMIT = 450
+const WRITE_TIMEOUT_MS = 45_000
 
 function tableRowsCollection(baseId: string) {
   return collection(getFirestoreDb(), 'bases', baseId, TABLE_ROWS_SUBCOL)
 }
 
-function chunkRows(rows: Row[]): Row[][] {
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)
+    }),
+  ])
+}
+
+function chunkRowsByBytes(rows: Row[]): Row[][] {
   if (rows.length === 0) return [[]]
 
   const chunks: Row[][] = []
@@ -38,6 +50,51 @@ function chunkRows(rows: Row[]): Row[][] {
 
   if (current.length > 0) chunks.push(current)
   return chunks
+}
+
+function chunkTableRows(rows: Row[]): Row[][] {
+  if (rows.length === 0) return [[]]
+
+  const slices: Row[][] = []
+  for (let index = 0; index < rows.length; index += MAX_ROWS_PER_CHUNK) {
+    slices.push(rows.slice(index, index + MAX_ROWS_PER_CHUNK))
+  }
+
+  return slices.flatMap((slice) => {
+    const payload = JSON.stringify(slice)
+    return payload.length <= MAX_CHUNK_BYTES ? [slice] : chunkRowsByBytes(slice)
+  })
+}
+
+interface RowWritePlan {
+  docId: string
+  data: Record<string, unknown>
+}
+
+function planTableRowWrites(table: Table, updatedAt: string): RowWritePlan[] {
+  const rows = table.rows ?? []
+  const chunks = chunkTableRows(rows)
+
+  if (chunks.length === 1) {
+    return [
+      {
+        docId: table.id,
+        data: { kind: 'full', tableId: table.id, rows: chunks[0], updatedAt },
+      },
+    ]
+  }
+
+  return chunks.map((chunk, chunkIndex) => ({
+    docId: `${table.id}__${chunkIndex}`,
+    data: {
+      kind: 'chunk',
+      tableId: table.id,
+      chunkIndex,
+      chunkCount: chunks.length,
+      rows: chunk,
+      updatedAt,
+    },
+  }))
 }
 
 /** Load all table row documents for a base from Firestore subcollections. */
@@ -93,78 +150,61 @@ export async function hydrateBaseRowsFromCloud(base: Base): Promise<Base> {
   }
 }
 
-async function commitBatches(
-  writes: Array<{ ref: ReturnType<typeof doc>; data: Record<string, unknown> }>,
-  deletes: Array<ReturnType<typeof doc>>,
-) {
-  const db = getFirestoreDb()
-
-  for (let index = 0; index < deletes.length; index += BATCH_LIMIT) {
-    const batch = writeBatch(db)
-    deletes.slice(index, index + BATCH_LIMIT).forEach((ref) => batch.delete(ref))
-    await batch.commit()
-  }
-
-  for (let index = 0; index < writes.length; index += BATCH_LIMIT) {
-    const batch = writeBatch(db)
-    writes.slice(index, index + BATCH_LIMIT).forEach(({ ref, data }) => batch.set(ref, data))
-    await batch.commit()
-  }
-}
-
-/** Persist each table's rows to Firestore subcollections (chunked when needed). */
+/** Persist each table's rows — one Firestore write at a time so progress stays visible. */
 export async function writeTableRowsToCloud(
   base: Base,
-  onTableProgress?: (info: { tableName: string; tablesDone: number; tablesTotal: number }) => void,
+  onTableProgress?: (info: {
+    tableName: string
+    tablesDone: number
+    tablesTotal: number
+    chunkIndex?: number
+    chunkCount?: number
+  }) => void,
+  options?: { skipCleanup?: boolean },
 ): Promise<void> {
   if (!isFirebaseConfigured()) return
 
   const db = getFirestoreDb()
   const updatedAt = base.updatedAt ?? new Date().toISOString()
   const targetDocIds = new Set<string>()
-  const writes: Array<{ ref: ReturnType<typeof doc>; data: Record<string, unknown> }> = []
   const tablesTotal = base.tables.length
-  let tablesDone = 0
 
-  for (const table of base.tables) {
-    onTableProgress?.({ tableName: table.name, tablesDone, tablesTotal })
-    const rows = table.rows ?? []
-    const payload = JSON.stringify(rows)
+  for (let tableIndex = 0; tableIndex < base.tables.length; tableIndex += 1) {
+    const table = base.tables[tableIndex]
+    const plans = planTableRowWrites(table, updatedAt)
 
-    if (payload.length <= MAX_CHUNK_BYTES) {
-      targetDocIds.add(table.id)
-      writes.push({
-        ref: doc(db, 'bases', base.id, TABLE_ROWS_SUBCOL, table.id),
-        data: { kind: 'full', tableId: table.id, rows, updatedAt },
+    for (let chunkIndex = 0; chunkIndex < plans.length; chunkIndex += 1) {
+      const plan = plans[chunkIndex]
+      targetDocIds.add(plan.docId)
+      onTableProgress?.({
+        tableName: table.name,
+        tablesDone: tableIndex,
+        tablesTotal,
+        chunkIndex,
+        chunkCount: plans.length,
       })
-      continue
+
+      await withTimeout(
+        setDoc(doc(db, 'bases', base.id, TABLE_ROWS_SUBCOL, plan.docId), plan.data),
+        WRITE_TIMEOUT_MS,
+        `Upload ${table.name}${plans.length > 1 ? ` part ${chunkIndex + 1}/${plans.length}` : ''}`,
+      )
     }
-
-    const chunks = chunkRows(rows)
-    chunks.forEach((chunk, chunkIndex) => {
-      const docId = `${table.id}__${chunkIndex}`
-      targetDocIds.add(docId)
-      writes.push({
-        ref: doc(db, 'bases', base.id, TABLE_ROWS_SUBCOL, docId),
-        data: {
-          kind: 'chunk',
-          tableId: table.id,
-          chunkIndex,
-          chunkCount: chunks.length,
-          rows: chunk,
-          updatedAt,
-        },
-      })
-    })
-    tablesDone += 1
   }
 
-  const existing = await getDocs(tableRowsCollection(base.id))
-  const deletes = existing.docs
-    .filter((item) => !targetDocIds.has(item.id))
-    .map((item) => item.ref)
+  if (options?.skipCleanup) return
 
-  await commitBatches(writes, deletes)
+  try {
+    const existing = await withTimeout(getDocs(tableRowsCollection(base.id)), WRITE_TIMEOUT_MS, 'Cleanup scan')
+    const deletes = existing.docs.filter((item) => !targetDocIds.has(item.id)).map((item) => item.ref)
+    for (let index = 0; index < deletes.length; index += BATCH_LIMIT) {
+      const batch = writeBatch(db)
+      deletes.slice(index, index + BATCH_LIMIT).forEach((ref) => batch.delete(ref))
+      await withTimeout(batch.commit(), WRITE_TIMEOUT_MS, 'Cleanup delete')
+    }
+  } catch (error) {
+    console.warn('Row cleanup skipped (upload succeeded):', error)
+  }
 }
 
 /** Remove all row documents for a base (called before deleting the base). */

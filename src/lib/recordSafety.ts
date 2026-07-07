@@ -3,7 +3,7 @@ import { getCache } from './dataStore'
 import { scanRecoverySources } from './dataRecovery'
 import { isFirebaseConfigured } from './firebase'
 import { flushCacheToLocalStorageAsync } from './localPersistence'
-import { syncAllCachedBasesToCloud } from './firestoreSync'
+import { syncAllCachedBasesToCloud, isCloudSyncInProgress } from './firestoreSync'
 
 const BACKGROUND_SYNC_MS = 2 * 60 * 1000
 let lastBackgroundSyncAt = 0
@@ -19,6 +19,10 @@ export async function pushLocalToCloudIfAhead(
   await flushCacheToLocalStorageAsync()
   const scan = await scanRecoverySources(workspaceIds)
   if (scan.currentRows <= scan.cloudRows) {
+    return { pushed: false, localRows: scan.currentRows, cloudRows: scan.cloudRows }
+  }
+
+  if (isCloudSyncInProgress()) {
     return { pushed: false, localRows: scan.currentRows, cloudRows: scan.cloudRows }
   }
 
@@ -43,6 +47,7 @@ export function installRecordSafetyHooks(getWorkspaceIds: () => string[]) {
   if (typeof window === 'undefined') return () => {}
 
   const onPageHide = () => {
+    if (isCloudSyncInProgress()) return
     void flushOnExit(getWorkspaceIds())
   }
 
@@ -56,6 +61,7 @@ export function installRecordSafetyHooks(getWorkspaceIds: () => string[]) {
   const intervalId = window.setInterval(() => {
     const now = Date.now()
     if (now - lastBackgroundSyncAt < BACKGROUND_SYNC_MS) return
+    if (isCloudSyncInProgress()) return
     lastBackgroundSyncAt = now
     void pushLocalToCloudIfAhead(getWorkspaceIds())
   }, BACKGROUND_SYNC_MS)

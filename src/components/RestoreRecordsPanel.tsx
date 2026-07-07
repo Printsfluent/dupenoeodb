@@ -70,9 +70,11 @@ export default function RestoreRecordsPanel() {
     if (progress.phase === 'rows') {
       const total = progress.tablesTotal ?? 1
       const done = (progress.tablesDone ?? 0) + 1
-      setSyncStatus(
-        `Uploading rows: ${progress.tableName ?? 'table'} (${done}/${total})…`,
-      )
+      const part =
+        progress.chunkCount && progress.chunkCount > 1
+          ? ` part ${(progress.chunkIndex ?? 0) + 1}/${progress.chunkCount}`
+          : ''
+      setSyncStatus(`Uploading rows: ${progress.tableName ?? 'table'}${part} (table ${done}/${total})…`)
       return
     }
     if (progress.phase === 'done') {
@@ -88,13 +90,15 @@ export default function RestoreRecordsPanel() {
       toast.success(
         `Uploaded ${result.rows} records to Firestore. Scan again in a few seconds to confirm.`,
       )
+      setSyncStatus(null)
       await runScan()
     } catch (error) {
       console.error('Cloud sync failed:', error)
-      toast.toast('Cloud sync failed — stay in Safari and try again.', 'info')
+      const message = error instanceof Error ? error.message : 'Cloud sync failed'
+      setSyncStatus(`Failed: ${message}`)
+      toast.toast(`${message} — stay in Safari and try again.`, 'info')
     } finally {
       setSyncing(false)
-      setSyncStatus(null)
     }
   }
 
