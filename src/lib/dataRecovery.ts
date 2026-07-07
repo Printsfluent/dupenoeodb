@@ -259,6 +259,7 @@ export interface RecoveryResult {
   recoveredRows: number
   rowsAdded: number
   sources: string[]
+  error?: string
 }
 
 /** Scan every available copy and merge in the fullest row data for each base. */
@@ -397,6 +398,15 @@ export async function runStartupDataRecovery(workspaceIds: string[]): Promise<Re
   return healBasesFromAllSources(workspaceIds)
 }
 
+async function recoveryWorkspaceIds(): Promise<string[]> {
+  const fromCache = [
+    ...getCache().bases.map((base) => base.workspaceId),
+    ...getCache().workspaces.map((workspace) => workspace.id),
+  ]
+  const fromStorage = (await collectRecoverableBasesAsync()).map((base) => base.workspaceId)
+  return [...new Set([...fromCache, ...fromStorage].filter(Boolean))]
+}
+
 export function installRecoveryConsoleHelper() {
   if (typeof window === 'undefined') return
   pruneOversizedHistoryOnStartup()
@@ -408,12 +418,12 @@ export function installRecoveryConsoleHelper() {
   }
   globalWindow.sheetflowScanStorage = scanLocalStorageForBases
   globalWindow.sheetflowScanAllSources = async () => {
-    const workspaceIds = [
-      ...new Set(getCache().bases.map((base) => base.workspaceId).filter(Boolean)),
-      ...new Set(getCache().workspaces.map((workspace) => workspace.id)),
-    ]
+    const workspaceIds = await recoveryWorkspaceIds()
     const result = await scanRecoverySources(workspaceIds)
-    console.info('SheetFlow storage scan:', result)
+    console.log('=== SheetFlow storage scan ===')
+    console.log(`Loaded now: ${result.currentRows} records`)
+    console.log(`Best in this browser: ${result.bestAvailableRows} records`)
+    console.table(result.sources)
     return result
   }
   globalWindow.sheetflowClearStorageBloat = () => {
@@ -421,12 +431,28 @@ export function installRecoveryConsoleHelper() {
     console.info('Cleared bulky local record copies. Reload the page if storage was full.')
   }
   globalWindow.sheetflowRecoverData = async () => {
-    const workspaceIds = [
-      ...new Set(getCache().bases.map((base) => base.workspaceId).filter(Boolean)),
-      ...new Set(getCache().workspaces.map((workspace) => workspace.id)),
-    ]
-    const result = await runManualDataRecovery(workspaceIds)
-    console.info('SheetFlow recovery result:', result)
-    return result
+    try {
+      const workspaceIds = await recoveryWorkspaceIds()
+      const result = await runManualDataRecovery(workspaceIds)
+      console.log('=== SheetFlow recovery ===')
+      console.log(
+        result.restored
+          ? `Restored ${result.rowsAdded} missing records (${result.recoveredRows} total)`
+          : `No richer copy found (${result.recoveredRows} records in this browser)`,
+      )
+      console.log(result)
+      return result
+    } catch (error) {
+      const failed = {
+        restored: false,
+        previousRows: countAllBaseRows(getCache().bases),
+        recoveredRows: countAllBaseRows(getCache().bases),
+        rowsAdded: 0,
+        sources: [],
+        error: error instanceof Error ? error.message : String(error),
+      }
+      console.error('SheetFlow recovery failed:', error)
+      return failed
+    }
   }
 }
