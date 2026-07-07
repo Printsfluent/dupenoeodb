@@ -1,7 +1,7 @@
 import type { Column } from '../types'
 import { normalizeColumnType, isSelectFieldType } from './fieldTypes'
 import { findSelectOption, parseMultiSelectValue } from './selectOptions'
-import { formatDateTimeDisplay, parsePastedDateTime } from './dates'
+import { formatDateTimeDisplay, formatDateDisplay, formatTimeDisplay, parsePastedDateTime, parsePastedDate, parsePastedTime } from './dates'
 import { mergeAttachmentValues, parseAttachments, resolveAttachmentBlobForClipboard, resolveAttachmentsForClipboard, serializeAttachments } from './attachments'
 
 export interface CellCoord {
@@ -83,6 +83,10 @@ export function formatCellForClipboard(col: Column, raw: string): string {
         .map((id) => findSelectOption(col.options ?? [], id)?.label ?? id)
         .join(', ')
     }
+    case 'date':
+      return formatDateDisplay(raw)
+    case 'time':
+      return formatTimeDisplay(raw)
     case 'dateTime':
       return formatDateTimeDisplay(raw)
     default:
@@ -112,6 +116,14 @@ export function resolvePastedValue(col: Column, pasted: string, existing = ''): 
 
   if (normalized === 'autoNumber') {
     return trimmed
+  }
+
+  if (normalized === 'date' && trimmed) {
+    return parsePastedDate(trimmed)
+  }
+
+  if (normalized === 'time' && trimmed) {
+    return parsePastedTime(trimmed)
   }
 
   if (normalized === 'dateTime' && trimmed) {

@@ -1,7 +1,7 @@
 import { useState, useEffect, type ReactNode } from 'react'
 import { Star } from 'lucide-react'
 import type { ColumnType, SelectOption } from '../types'
-import { formatDateDisplay, formatTimeDisplay, mergeDateTimeToIso } from '../lib/dates'
+import { formatDateDisplay, formatTimeDisplay, mergeDateTimeToIso, commitDateInput, commitTimeInput } from '../lib/dates'
 import { normalizeColumnType } from '../lib/fieldTypes'
 import SelectCellEditor from './SelectCellEditor'
 import AttachmentCellEditor from './AttachmentCellEditor'
@@ -37,6 +37,105 @@ function CellInputForm({ children }: { children: ReactNode }) {
     <form autoComplete="off" onSubmit={(e) => e.preventDefault()} className="contents">
       {children}
     </form>
+  )
+}
+
+function DateCellEditor({
+  value,
+  onChange,
+  onDone,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onDone?: () => void
+}) {
+  const cls = inputClass()
+  const [dateText, setDateText] = useState(() => formatDateDisplay(value))
+
+  useEffect(() => {
+    setDateText(formatDateDisplay(value))
+  }, [value])
+
+  function commit(next = dateText) {
+    onChange(commitDateInput(next, value))
+    onDone?.()
+  }
+
+  return (
+    <CellInputForm>
+      <input
+        autoFocus
+        type="text"
+        inputMode="numeric"
+        value={dateText}
+        onChange={(e) => setDateText(e.target.value)}
+        onBlur={() => commit()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            commit()
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            setDateText(formatDateDisplay(value))
+            onDone?.()
+          }
+        }}
+        placeholder="dd/mm/yyyy"
+        aria-label="Date"
+        className={cls}
+        {...disableBrowserAutocomplete}
+      />
+    </CellInputForm>
+  )
+}
+
+function TimeCellEditor({
+  value,
+  onChange,
+  onDone,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onDone?: () => void
+}) {
+  const cls = inputClass()
+  const [timeText, setTimeText] = useState(() => formatTimeDisplay(value))
+
+  useEffect(() => {
+    setTimeText(formatTimeDisplay(value))
+  }, [value])
+
+  function commit(next = timeText) {
+    onChange(commitTimeInput(next, value))
+    onDone?.()
+  }
+
+  return (
+    <CellInputForm>
+      <input
+        autoFocus
+        type="text"
+        value={timeText}
+        onChange={(e) => setTimeText(e.target.value)}
+        onBlur={() => commit()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            commit()
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            setTimeText(formatTimeDisplay(value))
+            onDone?.()
+          }
+        }}
+        placeholder="h:mm AM/PM"
+        aria-label="Time"
+        className={`${cls} tabular-nums`}
+        {...disableBrowserAutocomplete}
+      />
+    </CellInputForm>
   )
 }
 
@@ -112,9 +211,9 @@ function DateTimeCellEditor({
               onDone?.()
             }
           }}
-          placeholder="HH:mm"
+          placeholder="h:mm AM/PM"
           aria-label="Time"
-          className={`${cls} border-0 px-2 py-1 w-[5.5rem] shrink-0 tabular-nums`}
+          className={`${cls} border-0 px-2 py-1 w-[6.5rem] shrink-0 tabular-nums`}
           {...disableBrowserAutocomplete}
         />
       </div>
@@ -286,6 +385,12 @@ export default function CellValueEditor({
           />
         </CellInputForm>
       )
+
+    case 'date':
+      return <DateCellEditor value={value} onChange={commit} onDone={onDone} />
+
+    case 'time':
+      return <TimeCellEditor value={value} onChange={commit} onDone={onDone} />
 
     case 'dateTime':
       return <DateTimeCellEditor value={value} onChange={commit} onDone={onDone} />

@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Type, AlignLeft, Hash, Percent, Paperclip, SquareCheck,
-  Star, Palette, CalendarClock, Shapes, MapPin, Braces, User,
+  Star, Palette, Calendar, Clock, Shapes, MapPin, Braces, User,
   ListChecks, CircleChevronDown,
 } from 'lucide-react'
 import type { ColumnType } from '../types'
@@ -25,7 +25,8 @@ export const FIELD_TYPE_OPTIONS: FieldTypeOption[] = [
   { value: 'multiSelect', label: 'Multi select', icon: ListChecks, group: 'basic' },
   { value: 'rating', label: 'Rating', icon: Star, group: 'advanced' },
   { value: 'colour', label: 'Colour', icon: Palette, group: 'advanced' },
-  { value: 'dateTime', label: 'Date & time', icon: CalendarClock, group: 'advanced' },
+  { value: 'date', label: 'Date', icon: Calendar, group: 'advanced' },
+  { value: 'time', label: 'Time', icon: Clock, group: 'advanced' },
   { value: 'geometry', label: 'Geometry', icon: Shapes, group: 'advanced' },
   { value: 'geoData', label: 'Geo data', icon: MapPin, group: 'advanced' },
   { value: 'json', label: 'JSON', icon: Braces, group: 'advanced' },
@@ -35,7 +36,10 @@ export const FIELD_TYPE_OPTIONS: FieldTypeOption[] = [
 const LEGACY_TYPE_MAP: Record<string, ColumnType> = {
   text: 'singleLineText',
   select: 'singleSelect',
-  date: 'dateTime',
+}
+
+const LEGACY_LABELS: Partial<Record<ColumnType, string>> = {
+  dateTime: 'Date & time',
 }
 
 export function isSelectFieldType(type: ColumnType): boolean {
@@ -49,10 +53,15 @@ export function normalizeColumnType(type: ColumnType): ColumnType {
 
 export function getFieldTypeLabel(type: ColumnType): string {
   const normalized = normalizeColumnType(type)
+  const legacy = LEGACY_LABELS[normalized]
+  if (legacy) return legacy
   return FIELD_TYPE_OPTIONS.find((option) => option.value === normalized)?.label ?? 'Single line text'
 }
 
 export function getFieldTypeOption(type: ColumnType): FieldTypeOption {
   const normalized = normalizeColumnType(type)
+  if (normalized === 'dateTime') {
+    return { value: 'dateTime', label: 'Date & time', icon: Calendar, group: 'advanced' }
+  }
   return FIELD_TYPE_OPTIONS.find((option) => option.value === normalized) ?? FIELD_TYPE_OPTIONS[0]
 }

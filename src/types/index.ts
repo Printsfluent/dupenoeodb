@@ -8,6 +8,8 @@ export type ColumnType =
   | 'checkbox'
   | 'rating'
   | 'colour'
+  | 'date'
+  | 'time'
   | 'dateTime'
   | 'geometry'
   | 'geoData'
@@ -19,8 +21,6 @@ export type ColumnType =
   | 'text'
   /** @deprecated Use singleSelect */
   | 'select'
-  /** @deprecated Use dateTime */
-  | 'date'
 
 export type ColumnEditPermission = 'everyone' | 'creators_only'
 

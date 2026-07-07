@@ -172,6 +172,22 @@ export default function CellValueDisplay({
     case 'number':
       return <span className={`${cellText} tabular-nums`}>{renderHighlighted(value, highlightQuery)}</span>
 
+    case 'date':
+      if (!value) return null
+      return (
+        <span className={`${cellText} tabular-nums`}>
+          {renderHighlighted(formatDateDisplay(value), highlightQuery)}
+        </span>
+      )
+
+    case 'time':
+      if (!value) return null
+      return (
+        <span className={`${cellText} tabular-nums`}>
+          {renderHighlighted(formatTimeDisplay(value), highlightQuery)}
+        </span>
+      )
+
     case 'dateTime':
       if (!value) return null
       return (
