@@ -32,6 +32,8 @@ import { flushCacheToLocalStorage } from '../lib/localPersistence'
 import { getCache, setBases } from '../lib/dataStore'
 import { isFirebaseConfigured, getFirestoreDb } from '../lib/firebase'
 import { COL, ensureBaseInCache, flushPersistBase } from '../lib/firestoreSync'
+import { hydrateBaseRowsFromCloud } from '../lib/baseRowSync'
+import { countBaseRows } from '../lib/baseMerge'
 import { isBaseNewer, stampBase } from '../lib/baseUpdated'
 import { resolveBaseConflict } from '../lib/baseMerge'
 import { rememberLastTable } from '../lib/lastTable'
@@ -183,18 +185,25 @@ export default function BasePage() {
       doc(firestore, COL.bases, baseId),
       (snapshot) => {
         if (!snapshot.exists() || snapshot.metadata.hasPendingWrites) return
-        const remote = normalizeBase({ id: snapshot.id, ...snapshot.data() } as Base)
-        const cached = getCache().bases.find((item) => item.id === baseId)
-        if (!cached) {
-          setBases([remote])
-          return
-        }
-        if (isBaseNewer(cached, remote)) return
-        const next = resolveBaseConflict(cached, remote)
-        setBases([next])
-        if (next.tables.length < remote.tables.length || isBaseNewer(next, cached)) {
-          void flushPersistBase(baseId)
-        }
+        void (async () => {
+          const remote = await hydrateBaseRowsFromCloud(
+            normalizeBase({ id: snapshot.id, ...snapshot.data() } as Base),
+          )
+          const cached = getCache().bases.find((item) => item.id === baseId)
+          if (!cached) {
+            setBases([remote])
+            return
+          }
+          const next = resolveBaseConflict(cached, remote)
+          setBases([next])
+          if (
+            countBaseRows(next) > countBaseRows(remote) ||
+            next.tables.length < remote.tables.length ||
+            isBaseNewer(next, cached)
+          ) {
+            void flushPersistBase(baseId)
+          }
+        })()
       },
       (error) => console.warn('Firestore base listener:', error),
     )

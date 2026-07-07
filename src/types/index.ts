@@ -134,6 +134,8 @@ export interface Base {
   createdAt: string
   /** Set on every local save so cloud sync can prefer the latest edits. */
   updatedAt?: string
+  /** Row data lives in Firestore subcollections (`bases/{id}/tableRows/*`). */
+  rowsStoredSeparately?: boolean
 }
 
 /** SheetFlow spec name for a Base (database inside a workspace). */

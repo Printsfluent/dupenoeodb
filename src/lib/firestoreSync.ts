@@ -23,9 +23,16 @@ import type {
   WorkspaceMember,
 } from '../types'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
-import { pickRicherBase, resolveBaseConflict } from './baseMerge'
+import { countBaseRows, pickRicherBase, resolveBaseConflict } from './baseMerge'
 import { isBaseNewer, stampBase } from './baseUpdated'
 import { inlineAttachmentRefsInBase } from './attachments'
+import {
+  deleteTableRowsFromCloud,
+  hydrateBaseRowsFromCloud,
+  stripRowsFromBaseMetadata,
+  writeTableRowsToCloud,
+} from './baseRowSync'
+import { deleteBaseFromIdb } from './baseLocalStore'
 import { normalizeBase } from './tableSchema'
 import {
   getCache,
@@ -128,10 +135,12 @@ export async function ensureWorkspaceBasesInCache(workspaceId: string) {
     const snapshot = await getDocs(
       query(collection(getFirestoreDb(), COL.bases), where('workspaceId', '==', workspaceId)),
     )
-    const needsSync = mergeBasesForWorkspace(
-      workspaceId,
-      snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Base)),
+    const remoteBases = await Promise.all(
+      snapshot.docs.map(async (item) =>
+        hydrateBaseRowsFromCloud(normalizeBase({ id: item.id, ...item.data() } as Base)),
+      ),
     )
+    const needsSync = mergeBasesForWorkspace(workspaceId, remoteBases)
     if (needsSync.length > 0) {
       await persistBases(needsSync)
     }
@@ -152,7 +161,9 @@ export async function ensureBaseInCache(baseId: string): Promise<Base | null> {
     try {
       const cacheSnap = await getDocFromCache(ref)
       if (cacheSnap.exists()) {
-        remote = normalizeBase({ id: cacheSnap.id, ...cacheSnap.data() } as Base)
+        remote = await hydrateBaseRowsFromCloud(
+          normalizeBase({ id: cacheSnap.id, ...cacheSnap.data() } as Base),
+        )
       }
     } catch {
       // no offline copy yet
@@ -161,7 +172,9 @@ export async function ensureBaseInCache(baseId: string): Promise<Base | null> {
     try {
       const serverSnap = await getDoc(ref)
       if (serverSnap.exists()) {
-        const serverBase = normalizeBase({ id: serverSnap.id, ...serverSnap.data() } as Base)
+        const serverBase = await hydrateBaseRowsFromCloud(
+          normalizeBase({ id: serverSnap.id, ...serverSnap.data() } as Base),
+        )
         remote = remote ? pickRicherBase(remote, serverBase) : serverBase
       }
     } catch (error) {
@@ -173,7 +186,12 @@ export async function ensureBaseInCache(baseId: string): Promise<Base | null> {
     const merged = cached ? resolveBaseConflict(cached, remote) : remote
     setBases([merged])
 
-    if (cached && isBaseNewer(merged, remote)) {
+    if (
+      cached &&
+      (isBaseNewer(merged, remote) ||
+        countBaseRows(merged) > countBaseRows(remote) ||
+        countBaseRows(cached) > countBaseRows(remote))
+    ) {
       try {
         await writeBaseToCloud(merged)
       } catch (error) {
@@ -256,6 +274,9 @@ export async function deleteWorkspaceCascade(
     teams.forEach((team) => batch.delete(doc(getFirestoreDb(), COL.teams, team.id)))
     bases.forEach((base) => batch.delete(doc(getFirestoreDb(), COL.bases, base.id)))
     await batch.commit()
+    for (const base of bases) {
+      await deleteTableRowsFromCloud(base.id)
+    }
   } catch (error) {
     logSyncError('deleteWorkspaceCascade', error)
   }
@@ -268,7 +289,9 @@ async function writeBaseToCloud(base: Base) {
   const normalized = normalizeBase(base)
   const withAttachments = await inlineAttachmentRefsInBase(normalized)
   const stamped = stampBase(withAttachments)
-  await setDoc(doc(getFirestoreDb(), COL.bases, stamped.id), stamped)
+  const metadata = stripRowsFromBaseMetadata(stamped)
+  await setDoc(doc(getFirestoreDb(), COL.bases, stamped.id), metadata)
+  await writeTableRowsToCloud(stamped)
 }
 
 export async function flushPersistBase(baseId: string) {
@@ -310,13 +333,9 @@ export async function persistBases(bases: Base[]) {
   setBases(bases)
   if (skipCloudSync()) return
   try {
-    const batch = writeBatch(getFirestoreDb())
     for (const base of bases) {
-      const normalized = normalizeBase(base)
-      const withAttachments = await inlineAttachmentRefsInBase(normalized)
-      batch.set(doc(getFirestoreDb(), COL.bases, base.id), stampBase(withAttachments))
+      await writeBaseToCloud(base)
     }
-    await batch.commit()
   } catch (error) {
     logSyncError('persistBases', error)
   }
@@ -324,8 +343,10 @@ export async function persistBases(bases: Base[]) {
 
 export async function deleteBaseDoc(baseId: string) {
   setBases([], [baseId])
+  void deleteBaseFromIdb(baseId)
   if (skipCloudSync()) return
   try {
+    await deleteTableRowsFromCloud(baseId)
     await deleteDoc(doc(getFirestoreDb(), COL.bases, baseId))
   } catch (error) {
     logSyncError('deleteBase', error)

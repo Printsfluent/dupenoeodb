@@ -3,6 +3,8 @@ import type { Base, Table } from '../types'
 import { countAllBaseRows, countBaseRows, mergeBasesList, resolveBaseConflict } from './baseMerge'
 import { getCache, setBases } from './dataStore'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
+import { loadAllBasesFromIdb } from './baseLocalStore'
+import { hydrateBaseRowsFromCloud } from './baseRowSync'
 import { COL, ensureBaseInCache } from './firestoreSync'
 import { normalizeBase } from './tableSchema'
 import { clearStorageBloat, pruneOversizedHistoryOnStartup, safeWriteJson } from './safeStorage'
@@ -126,6 +128,11 @@ export function collectRecoverableBases(): Base[] {
   return mergeBasesList([], candidates)
 }
 
+export async function collectRecoverableBasesAsync(): Promise<Base[]> {
+  const idbBases = await loadAllBasesFromIdb()
+  return mergeBasesList(collectRecoverableBases(), idbBases)
+}
+
 export async function recoverBasesFromFirestoreCache(workspaceIds: string[]): Promise<Base[]> {
   if (!isFirebaseConfigured() || workspaceIds.length === 0) return []
 
@@ -138,9 +145,13 @@ export async function recoverBasesFromFirestoreCache(workspaceIds: string[]): Pr
         const snapshot = await getDocsFromCache(
           query(collection(firestore, COL.bases), where('workspaceId', '==', workspaceId)),
         )
-        snapshot.docs.forEach((docSnap) => {
-          recovered.push(normalizeBase({ id: docSnap.id, ...docSnap.data() } as Base))
-        })
+        for (const docSnap of snapshot.docs) {
+          recovered.push(
+            await hydrateBaseRowsFromCloud(
+              normalizeBase({ id: docSnap.id, ...docSnap.data() } as Base),
+            ),
+          )
+        }
       } catch {
         // cache miss for this workspace
       }
@@ -160,7 +171,7 @@ export interface RecoveryResult {
 /** True when older browser/offline copies have more row data than the current cache. */
 export async function canOfferDataRecovery(workspaceIds: string[]): Promise<boolean> {
   const current = getCache().bases
-  let candidates = collectRecoverableBases()
+  let candidates = await collectRecoverableBasesAsync()
 
   if (candidates.length === 0 && workspaceIds.length > 0) {
     candidates = await recoverBasesFromFirestoreCache(workspaceIds)
@@ -191,8 +202,8 @@ export async function runManualDataRecovery(workspaceIds: string[]): Promise<Rec
   }
 
   const sources: string[] = []
-  let candidates = collectRecoverableBases()
-  if (candidates.length > 0) sources.push('localStorage')
+  let candidates = await collectRecoverableBasesAsync()
+  if (candidates.length > 0) sources.push('browser storage')
 
   const cached = await recoverBasesFromFirestoreCache(workspaceIds)
   candidates = mergeBasesList(candidates, cached)
@@ -240,8 +251,8 @@ export async function runStartupDataRecovery(workspaceIds: string[]): Promise<Re
   }
 
   const sources: string[] = []
-  let recovered = collectRecoverableBases()
-  if (recovered.length > 0) sources.push('localStorage')
+  let recovered = await collectRecoverableBasesAsync()
+  if (recovered.length > 0) sources.push('browser storage')
 
   const cached = await recoverBasesFromFirestoreCache(workspaceIds)
   recovered = mergeBasesList(recovered, cached)

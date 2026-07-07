@@ -10,8 +10,20 @@ export function countAllBaseRows(bases: Base[]): number {
   return bases.reduce((sum, base) => sum + countBaseRows(base), 0)
 }
 
+export function countTableRows(table: Table): number {
+  return table.rows?.length ?? 0
+}
+
+function localHasRicherRows(local: Base, remote: Base): boolean {
+  if (countBaseRows(local) > countBaseRows(remote)) return true
+  return local.tables.some((localTable) => {
+    const remoteTable = remote.tables.find((table) => table.id === localTable.id)
+    return !remoteTable || countTableRows(localTable) > countTableRows(remoteTable)
+  })
+}
+
 /** Keep winner rows intact; fill empty cells from the other copy; append rows only on the other side. */
-function unionTableRows(winner: Table, other: Table): Table {
+export function unionTableRows(winner: Table, other: Table): Table {
   const otherByRowId = new Map(other.rows.map((row) => [row.id, row]))
   const winnerRowIds = new Set(winner.rows.map((row) => row.id))
   const extraRows = other.rows.filter((row) => !winnerRowIds.has(row.id))
@@ -36,6 +48,15 @@ function unionTableRows(winner: Table, other: Table): Table {
     columns: winner.columns,
     rows: extraRows.length ? [...mergedRows, ...extraRows] : mergedRows,
   }
+}
+
+/** Combine two copies of the same table, keeping all rows and the fullest cell values. */
+export function mergeTableRowSources(primary: Table, secondary: Table): Table {
+  if (!primary.rows.length) return { ...primary, rows: secondary.rows }
+  if (!secondary.rows.length) return primary
+  const winner = primary.rows.length >= secondary.rows.length ? primary : secondary
+  const other = winner === primary ? secondary : primary
+  return unionTableRows(winner, other)
 }
 
 /** True when local removed tables that still exist on remote (intentional delete on this device). */
@@ -132,6 +153,8 @@ export function mergeWorkspaceBases(workspaceId: string, existing: Base[], incom
     } else if (baseUpdatedAt(localBase) === baseUpdatedAt(remoteBase)) {
       needsCloudSync.push(resolved)
     } else if (resolved.tables.length < remoteBase.tables.length) {
+      needsCloudSync.push(resolved)
+    } else if (localHasRicherRows(localBase, remoteBase)) {
       needsCloudSync.push(resolved)
     }
     return resolved

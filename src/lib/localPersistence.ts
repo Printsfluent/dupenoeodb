@@ -1,6 +1,8 @@
 import type { Base, PlanId, Session } from '../types'
+import { countBaseRows, resolveBaseConflict } from './baseMerge'
 import { isBaseNewer } from './baseUpdated'
 import { normalizeBase } from './tableSchema'
+import { loadAllBasesFromIdb, mergeStoredBases, saveAllBasesToIdb } from './baseLocalStore'
 import {
   getCache,
   setActivityEvents,
@@ -45,16 +47,17 @@ function write<T>(key: string, value: T) {
   safeWriteJson(key, value)
 }
 
-export function hydrateCacheFromLocalStorage() {
+export async function hydrateCacheFromStorage() {
   pruneOversizedHistoryOnStartup()
   setUsers(read(KEYS.users, []))
   setWorkspaces(read(KEYS.workspaces, []))
   const storedBases = read<Base[]>(KEYS.bases, [])
-  if (storedBases.length > 0) {
-    setBases(storedBases.map(normalizeBase))
-  } else {
-    const backupBases = read<Base[]>(KEYS.basesBackup, [])
-    if (backupBases.length > 0) setBases(backupBases.map(normalizeBase))
+  const backupBases = storedBases.length > 0 ? [] : read<Base[]>(KEYS.basesBackup, [])
+  const localStorageBases = storedBases.length > 0 ? storedBases : backupBases
+  const idbBases = await loadAllBasesFromIdb()
+  const mergedBases = mergeStoredBases(localStorageBases, idbBases)
+  if (mergedBases.length > 0) {
+    setBases(mergedBases.map(normalizeBase))
   }
   setMembers(read(KEYS.members, []))
   setTeams(read(KEYS.teams, []))
@@ -62,6 +65,11 @@ export function hydrateCacheFromLocalStorage() {
   setPendingPlans(read<Record<string, PlanId>>(KEYS.pendingPlans, {}))
   setActivityEvents(read(KEYS.activity, []))
   setAppNotifications(read(KEYS.notifications, []))
+}
+
+/** @deprecated Use hydrateCacheFromStorage */
+export function hydrateCacheFromLocalStorage() {
+  void hydrateCacheFromStorage()
 }
 
 function writeCacheNow() {
@@ -72,19 +80,19 @@ function writeCacheNow() {
     const safeBases = cache.bases.map((incoming) => {
       const previous = previousById.get(incoming.id)
       if (!previous) return incoming
-      if (isBaseNewer(previous, incoming) && !isBaseNewer(incoming, previous)) return previous
-      return incoming
+      return resolveBaseConflict(previous, incoming)
     })
 
     write(KEYS.users, cache.users)
     write(KEYS.workspaces, cache.workspaces)
     write(KEYS.bases, safeBases)
+    void saveAllBasesToIdb(safeBases)
 
     const backupBases = read<Base[]>(KEYS.basesBackup, [])
     const backupById = new Map<string, Base>(backupBases.map((base) => [base.id, base]))
     const shouldUpdateBackup = safeBases.some((base) => {
       const backup = backupById.get(base.id)
-      return !backup || isBaseNewer(base, backup)
+      return !backup || isBaseNewer(base, backup) || countBaseRows(base) > countBaseRows(backup)
     })
     if (shouldUpdateBackup) {
       write(KEYS.basesBackup, safeBases)

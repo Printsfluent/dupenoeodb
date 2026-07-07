@@ -41,6 +41,10 @@ service cloud.firestore {
 
     match /bases/{baseId} {
       allow read, write: if signedIn();
+
+      match /tableRows/{rowDocId} {
+        allow read, write: if signedIn();
+      }
     }
 
     match /members/{memberId} {

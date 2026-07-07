@@ -15,8 +15,10 @@ import {
   where,
 } from 'firebase/firestore'
 import { getFirestoreDb, isFirebaseConfigured } from '../lib/firebase'
-import { hydrateCacheFromLocalStorage, persistCacheToLocalStorage } from '../lib/localPersistence'
+import { hydrateCacheFromStorage, persistCacheToLocalStorage } from '../lib/localPersistence'
 import { installRecoveryConsoleHelper, runStartupDataRecovery, runManualDataRecovery, canOfferDataRecovery } from '../lib/dataRecovery'
+import { hydrateBaseRowsFromCloud } from '../lib/baseRowSync'
+import { normalizeBase } from '../lib/tableSchema'
 import { COL, persistBases } from '../lib/firestoreSync'
 import {
   clearDataCache,
@@ -32,7 +34,7 @@ import {
   subscribeDataCache,
 } from '../lib/dataStore'
 import { applyWorkspaceMembersFromFirestore } from '../lib/members'
-import type { PlanId, WorkspaceInvite } from '../types'
+import type { PlanId, WorkspaceInvite, Base } from '../types'
 
 interface DataContextValue {
   ready: boolean
@@ -148,10 +150,10 @@ export function DataProvider({
     }
 
     if (!isFirebaseConfigured()) {
-      hydrateCacheFromLocalStorage()
-      installRecoveryConsoleHelper()
       let cancelled = false
       void (async () => {
+        await hydrateCacheFromStorage()
+        installRecoveryConsoleHelper()
         const ids = computeWorkspaceIds(userId, userEmail)
         await runStartupDataRecovery(ids)
         if (!cancelled) {
@@ -164,12 +166,12 @@ export function DataProvider({
       }
     }
 
-    hydrateCacheFromLocalStorage()
-    installRecoveryConsoleHelper()
-    setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
-
     let cancelled = false
     void (async () => {
+      await hydrateCacheFromStorage()
+      installRecoveryConsoleHelper()
+      setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
+
       const ids = computeWorkspaceIds(userId, userEmail)
       const result = await runStartupDataRecovery(ids)
       if (!cancelled && result.restored) {
@@ -359,14 +361,22 @@ export function DataProvider({
         onSnapshot(
           query(collection(firestore, COL.bases), where('workspaceId', '==', workspaceId)),
           (snapshot) => {
-            const incoming = snapshot.docs
-              .filter((item) => !item.metadata.hasPendingWrites)
-              .map((item) => ({ id: item.id, ...item.data() }) as never)
-            if (incoming.length === 0) return
-            const needsSync = mergeBasesForWorkspace(workspaceId, incoming)
-            if (needsSync.length > 0) {
-              void persistBases(needsSync)
-            }
+            void (async () => {
+              const incoming = await Promise.all(
+                snapshot.docs
+                  .filter((item) => !item.metadata.hasPendingWrites)
+                  .map(async (item) =>
+                    hydrateBaseRowsFromCloud(
+                      normalizeBase({ id: item.id, ...item.data() } as Base),
+                    ),
+                  ),
+              )
+              if (incoming.length === 0) return
+              const needsSync = mergeBasesForWorkspace(workspaceId, incoming)
+              if (needsSync.length > 0) {
+                void persistBases(needsSync)
+              }
+            })()
           },
         ),
       )
