@@ -27,6 +27,7 @@ const ROW_INDEX_WIDTH_PX = 40
 
 interface SpreadsheetGridProps {
   table: Table
+  syncRevision?: string
   onChange: (table: Table) => void
   dark?: boolean
   readOnly?: boolean
@@ -52,6 +53,7 @@ interface ViewState {
 
 export default function SpreadsheetGrid({
   table,
+  syncRevision,
   onChange,
   dark: darkProp,
   readOnly = false,
@@ -90,6 +92,24 @@ export default function SpreadsheetGrid({
   const headerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const gridRef = useRef<HTMLDivElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
+  const [localTable, setLocalTable] = useState(table)
+
+  useEffect(() => {
+    setLocalTable(table)
+  }, [table.id, syncRevision])
+
+  function commitTable(next: Table) {
+    setLocalTable(next)
+    onChange(next)
+  }
+
+  function patchTable(updater: (current: Table) => Table) {
+    setLocalTable((current) => {
+      const next = updater(current)
+      onChange(next)
+      return next
+    })
+  }
 
   useEffect(() => {
     setEditingCell(null)
@@ -107,11 +127,11 @@ export default function SpreadsheetGrid({
       showHidden: false,
       searchQuery: '',
     })
-  }, [table.id])
+  }, [localTable.id])
 
   const visibleColumns = useMemo(
-    () => table.columns.filter((col) => view.showHidden || !col.hidden),
-    [table.columns, view.showHidden],
+    () => localTable.columns.filter((col) => view.showHidden || !col.hidden),
+    [localTable.columns, view.showHidden],
   )
 
   const pinnedColumnId = useMemo(() => {
@@ -124,32 +144,35 @@ export default function SpreadsheetGrid({
     return visibleColumns[0]?.id ?? null
   }, [visibleColumns])
 
-  const hiddenCount = table.columns.filter((col) => col.hidden).length
+  const hiddenCount = localTable.columns.filter((col) => col.hidden).length
   const schemaEditable = canEditFields && canModifySchema
 
   function updateColumns(columns: Column[]) {
     if (!schemaEditable) return
-    onChange({ ...table, columns })
+    commitTable({ ...localTable, columns })
   }
 
   function updateColumn(colId: string, patch: Partial<Column>) {
     if (!schemaEditable) return
-    updateColumns(table.columns.map((col) => (col.id === colId ? { ...col, ...patch } : col)))
+    updateColumns(localTable.columns.map((col) => (col.id === colId ? { ...col, ...patch } : col)))
   }
 
   function updateCell(rowId: string, colId: string, value: string) {
-    const col = table.columns.find((column) => column.id === colId)
+    const col = localTable.columns.find((column) => column.id === colId)
     const applyValue = (nextValue: string) => {
-      onChange({
-        ...table,
-        rows: table.rows.map((row) =>
+      patchTable((current) => ({
+        ...current,
+        rows: current.rows.map((row) =>
           row.id === rowId ? { ...row, cells: { ...row.cells, [colId]: nextValue } } : row,
         ),
-      })
+      }))
     }
 
     if (col && normalizeColumnType(col.type) === 'attachment' && isMediaDataUrl(value)) {
-      void persistAttachmentsForStorage(value).then(applyValue)
+      applyValue(value)
+      void persistAttachmentsForStorage(value).then((stored) => {
+        if (stored !== value) applyValue(stored)
+      })
       return
     }
 
@@ -157,16 +180,15 @@ export default function SpreadsheetGrid({
   }
 
   function getNextAutoNumber(colId: string) {
-    const nums = table.rows
+    const nums = localTable.rows
       .map((row) => parseInt(row.cells[colId] ?? '', 10))
       .filter((n) => !Number.isNaN(n))
     return String(nums.length ? Math.max(...nums) + 1 : 1)
   }
 
-  function addRow() {
-    if (onAddRow && !onAddRow()) return
+  function createRowCells(): Record<string, string> {
     const cells: Record<string, string> = {}
-    table.columns.forEach((col) => {
+    localTable.columns.forEach((col) => {
       if (normalizeColumnType(col.type) === 'autoNumber') {
         cells[col.id] = getNextAutoNumber(col.id)
       } else if (isSelectFieldType(col.type)) {
@@ -175,9 +197,14 @@ export default function SpreadsheetGrid({
         cells[col.id] = ''
       }
     })
-    onChange({
-      ...table,
-      rows: [...table.rows, { id: createId(), cells }],
+    return cells
+  }
+
+  function addRow() {
+    if (onAddRow && !onAddRow()) return
+    commitTable({
+      ...localTable,
+      rows: [...localTable.rows, { id: createId(), cells: createRowCells() }],
     })
   }
 
@@ -288,9 +315,9 @@ export default function SpreadsheetGrid({
       if (!patch.has(update.rowId)) patch.set(update.rowId, new Map())
       patch.get(update.rowId)!.set(update.colId, update.value)
     }
-    onChange({
-      ...table,
-      rows: table.rows.map((row) => {
+    patchTable((current) => ({
+      ...current,
+      rows: current.rows.map((row) => {
         const rowPatch = patch.get(row.id)
         if (!rowPatch) return row
         const cells = { ...row.cells }
@@ -299,7 +326,7 @@ export default function SpreadsheetGrid({
         })
         return { ...row, cells }
       }),
-    })
+    }))
   }
 
   useEffect(() => {
@@ -323,17 +350,17 @@ export default function SpreadsheetGrid({
   }, [showExportMenu])
 
   function deleteRow(rowId: string) {
-    onChange({ ...table, rows: table.rows.filter((r) => r.id !== rowId) })
+    commitTable({ ...localTable, rows: localTable.rows.filter((r) => r.id !== rowId) })
     notify('Row deleted')
   }
 
   function deleteColumn(colId: string) {
-    if (!schemaEditable || table.columns.length <= 1) return
-    const column = table.columns.find((col) => col.id === colId)
-    onChange({
-      ...table,
-      columns: table.columns.filter((c) => c.id !== colId),
-      rows: table.rows.map((row) => {
+    if (!schemaEditable || localTable.columns.length <= 1) return
+    const column = localTable.columns.find((col) => col.id === colId)
+    commitTable({
+      ...localTable,
+      columns: localTable.columns.filter((c) => c.id !== colId),
+      rows: localTable.rows.map((row) => {
         const { [colId]: _removed, ...cells } = row.cells
         return { ...row, cells }
       }),
@@ -350,11 +377,11 @@ export default function SpreadsheetGrid({
 
   function addColumn() {
     if (!schemaEditable) return
-    const col = createColumn(`Column ${table.columns.length + 1}`)
-    onChange({
-      ...table,
-      columns: [...table.columns, col],
-      rows: table.rows.map((row) => ({
+    const col = createColumn(`Column ${localTable.columns.length + 1}`)
+    commitTable({
+      ...localTable,
+      columns: [...localTable.columns, col],
+      rows: localTable.rows.map((row) => ({
         ...row,
         cells: { ...row.cells, [col.id]: '' },
       })),
@@ -363,15 +390,15 @@ export default function SpreadsheetGrid({
 
   function insertColumn(anchorColId: string, side: 'left' | 'right') {
     if (!schemaEditable) return
-    const index = table.columns.findIndex((col) => col.id === anchorColId)
+    const index = localTable.columns.findIndex((col) => col.id === anchorColId)
     if (index === -1) return
-    const col = createColumn(`Column ${table.columns.length + 1}`)
-    const columns = [...table.columns]
+    const col = createColumn(`Column ${localTable.columns.length + 1}`)
+    const columns = [...localTable.columns]
     columns.splice(side === 'left' ? index : index + 1, 0, col)
-    onChange({
-      ...table,
+    commitTable({
+      ...localTable,
       columns,
-      rows: table.rows.map((row) => ({
+      rows: localTable.rows.map((row) => ({
         ...row,
         cells: { ...row.cells, [col.id]: '' },
       })),
@@ -380,21 +407,21 @@ export default function SpreadsheetGrid({
 
   function duplicateColumn(colId: string) {
     if (!schemaEditable) return
-    const source = table.columns.find((col) => col.id === colId)
+    const source = localTable.columns.find((col) => col.id === colId)
     if (!source) return
-    const index = table.columns.findIndex((col) => col.id === colId)
+    const index = localTable.columns.findIndex((col) => col.id === colId)
     const duplicate: Column = {
       ...source,
       id: createId(),
       name: `${source.name} copy`,
       isDisplayValue: false,
     }
-    const columns = [...table.columns]
+    const columns = [...localTable.columns]
     columns.splice(index + 1, 0, duplicate)
-    onChange({
-      ...table,
+    commitTable({
+      ...localTable,
       columns,
-      rows: table.rows.map((row) => ({
+      rows: localTable.rows.map((row) => ({
         ...row,
         cells: { ...row.cells, [duplicate.id]: row.cells[colId] ?? '' },
       })),
@@ -405,7 +432,7 @@ export default function SpreadsheetGrid({
   function setDisplayValue(colId: string) {
     if (!schemaEditable) return
     updateColumns(
-      table.columns.map((col) => ({
+      localTable.columns.map((col) => ({
         ...col,
         isDisplayValue: col.id === colId,
       })),
@@ -452,7 +479,7 @@ export default function SpreadsheetGrid({
   }
 
   const processedRows = useMemo(() => {
-    let rows = [...table.rows]
+    let rows = [...localTable.rows]
 
     if (view.filterColumnId && view.filterValue.trim()) {
       const q = view.filterValue.trim().toLowerCase()
@@ -481,7 +508,7 @@ export default function SpreadsheetGrid({
     }
 
     return rows
-  }, [table.rows, view.filterColumnId, view.filterValue, view.searchQuery, view.sortColumnId, view.sortDirection, visibleColumns])
+  }, [localTable.rows, view.filterColumnId, view.filterValue, view.searchQuery, view.sortColumnId, view.sortDirection, visibleColumns])
 
   const displayRowIds = useMemo(() => processedRows.map((row) => row.id), [processedRows])
   const visibleColIds = useMemo(() => visibleColumns.map((col) => col.id), [visibleColumns])
@@ -502,8 +529,28 @@ export default function SpreadsheetGrid({
     const grid = parseClipboardGrid(text)
     if (!grid.length) return
 
+    const canExpandRows =
+      !view.sortColumnId &&
+      !view.filterColumnId &&
+      !view.searchQuery.trim()
+
     const isSingleValue = grid.length === 1 && grid[0].length === 1
     const updates: { rowId: string; colId: string; value: string }[] = []
+    let workingRows = localTable.rows
+    let workingProcessed = processedRows
+
+    if (canExpandRows && !isSingleValue) {
+      const rowsNeeded = selectionBounds.rowStart + grid.length
+      if (rowsNeeded > processedRows.length) {
+        const extra = rowsNeeded - processedRows.length
+        const appended = Array.from({ length: extra }, () => ({
+          id: createId(),
+          cells: createRowCells(),
+        }))
+        workingRows = [...localTable.rows, ...appended]
+        workingProcessed = [...processedRows, ...appended]
+      }
+    }
 
     if (
       isSingleValue &&
@@ -512,7 +559,8 @@ export default function SpreadsheetGrid({
     ) {
       const value = grid[0][0]
       for (let r = selectionBounds.rowStart; r <= selectionBounds.rowEnd; r++) {
-        const row = processedRows[r]
+        const row = workingProcessed[r]
+        if (!row) continue
         for (let c = selectionBounds.colStart; c <= selectionBounds.colEnd; c++) {
           const col = visibleColumns[c]
           if (!canPasteInto(col)) continue
@@ -526,8 +574,8 @@ export default function SpreadsheetGrid({
     } else {
       for (let r = 0; r < grid.length; r++) {
         const targetRowIdx = selectionBounds.rowStart + r
-        if (targetRowIdx >= processedRows.length) break
-        const row = processedRows[targetRowIdx]
+        if (targetRowIdx >= workingProcessed.length) break
+        const row = workingProcessed[targetRowIdx]
         for (let c = 0; c < grid[r].length; c++) {
           const targetColIdx = selectionBounds.colStart + c
           if (targetColIdx >= visibleColumns.length) break
@@ -542,10 +590,30 @@ export default function SpreadsheetGrid({
       }
     }
 
-    batchUpdateCells(updates)
+    if (workingRows !== localTable.rows) {
+      patchTable((current) => {
+        const patch = new Map<string, Map<string, string>>()
+        for (const update of updates) {
+          if (!patch.has(update.rowId)) patch.set(update.rowId, new Map())
+          patch.get(update.rowId)!.set(update.colId, update.value)
+        }
+        const rows = workingRows.map((row) => {
+          const rowPatch = patch.get(row.id)
+          if (!rowPatch) return row
+          const cells = { ...row.cells }
+          rowPatch.forEach((value, colId) => {
+            cells[colId] = value
+          })
+          return { ...row, cells }
+        })
+        return { ...current, rows }
+      })
+    } else {
+      batchUpdateCells(updates)
+    }
     setEditSession(null)
     setEditingCell(null)
-  }, [selectionBounds, processedRows, visibleColumns, table])
+  }, [selectionBounds, processedRows, visibleColumns, localTable, view.sortColumnId, view.filterColumnId, view.searchQuery])
 
   const clearSelectionCells = useCallback(() => {
     if (!selectionBounds) return
@@ -559,7 +627,7 @@ export default function SpreadsheetGrid({
       }
     }
     batchUpdateCells(updates)
-  }, [selectionBounds, processedRows, visibleColumns, table])
+  }, [selectionBounds, processedRows, visibleColumns, localTable])
 
   const gridStateRef = useRef({
     selection,
@@ -822,11 +890,11 @@ export default function SpreadsheetGrid({
   const headBg = 'bg-app-surface-muted'
   const bodyBg = 'bg-app-bg'
   const activeColumn = fieldMenu
-    ? table.columns.find((col) => col.id === fieldMenu.columnId)
+    ? localTable.columns.find((col) => col.id === fieldMenu.columnId)
     : null
 
   const modalColumn = fieldModal
-    ? table.columns.find((col) => col.id === fieldModal.columnId)
+    ? localTable.columns.find((col) => col.id === fieldModal.columnId)
     : null
 
   const stickyIndexStyle = { left: 0 }
@@ -1100,7 +1168,7 @@ export default function SpreadsheetGrid({
                 <button
                   type="button"
                   onClick={() => {
-                    downloadTableAsCsv(table)
+                    downloadTableAsCsv(localTable)
                     setShowExportMenu(false)
                   }}
                   className="w-full text-left px-3 py-2 text-sm text-app-text hover:bg-app-surface-hover"
@@ -1110,7 +1178,7 @@ export default function SpreadsheetGrid({
                 <button
                   type="button"
                   onClick={() => {
-                    downloadTableAsXlsx(table)
+                    downloadTableAsXlsx(localTable)
                     setShowExportMenu(false)
                   }}
                   className="w-full text-left px-3 py-2 text-sm text-app-text hover:bg-app-surface-hover"
@@ -1224,13 +1292,13 @@ export default function SpreadsheetGrid({
         {processedRows.length === 0 && (
           <div className={`flex flex-col items-center justify-center py-16 ${thText}`}>
             <p className="text-sm">
-              {table.rows.length === 0
+              {localTable.rows.length === 0
                 ? 'No rows yet'
                 : view.searchQuery.trim()
                   ? 'No cells match your search'
                   : 'No rows match the current filter'}
             </p>
-            {table.rows.length === 0 && !readOnly ? (
+            {localTable.rows.length === 0 && !readOnly ? (
               <button
                 type="button"
                 onClick={addRow}
@@ -1238,7 +1306,7 @@ export default function SpreadsheetGrid({
               >
                 Add your first row
               </button>
-            ) : table.rows.length > 0 ? (
+            ) : localTable.rows.length > 0 ? (
               <button
                 type="button"
                 onClick={clearViewOverrides}
@@ -1256,7 +1324,7 @@ export default function SpreadsheetGrid({
         <FieldContextMenu
           column={activeColumn}
           anchorRect={fieldMenu.rect}
-          canDelete={table.columns.length > 1}
+          canDelete={localTable.columns.length > 1}
           canEditFields={schemaEditable}
           schemaEditable={schemaEditable}
           onClose={() => setFieldMenu(null)}
@@ -1298,7 +1366,7 @@ export default function SpreadsheetGrid({
             if (fieldModal.mode === 'edit') {
               const newType = value.type ?? modalColumn.type
               const newName = value.name ?? modalColumn.name
-              const updatedColumns = table.columns.map((col) => {
+              const updatedColumns = localTable.columns.map((col) => {
                 if (col.id !== modalColumn.id) return col
                 const next: Column = { ...col, name: newName, type: newType }
                 if (isSelectFieldType(newType)) {
@@ -1318,9 +1386,9 @@ export default function SpreadsheetGrid({
                 }
                 return next
               })
-              let updatedRows = table.rows
+              let updatedRows = localTable.rows
               if (normalizeColumnType(newType) === 'autoNumber') {
-                updatedRows = table.rows.map((row, index) => ({
+                updatedRows = localTable.rows.map((row, index) => ({
                   ...row,
                   cells: {
                     ...row.cells,
@@ -1330,7 +1398,7 @@ export default function SpreadsheetGrid({
               } else if (isSelectFieldType(newType) && value.defaultValue) {
                 const defaultCell = getDefaultCellValue({ type: newType, defaultValue: value.defaultValue })
                 if (defaultCell) {
-                  updatedRows = table.rows.map((row) => {
+                  updatedRows = localTable.rows.map((row) => {
                     const current = row.cells[modalColumn.id] ?? ''
                     if (current.trim()) return row
                     return {
@@ -1340,7 +1408,7 @@ export default function SpreadsheetGrid({
                   })
                 }
               }
-              onChange({ ...table, columns: updatedColumns, rows: updatedRows })
+              commitTable({ ...localTable, columns: updatedColumns, rows: updatedRows })
             }
             if (fieldModal.mode === 'description') {
               updateColumn(modalColumn.id, { description: value.description })

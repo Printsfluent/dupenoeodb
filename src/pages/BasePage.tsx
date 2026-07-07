@@ -28,7 +28,6 @@ import { isTableStructureChange } from '../lib/tableSchema'
 import { normalizeColumnType } from '../lib/fieldTypes'
 import { useToast } from '../context/ToastContext'
 import { repairWorkspaceForUser } from '../lib/storage'
-import { flushCacheToLocalStorageAsync } from '../lib/localPersistence'
 import { getCache, setBases } from '../lib/dataStore'
 import { isFirebaseConfigured, getFirestoreDb } from '../lib/firebase'
 import { COL, ensureBaseInCache, flushPersistBase } from '../lib/firestoreSync'
@@ -196,6 +195,7 @@ export default function BasePage() {
           }
           const next = resolveBaseConflict(cached, remote)
           setBases([next])
+          setBase((prev) => (prev?.id === baseId ? next : prev))
           if (
             countBaseRows(next) > countBaseRows(remote) ||
             next.tables.length < remote.tables.length ||
@@ -256,7 +256,6 @@ export default function BasePage() {
     const stamped = stampBase(updated)
     upsertBase(stamped, { flush: options?.flush })
     setBase(stamped)
-    void flushCacheToLocalStorageAsync()
   }
 
   function renameBase(name: string) {
@@ -267,39 +266,34 @@ export default function BasePage() {
   function updateTable(table: Table) {
     if (!base || !baseId) return
     if (selectedTableId && table.id !== selectedTableId) return
-    const latest =
-      getWorkspaceBases(base.workspaceId).find((item) => item.id === baseId)
-      ?? getCache().bases.find((item) => item.id === baseId)
-      ?? base
-    const previous = latest.tables.find((item) => item.id === table.id)
-    if (previous && isTableStructureChange(previous, table) && !canManageSchema) {
-      toast.error('Only workspace admins can change fields, columns, or table structure')
-      return
-    }
-    const hasAttachments = table.rows.some((row) =>
-      Object.values(row.cells).some(
-        (cell) => cell.includes('sf-att://') || cell.includes('data:image/') || cell.includes('data:video/'),
-      ),
-    )
-    const attachmentDataChanged =
-      !!previous &&
-      table.rows.some((row) =>
-        table.columns.some((col) => {
-          if (normalizeColumnType(col.type) !== 'attachment') return false
-          const prev =
-            previous.rows.find((item) => item.id === row.id)?.cells[col.id] ?? ''
-          const next = row.cells[col.id] ?? ''
-          return prev !== next
-        }),
-      )
-    const structureChanged = previous ? isTableStructureChange(previous, table) : false
-    saveBase(
-      {
-        ...latest,
-        tables: latest.tables.map((t) => (t.id === table.id ? table : t)),
-      },
-      { flush: structureChanged || hasAttachments || attachmentDataChanged },
-    )
+
+    setBase((prev) => {
+      if (!prev) return prev
+      const previous = prev.tables.find((item) => item.id === table.id)
+      if (previous && isTableStructureChange(previous, table) && !canManageSchema) {
+        toast.error('Only workspace admins can change fields, columns, or table structure')
+        return prev
+      }
+
+      const attachmentDataChanged =
+        !!previous &&
+        table.rows.some((row) =>
+          table.columns.some((col) => {
+            if (normalizeColumnType(col.type) !== 'attachment') return false
+            const prevCell =
+              previous.rows.find((item) => item.id === row.id)?.cells[col.id] ?? ''
+            const nextCell = row.cells[col.id] ?? ''
+            return prevCell !== nextCell
+          }),
+        )
+      const structureChanged = previous ? isTableStructureChange(previous, table) : false
+      const stamped = stampBase({
+        ...prev,
+        tables: prev.tables.map((item) => (item.id === table.id ? table : item)),
+      })
+      upsertBase(stamped, { flush: structureChanged || attachmentDataChanged })
+      return stamped
+    })
   }
 
   function updateTableIcon(tableId: string, icon: string | null) {
@@ -674,6 +668,7 @@ export default function BasePage() {
           <SpreadsheetGrid
             key={activeTable.id}
             table={activeTable}
+            syncRevision={base.updatedAt}
             onChange={updateTable}
             readOnly={!canEdit}
             canEditFields={canManageSchema}

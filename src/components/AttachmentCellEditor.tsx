@@ -42,9 +42,12 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
   }, [attachments.length, viewIndex])
 
   const commit = useCallback(
-    async (next: string) => {
-      const persisted = await persistAttachmentsForStorage(next)
-      onChange(persisted)
+    (next: string) => {
+      setDraft(next)
+      onChange(next)
+      void persistAttachmentsForStorage(next).then((persisted) => {
+        if (persisted !== next) onChange(persisted)
+      })
       onDone?.()
     },
     [onChange, onDone],
@@ -52,7 +55,10 @@ export default function AttachmentCellEditor({ value, onChange, onDone }: Attach
 
   function applyDraft(next: string) {
     setDraft(next)
-    void persistAttachmentsForStorage(next).then(onChange)
+    onChange(next)
+    void persistAttachmentsForStorage(next).then((persisted) => {
+      if (persisted !== next) onChange(persisted)
+    })
   }
 
   function appendAttachments(incoming: string) {

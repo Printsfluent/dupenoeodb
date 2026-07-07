@@ -173,6 +173,16 @@ export async function loadArchivedBasesFromIdb(): Promise<Base[]> {
   }
 }
 
+export async function saveBaseToIdb(base: Base): Promise<void> {
+  try {
+    const normalized = normalizeBase(base)
+    await maybeArchiveBase(normalized)
+    await idbPut(normalized)
+  } catch (error) {
+    console.warn('IndexedDB base save failed:', error)
+  }
+}
+
 export async function saveAllBasesToIdb(bases: Base[]): Promise<void> {
   try {
     for (const base of bases) {

@@ -7,6 +7,7 @@ import {
   loadArchivedBasesFromIdb,
   mergeStoredBases,
   saveAllBasesToIdb,
+  saveBaseToIdb,
 } from './baseLocalStore'
 import {
   getCache,
@@ -45,8 +46,10 @@ const KEYS = {
 const MAX_LOCALSTORAGE_BASES_BYTES = 400_000
 
 const PERSIST_DEBOUNCE_MS = 500
+const BASE_PERSIST_DEBOUNCE_MS = 250
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 let persistChain: Promise<void> = Promise.resolve()
+const basePersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -109,7 +112,8 @@ export function hydrateCacheFromLocalStorage() {
   void hydrateCacheFromStorage()
 }
 
-async function writeCacheNow() {
+async function writeCacheNow(options?: { includeBases?: boolean }) {
+  const includeBases = options?.includeBases ?? false
   try {
     const cache = getCache()
     const previousBases = readLocalStorageBases()
@@ -120,23 +124,24 @@ async function writeCacheNow() {
       return resolveBaseConflict(previous, incoming)
     })
 
-    // IndexedDB first — large tables exceed Safari localStorage quota.
-    await saveAllBasesToIdb(safeBases)
+    if (includeBases) {
+      await saveAllBasesToIdb(safeBases)
 
-    const basesPayload = JSON.stringify(safeBases)
-    if (basesPayload.length <= MAX_LOCALSTORAGE_BASES_BYTES) {
-      const savedMain = safeWriteJson(KEYS.bases, safeBases, { idbFallback: true })
-      const backupBases = read<Base[]>(KEYS.basesBackup, [])
-      const backupById = new Map<string, Base>(backupBases.map((base) => [base.id, base]))
-      const shouldUpdateBackup = safeBases.some((base) => {
-        const backup = backupById.get(base.id)
-        return !backup || isBaseNewer(base, backup) || countBaseRows(base) > countBaseRows(backup)
-      })
-      if (shouldUpdateBackup && savedMain) {
-        safeWriteJson(KEYS.basesBackup, safeBases, { idbFallback: true })
+      const basesPayload = JSON.stringify(safeBases)
+      if (basesPayload.length <= MAX_LOCALSTORAGE_BASES_BYTES) {
+        const savedMain = safeWriteJson(KEYS.bases, safeBases, { idbFallback: true })
+        const backupBases = read<Base[]>(KEYS.basesBackup, [])
+        const backupById = new Map<string, Base>(backupBases.map((base) => [base.id, base]))
+        const shouldUpdateBackup = safeBases.some((base) => {
+          const backup = backupById.get(base.id)
+          return !backup || isBaseNewer(base, backup) || countBaseRows(base) > countBaseRows(backup)
+        })
+        if (shouldUpdateBackup && savedMain) {
+          safeWriteJson(KEYS.basesBackup, safeBases, { idbFallback: true })
+        }
+      } else {
+        freeLocalStorageForLargeBases()
       }
-    } else {
-      freeLocalStorageForLargeBases()
     }
 
     write(KEYS.users, cache.users)
@@ -152,18 +157,31 @@ async function writeCacheNow() {
   }
 }
 
-function queuePersist() {
-  persistChain = persistChain.then(() => writeCacheNow()).catch((error) => {
+function queuePersist(includeBases = false) {
+  persistChain = persistChain.then(() => writeCacheNow({ includeBases })).catch((error) => {
     console.warn('Failed to persist cache:', error)
   })
   return persistChain
+}
+
+/** Debounced save for one base — fast path for grid edits. */
+export function schedulePersistBaseToIdb(base: Base) {
+  const existing = basePersistTimers.get(base.id)
+  if (existing) clearTimeout(existing)
+  basePersistTimers.set(
+    base.id,
+    setTimeout(() => {
+      basePersistTimers.delete(base.id)
+      void saveBaseToIdb(base)
+    }, BASE_PERSIST_DEBOUNCE_MS),
+  )
 }
 
 export function persistCacheToLocalStorage() {
   if (persistTimer) clearTimeout(persistTimer)
   persistTimer = setTimeout(() => {
     persistTimer = null
-    void queuePersist()
+    void queuePersist(false)
   }, PERSIST_DEBOUNCE_MS)
 }
 
@@ -172,7 +190,7 @@ export function flushCacheToLocalStorage() {
     clearTimeout(persistTimer)
     persistTimer = null
   }
-  void queuePersist()
+  void queuePersist(true)
 }
 
 export async function flushCacheToLocalStorageAsync() {
@@ -180,7 +198,9 @@ export async function flushCacheToLocalStorageAsync() {
     clearTimeout(persistTimer)
     persistTimer = null
   }
-  await queuePersist()
+  for (const timer of basePersistTimers.values()) clearTimeout(timer)
+  basePersistTimers.clear()
+  await queuePersist(true)
 }
 
 export function getLocalSession(): Session | null {
