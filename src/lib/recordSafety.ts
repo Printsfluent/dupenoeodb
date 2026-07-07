@@ -1,6 +1,5 @@
 import { countAllBaseRows } from './baseMerge'
 import { getCache } from './dataStore'
-import { scanRecoverySources } from './dataRecovery'
 import { isFirebaseConfigured } from './firebase'
 import { flushCacheToLocalStorageAsync } from './localPersistence'
 import { syncAllCachedBasesToCloud, isCloudSyncInProgress } from './firestoreSync'
@@ -16,18 +15,18 @@ export async function pushLocalToCloudIfAhead(
     return { pushed: false, localRows: countAllBaseRows(getCache().bases), cloudRows: 0 }
   }
 
-  await flushCacheToLocalStorageAsync()
-  const scan = await scanRecoverySources(workspaceIds)
-  if (scan.currentRows <= scan.cloudRows) {
-    return { pushed: false, localRows: scan.currentRows, cloudRows: scan.cloudRows }
+  const localRows = countAllBaseRows(getCache().bases)
+  if (localRows === 0) {
+    return { pushed: false, localRows: 0, cloudRows: 0 }
   }
 
   if (isCloudSyncInProgress()) {
-    return { pushed: false, localRows: scan.currentRows, cloudRows: scan.cloudRows }
+    return { pushed: false, localRows, cloudRows: 0 }
   }
 
+  await flushCacheToLocalStorageAsync()
   await syncAllCachedBasesToCloud()
-  return { pushed: true, localRows: scan.currentRows, cloudRows: scan.cloudRows }
+  return { pushed: true, localRows, cloudRows: 0 }
 }
 
 async function flushOnExit(workspaceIds: string[]) {

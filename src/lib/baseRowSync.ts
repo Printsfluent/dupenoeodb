@@ -14,7 +14,8 @@ export const TABLE_ROWS_SUBCOL = 'tableRows'
 const MAX_CHUNK_BYTES = 700_000
 const MAX_ROWS_PER_CHUNK = 250
 const BATCH_LIMIT = 450
-const WRITE_TIMEOUT_MS = 45_000
+const WRITE_TIMEOUT_MS = 30_000
+const UPLOAD_CONCURRENCY = 4
 
 function tableRowsCollection(baseId: string) {
   return collection(getFirestoreDb(), 'bases', baseId, TABLE_ROWS_SUBCOL)
@@ -150,7 +151,60 @@ export async function hydrateBaseRowsFromCloud(base: Base): Promise<Base> {
   }
 }
 
-/** Persist each table's rows — one Firestore write at a time so progress stays visible. */
+interface RowUploadTask {
+  tableName: string
+  tableIndex: number
+  tablesTotal: number
+  chunkIndex: number
+  chunkCount: number
+  plan: RowWritePlan
+}
+
+async function uploadRowTasksConcurrently(
+  baseId: string,
+  tasks: RowUploadTask[],
+  onTableProgress?: (info: {
+    tableName: string
+    tablesDone: number
+    tablesTotal: number
+    chunkIndex?: number
+    chunkCount?: number
+  }) => void,
+) {
+  if (tasks.length === 0) return
+
+  const db = getFirestoreDb()
+  let nextIndex = 0
+
+  async function worker() {
+    while (nextIndex < tasks.length) {
+      const taskIndex = nextIndex
+      nextIndex += 1
+      const task = tasks[taskIndex]
+      onTableProgress?.({
+        tableName: task.tableName,
+        tablesDone: task.tableIndex,
+        tablesTotal: task.tablesTotal,
+        chunkIndex: task.chunkIndex,
+        chunkCount: task.chunkCount,
+      })
+
+      const label = `Upload ${task.tableName}${
+        task.chunkCount > 1 ? ` part ${task.chunkIndex + 1}/${task.chunkCount}` : ''
+      }`
+      await withTimeout(
+        setDoc(doc(db, 'bases', baseId, TABLE_ROWS_SUBCOL, task.plan.docId), task.plan.data),
+        WRITE_TIMEOUT_MS,
+        label,
+      )
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(UPLOAD_CONCURRENCY, tasks.length) }, () => worker())
+  await Promise.all(workers)
+}
+
+/** Persist each table's rows in parallel chunks so large uploads finish quickly. */
 export async function writeTableRowsToCloud(
   base: Base,
   onTableProgress?: (info: {
@@ -164,36 +218,32 @@ export async function writeTableRowsToCloud(
 ): Promise<void> {
   if (!isFirebaseConfigured()) return
 
-  const db = getFirestoreDb()
   const updatedAt = base.updatedAt ?? new Date().toISOString()
   const targetDocIds = new Set<string>()
   const tablesTotal = base.tables.length
+  const tasks: RowUploadTask[] = []
 
   for (let tableIndex = 0; tableIndex < base.tables.length; tableIndex += 1) {
     const table = base.tables[tableIndex]
     const plans = planTableRowWrites(table, updatedAt)
-
-    for (let chunkIndex = 0; chunkIndex < plans.length; chunkIndex += 1) {
-      const plan = plans[chunkIndex]
+    plans.forEach((plan, chunkIndex) => {
       targetDocIds.add(plan.docId)
-      onTableProgress?.({
+      tasks.push({
         tableName: table.name,
-        tablesDone: tableIndex,
+        tableIndex,
         tablesTotal,
         chunkIndex,
         chunkCount: plans.length,
+        plan,
       })
-
-      await withTimeout(
-        setDoc(doc(db, 'bases', base.id, TABLE_ROWS_SUBCOL, plan.docId), plan.data),
-        WRITE_TIMEOUT_MS,
-        `Upload ${table.name}${plans.length > 1 ? ` part ${chunkIndex + 1}/${plans.length}` : ''}`,
-      )
-    }
+    })
   }
+
+  await uploadRowTasksConcurrently(base.id, tasks, onTableProgress)
 
   if (options?.skipCleanup) return
 
+  const db = getFirestoreDb()
   try {
     const existing = await withTimeout(getDocs(tableRowsCollection(base.id)), WRITE_TIMEOUT_MS, 'Cleanup scan')
     const deletes = existing.docs.filter((item) => !targetDocIds.has(item.id)).map((item) => item.ref)

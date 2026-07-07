@@ -22,7 +22,13 @@ import type {
   WorkspaceInvite,
   WorkspaceMember,
 } from '../types'
-import { getFirestoreDb, isFirebaseConfigured, getFirebaseAuth, waitForAuthReady } from './firebase'
+import {
+  getFirestoreDb,
+  isFirebaseConfigured,
+  getFirebaseAuth,
+  waitForAuthReady,
+  setFirestoreNetworkEnabled,
+} from './firebase'
 import {
   countBaseRows,
   pickRicherBase,
@@ -312,6 +318,11 @@ interface WriteBaseOptions {
 }
 
 let cloudSyncInFlight: Promise<{ synced: number; rows: number }> | null = null
+let cloudSyncProgressHandler: ((progress: CloudSyncProgress) => void) | undefined
+
+function reportCloudSyncProgress(progress: CloudSyncProgress) {
+  cloudSyncProgressHandler?.(progress)
+}
 
 export function isCloudSyncInProgress() {
   return cloudSyncInFlight !== null
@@ -403,32 +414,50 @@ export async function persistBases(bases: Base[]) {
   }
 }
 
+async function resolveBasesForCloudUpload(): Promise<Base[]> {
+  const cacheBases = getCache().bases.map(normalizeBase)
+  const cacheRows = countAllBaseRows(cacheBases)
+  if (cacheRows > 0) return cacheBases
+
+  reportCloudSyncProgress({ phase: 'preparing', baseName: 'Loading browser storage…' })
+  const idbBases = await Promise.race([
+    loadAllBasesFromIdb(),
+    new Promise<Base[]>((_, reject) => {
+      window.setTimeout(() => reject(new Error('Browser storage read timed out — refresh and try again.')), 15_000)
+    }),
+  ]).catch(() => [] as Base[])
+  const bases = mergeBasesRichest([...cacheBases, ...idbBases])
+  if (bases.length > 0) setBases(bases)
+  return bases
+}
+
 /** Upload every cached database (all rows) to Firestore — use when local copy is ahead of the cloud. */
 export async function syncAllCachedBasesToCloud(
   onProgress?: (progress: CloudSyncProgress) => void,
 ): Promise<{ synced: number; rows: number }> {
+  if (onProgress) cloudSyncProgressHandler = onProgress
   if (cloudSyncInFlight) return cloudSyncInFlight
 
   cloudSyncInFlight = (async () => {
-    const idbBases = await loadAllBasesFromIdb().catch(() => [] as Base[])
-    const cacheBases = getCache().bases.map(normalizeBase)
-    const bases = mergeBasesRichest([...cacheBases, ...idbBases])
+    reportCloudSyncProgress({ phase: 'preparing' })
+
+    const bases = await resolveBasesForCloudUpload()
     if (bases.length === 0) return { synced: 0, rows: 0 }
-    setBases(bases)
     const rows = countAllBaseRows(bases)
     if (skipCloudSync()) return { synced: bases.length, rows }
+
+    reportCloudSyncProgress({ phase: 'preparing', baseName: 'Connecting to cloud…' })
+    await setFirestoreNetworkEnabled(true)
 
     await Promise.race([
       waitForAuthReady(),
       new Promise<never>((_, reject) => {
-        window.setTimeout(() => reject(new Error('Sign-in check timed out — refresh and try again.')), 20_000)
+        window.setTimeout(() => reject(new Error('Sign-in check timed out — refresh and try again.')), 15_000)
       }),
     ])
     if (!getFirebaseAuth().currentUser) {
       throw new Error('You must be signed in before syncing to the cloud.')
     }
-
-    onProgress?.({ phase: 'preparing' })
 
     for (const base of bases) {
       const existing = cloudPersistTimers.get(base.id)
@@ -440,14 +469,15 @@ export async function syncAllCachedBasesToCloud(
         inlineAttachments: false,
         skipCleanup: true,
         skipIdbMerge: true,
-        onProgress,
+        onProgress: reportCloudSyncProgress,
       })
     }
 
-    onProgress?.({ phase: 'done' })
+    reportCloudSyncProgress({ phase: 'done' })
     return { synced: bases.length, rows }
   })().finally(() => {
     cloudSyncInFlight = null
+    cloudSyncProgressHandler = undefined
   })
 
   try {

@@ -193,13 +193,16 @@ export function DataProvider({
             : `Restored ${result.recoveredRows} records from ${result.sources.join(' and ')}.`,
         )
       }
+      // Defer auto cloud backup so manual "Sync all records" is not blocked on load.
       if (!cancelled && isFirebaseConfigured()) {
-        const backup = await pushLocalToCloudIfAhead(ids)
-        if (backup.pushed) {
-          setRecoveryMessage(
-            `Backed up ${backup.localRows} records to the cloud (was ${backup.cloudRows} on server).`,
-          )
-        }
+        window.setTimeout(() => {
+          if (cancelled) return
+          void pushLocalToCloudIfAhead(ids).then((backup) => {
+            if (backup.pushed) {
+              setRecoveryMessage(`Backed up ${backup.localRows} records to the cloud.`)
+            }
+          })
+        }, 120_000)
       }
       if (!cancelled) setReady(true)
     })()

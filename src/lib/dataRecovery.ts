@@ -471,9 +471,27 @@ export function installRecoveryConsoleHelper() {
   globalWindow.sheetflowScanAllSources = runScan
   globalWindow.sheetflowScan = runScan
   globalWindow.sheetflowSyncToCloud = async () => {
-    const result = await syncAllCachedBasesToCloud()
+    let lastStatus = 'Starting…'
+    const result = await syncAllCachedBasesToCloud((progress) => {
+      if (progress.phase === 'preparing') {
+        lastStatus = progress.baseName ?? 'Preparing upload…'
+      } else if (progress.phase === 'metadata') {
+        lastStatus = `Uploading ${progress.baseName ?? 'database'} info…`
+      } else if (progress.phase === 'rows') {
+        const total = progress.tablesTotal ?? 1
+        const done = (progress.tablesDone ?? 0) + 1
+        const part =
+          progress.chunkCount && progress.chunkCount > 1
+            ? ` part ${(progress.chunkIndex ?? 0) + 1}/${progress.chunkCount}`
+            : ''
+        lastStatus = `Uploading ${progress.tableName ?? 'table'}${part} (${done}/${total})…`
+      } else if (progress.phase === 'done') {
+        lastStatus = 'Finishing…'
+      }
+      console.log('[SheetFlow sync]', lastStatus)
+    })
     alert(
-      `SheetFlow cloud sync\n\nUploaded ${result.rows} records from ${result.synced} database${result.synced === 1 ? '' : 's'} to Firestore.\n\nWait 10 seconds, then scan again to confirm Firestore server matches.`,
+      `SheetFlow cloud sync\n\nUploaded ${result.rows} records from ${result.synced} database${result.synced === 1 ? '' : 's'} to Firestore.\n\nLast step: ${lastStatus}\n\nWait 10 seconds, then run sheetflowScan() to confirm Firestore server matches.`,
     )
     console.log('SheetFlow cloud sync:', result)
     return result

@@ -60,7 +60,9 @@ export default function RestoreRecordsPanel() {
 
   function handleSyncProgress(progress: CloudSyncProgress) {
     if (progress.phase === 'preparing') {
-      setSyncStatus('Preparing upload…')
+      setSyncStatus(
+        progress.baseName ? `${progress.baseName}` : 'Preparing upload…',
+      )
       return
     }
     if (progress.phase === 'metadata') {
@@ -84,7 +86,7 @@ export default function RestoreRecordsPanel() {
 
   async function handleSyncToCloud() {
     setSyncing(true)
-    setSyncStatus('Starting upload…')
+    setSyncStatus('Connecting to cloud…')
     try {
       const result = await syncAllCachedBasesToCloud(handleSyncProgress)
       toast.success(
