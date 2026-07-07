@@ -28,7 +28,7 @@ import { isTableStructureChange } from '../lib/tableSchema'
 import { normalizeColumnType } from '../lib/fieldTypes'
 import { useToast } from '../context/ToastContext'
 import { repairWorkspaceForUser } from '../lib/storage'
-import { flushCacheToLocalStorage } from '../lib/localPersistence'
+import { flushCacheToLocalStorageAsync } from '../lib/localPersistence'
 import { getCache, setBases } from '../lib/dataStore'
 import { isFirebaseConfigured, getFirestoreDb } from '../lib/firebase'
 import { COL, ensureBaseInCache, flushPersistBase } from '../lib/firestoreSync'
@@ -256,7 +256,7 @@ export default function BasePage() {
     const stamped = stampBase(updated)
     upsertBase(stamped, { flush: options?.flush })
     setBase(stamped)
-    flushCacheToLocalStorage()
+    void flushCacheToLocalStorageAsync()
   }
 
   function renameBase(name: string) {

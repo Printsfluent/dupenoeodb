@@ -2,7 +2,12 @@ import type { Base, PlanId, Session } from '../types'
 import { countBaseRows, resolveBaseConflict } from './baseMerge'
 import { isBaseNewer } from './baseUpdated'
 import { normalizeBase } from './tableSchema'
-import { loadAllBasesFromIdb, mergeStoredBases, saveAllBasesToIdb } from './baseLocalStore'
+import {
+  loadAllBasesFromIdb,
+  loadArchivedBasesFromIdb,
+  mergeStoredBases,
+  saveAllBasesToIdb,
+} from './baseLocalStore'
 import {
   getCache,
   setActivityEvents,
@@ -15,13 +20,18 @@ import {
   setUsers,
   setWorkspaces,
 } from './dataStore'
-import { pruneOversizedHistoryOnStartup, safeWriteJson } from './safeStorage'
+import {
+  BASES_MAIN_KEY,
+  freeLocalStorageForLargeBases,
+  pruneOversizedHistoryOnStartup,
+  safeWriteJson,
+} from './safeStorage'
 
 const KEYS = {
   users: 'gridvault_users',
   session: 'gridvault_session',
   workspaces: 'gridvault_workspaces',
-  bases: 'gridvault_bases',
+  bases: BASES_MAIN_KEY,
   basesBackup: 'gridvault_bases_backup',
   members: 'gridvault_members',
   teams: 'gridvault_teams',
@@ -31,8 +41,12 @@ const KEYS = {
   notifications: 'gridvault_notifications',
 } as const
 
+/** Above this size, full bases stay in IndexedDB only (Safari localStorage is ~5MB). */
+const MAX_LOCALSTORAGE_BASES_BYTES = 400_000
+
 const PERSIST_DEBOUNCE_MS = 500
 let persistTimer: ReturnType<typeof setTimeout> | null = null
+let persistChain: Promise<void> = Promise.resolve()
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -47,18 +61,41 @@ function write<T>(key: string, value: T) {
   safeWriteJson(key, value)
 }
 
+function readLocalStorageBases(): Base[] {
+  const stored = read<Base[]>(KEYS.bases, [])
+  if (stored.length > 0 && stored.every((base) => Array.isArray(base.tables))) {
+    return stored
+  }
+  const backup = read<Base[]>(KEYS.basesBackup, [])
+  if (backup.length > 0 && backup.every((base) => Array.isArray(base.tables))) {
+    return backup
+  }
+  return []
+}
+
 export async function hydrateCacheFromStorage() {
   pruneOversizedHistoryOnStartup()
+
   setUsers(read(KEYS.users, []))
   setWorkspaces(read(KEYS.workspaces, []))
-  const storedBases = read<Base[]>(KEYS.bases, [])
-  const backupBases = storedBases.length > 0 ? [] : read<Base[]>(KEYS.basesBackup, [])
-  const localStorageBases = storedBases.length > 0 ? storedBases : backupBases
+
   const idbBases = await loadAllBasesFromIdb()
-  const mergedBases = mergeStoredBases(localStorageBases, idbBases)
+  const archivedBases = await loadArchivedBasesFromIdb()
+  const localStorageBases = readLocalStorageBases()
+  const mergedBases = mergeStoredBases(localStorageBases, [...idbBases, ...archivedBases])
+
   if (mergedBases.length > 0) {
     setBases(mergedBases.map(normalizeBase))
+    // Keep IndexedDB authoritative and free Safari localStorage when bases are large.
+    if (idbBases.length > 0 || archivedBases.length > 0) {
+      await saveAllBasesToIdb(mergedBases)
+      const payload = JSON.stringify(mergedBases)
+      if (payload.length > MAX_LOCALSTORAGE_BASES_BYTES) {
+        freeLocalStorageForLargeBases()
+      }
+    }
   }
+
   setMembers(read(KEYS.members, []))
   setTeams(read(KEYS.teams, []))
   setInvites(read(KEYS.invites, []))
@@ -72,10 +109,10 @@ export function hydrateCacheFromLocalStorage() {
   void hydrateCacheFromStorage()
 }
 
-function writeCacheNow() {
+async function writeCacheNow() {
   try {
     const cache = getCache()
-    const previousBases = read<Base[]>(KEYS.bases, [])
+    const previousBases = readLocalStorageBases()
     const previousById = new Map<string, Base>(previousBases.map((base) => [base.id, base]))
     const safeBases = cache.bases.map((incoming) => {
       const previous = previousById.get(incoming.id)
@@ -83,21 +120,27 @@ function writeCacheNow() {
       return resolveBaseConflict(previous, incoming)
     })
 
-    write(KEYS.users, cache.users)
-    write(KEYS.workspaces, cache.workspaces)
-    write(KEYS.bases, safeBases)
-    void saveAllBasesToIdb(safeBases)
+    // IndexedDB first — large tables exceed Safari localStorage quota.
+    await saveAllBasesToIdb(safeBases)
 
-    const backupBases = read<Base[]>(KEYS.basesBackup, [])
-    const backupById = new Map<string, Base>(backupBases.map((base) => [base.id, base]))
-    const shouldUpdateBackup = safeBases.some((base) => {
-      const backup = backupById.get(base.id)
-      return !backup || isBaseNewer(base, backup) || countBaseRows(base) > countBaseRows(backup)
-    })
-    if (shouldUpdateBackup) {
-      write(KEYS.basesBackup, safeBases)
+    const basesPayload = JSON.stringify(safeBases)
+    if (basesPayload.length <= MAX_LOCALSTORAGE_BASES_BYTES) {
+      const savedMain = safeWriteJson(KEYS.bases, safeBases, { idbFallback: true })
+      const backupBases = read<Base[]>(KEYS.basesBackup, [])
+      const backupById = new Map<string, Base>(backupBases.map((base) => [base.id, base]))
+      const shouldUpdateBackup = safeBases.some((base) => {
+        const backup = backupById.get(base.id)
+        return !backup || isBaseNewer(base, backup) || countBaseRows(base) > countBaseRows(backup)
+      })
+      if (shouldUpdateBackup && savedMain) {
+        safeWriteJson(KEYS.basesBackup, safeBases, { idbFallback: true })
+      }
+    } else {
+      freeLocalStorageForLargeBases()
     }
 
+    write(KEYS.users, cache.users)
+    write(KEYS.workspaces, cache.workspaces)
     write(KEYS.members, cache.members)
     write(KEYS.teams, cache.teams)
     write(KEYS.invites, cache.invites)
@@ -105,15 +148,22 @@ function writeCacheNow() {
     write(KEYS.activity, cache.activityEvents)
     write(KEYS.notifications, cache.appNotifications)
   } catch (error) {
-    console.warn('Failed to persist cache to localStorage:', error)
+    console.warn('Failed to persist cache:', error)
   }
+}
+
+function queuePersist() {
+  persistChain = persistChain.then(() => writeCacheNow()).catch((error) => {
+    console.warn('Failed to persist cache:', error)
+  })
+  return persistChain
 }
 
 export function persistCacheToLocalStorage() {
   if (persistTimer) clearTimeout(persistTimer)
   persistTimer = setTimeout(() => {
     persistTimer = null
-    writeCacheNow()
+    void queuePersist()
   }, PERSIST_DEBOUNCE_MS)
 }
 
@@ -122,7 +172,15 @@ export function flushCacheToLocalStorage() {
     clearTimeout(persistTimer)
     persistTimer = null
   }
-  writeCacheNow()
+  void queuePersist()
+}
+
+export async function flushCacheToLocalStorageAsync() {
+  if (persistTimer) {
+    clearTimeout(persistTimer)
+    persistTimer = null
+  }
+  await queuePersist()
 }
 
 export function getLocalSession(): Session | null {
