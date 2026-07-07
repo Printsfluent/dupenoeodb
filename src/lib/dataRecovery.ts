@@ -134,6 +134,69 @@ export async function collectRecoverableBasesAsync(): Promise<Base[]> {
   return mergeBasesRichest([...collectRecoverableBases(), ...idbBases, ...archivedBases])
 }
 
+export interface RecoverySourceScan {
+  source: string
+  rowCount: number
+}
+
+export interface RecoveryScanResult {
+  currentRows: number
+  bestAvailableRows: number
+  sources: RecoverySourceScan[]
+}
+
+function pushSourceScan(scans: RecoverySourceScan[], source: string, bases: Base[]) {
+  if (bases.length === 0) return
+  scans.push({ source, rowCount: countAllBaseRows(bases.map(normalizeBase)) })
+}
+
+/** List row counts found in each local/cloud copy — safe to run before restoring. */
+export async function scanRecoverySources(workspaceIds: string[]): Promise<RecoveryScanResult> {
+  const scans: RecoverySourceScan[] = []
+  const pool: Base[] = [...getCache().bases.map(normalizeBase)]
+  const currentRows = countAllBaseRows(pool)
+  pushSourceScan(scans, 'App right now', pool)
+
+  pushSourceScan(scans, 'localStorage (main)', readJson<Base[]>(BASES_KEY, []))
+  pool.push(...readJson<Base[]>(BASES_KEY, []).map(normalizeBase))
+
+  pushSourceScan(scans, 'localStorage (backup)', readJson<Base[]>(BASES_BACKUP_KEY, []))
+  pool.push(...readJson<Base[]>(BASES_BACKUP_KEY, []).map(normalizeBase))
+
+  pushSourceScan(scans, 'localStorage (history)', readHistoryBases())
+  pool.push(...readHistoryBases())
+
+  for (const item of scanLocalStorageForBases()) {
+    if (item.key === BASES_KEY || item.key === BASES_BACKUP_KEY || item.key === BASES_HISTORY_KEY) continue
+    scans.push({ source: `localStorage (${item.key})`, rowCount: item.rowCount })
+    pool.push(...item.bases)
+  }
+
+  const idbBases = await loadAllBasesFromIdb()
+  pushSourceScan(scans, 'IndexedDB (this browser)', idbBases)
+  pool.push(...idbBases)
+
+  const archivedBases = await loadArchivedBasesFromIdb()
+  pushSourceScan(scans, 'IndexedDB archives', archivedBases)
+  pool.push(...archivedBases)
+
+  const cached = await recoverBasesFromFirestoreCache(workspaceIds)
+  pushSourceScan(scans, 'Safari offline cache', cached)
+  pool.push(...cached)
+
+  const server = await recoverBasesFromFirestoreServer(workspaceIds)
+  pushSourceScan(scans, 'Firestore server', server)
+  pool.push(...server)
+
+  const bestAvailableRows = countAllBaseRows(mergeBasesRichest(pool))
+
+  return {
+    currentRows,
+    bestAvailableRows,
+    sources: scans.sort((a, b) => b.rowCount - a.rowCount),
+  }
+}
+
 export async function recoverBasesFromFirestoreServer(workspaceIds: string[]): Promise<Base[]> {
   if (!isFirebaseConfigured() || workspaceIds.length === 0) return []
 
@@ -340,9 +403,19 @@ export function installRecoveryConsoleHelper() {
   const globalWindow = window as Window & {
     sheetflowRecoverData?: () => Promise<RecoveryResult>
     sheetflowScanStorage?: () => ReturnType<typeof scanLocalStorageForBases>
+    sheetflowScanAllSources?: () => Promise<RecoveryScanResult>
     sheetflowClearStorageBloat?: () => void
   }
   globalWindow.sheetflowScanStorage = scanLocalStorageForBases
+  globalWindow.sheetflowScanAllSources = async () => {
+    const workspaceIds = [
+      ...new Set(getCache().bases.map((base) => base.workspaceId).filter(Boolean)),
+      ...new Set(getCache().workspaces.map((workspace) => workspace.id)),
+    ]
+    const result = await scanRecoverySources(workspaceIds)
+    console.info('SheetFlow storage scan:', result)
+    return result
+  }
   globalWindow.sheetflowClearStorageBloat = () => {
     clearStorageBloat()
     console.info('Cleared bulky local record copies. Reload the page if storage was full.')
