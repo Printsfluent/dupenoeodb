@@ -103,12 +103,15 @@ export function DataProvider({
     if (result.restored) {
       setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
       setCacheVersion((v) => v + 1)
+      const added = result.rowsAdded
       setRecoveryMessage(
-        `Restored ${result.recoveredRows} records from ${result.sources.join(' and ')}.`,
+        added > 0
+          ? `Restored ${added} missing record${added === 1 ? '' : 's'} (${result.recoveredRows} total) from ${result.sources.join(' and ')}.`
+          : `Restored ${result.recoveredRows} records from ${result.sources.join(' and ')}.`,
       )
     } else {
       setRecoveryMessage(
-        'No older records were found in this browser or offline cache. Try another device where you last edited the data.',
+        'No older records were found in this browser, offline cache, or Firestore. Try another device or browser where you last edited the data before the update.',
       )
     }
   }, [userId, userEmail])
@@ -177,8 +180,11 @@ export function DataProvider({
       if (!cancelled && result.restored) {
         setWorkspaceIds(computeWorkspaceIds(userId, userEmail))
         setCacheVersion((v) => v + 1)
+        const added = result.rowsAdded
         setRecoveryMessage(
-          `Restored ${result.recoveredRows} records from ${result.sources.join(' and ')}.`,
+          added > 0
+            ? `Restored ${added} missing record${added === 1 ? '' : 's'} (${result.recoveredRows} total) from ${result.sources.join(' and ')}.`
+            : `Restored ${result.recoveredRows} records from ${result.sources.join(' and ')}.`,
         )
       }
       if (!cancelled) setReady(true)

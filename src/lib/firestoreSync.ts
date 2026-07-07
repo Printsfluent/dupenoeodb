@@ -23,9 +23,10 @@ import type {
   WorkspaceMember,
 } from '../types'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
-import { countBaseRows, pickRicherBase, resolveBaseConflict } from './baseMerge'
+import { countBaseRows, pickRicherBase, resolveBaseConflict, mergeBaseRichest, baseHasMoreRowsThan } from './baseMerge'
 import { isBaseNewer, stampBase } from './baseUpdated'
 import { inlineAttachmentRefsInBase } from './attachments'
+import { loadAllBasesFromIdb } from './baseLocalStore'
 import {
   deleteTableRowsFromCloud,
   hydrateBaseRowsFromCloud,
@@ -286,7 +287,18 @@ const cloudPersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const CLOUD_PERSIST_DEBOUNCE_MS = 450
 
 async function writeBaseToCloud(base: Base) {
-  const normalized = normalizeBase(base)
+  let normalized = normalizeBase(base)
+  try {
+    const idbBases = await loadAllBasesFromIdb()
+    const idb = idbBases.find((item) => item.id === normalized.id)
+    if (idb && baseHasMoreRowsThan(idb, normalized)) {
+      normalized = mergeBaseRichest(normalized, idb)
+      setBases([normalized])
+    }
+  } catch (error) {
+    logSyncError('writeBaseToCloud:idb', error)
+  }
+
   const withAttachments = await inlineAttachmentRefsInBase(normalized)
   const stamped = stampBase(withAttachments)
   const metadata = stripRowsFromBaseMetadata(stamped)

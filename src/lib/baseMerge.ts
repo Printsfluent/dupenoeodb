@@ -14,12 +14,19 @@ export function countTableRows(table: Table): number {
   return table.rows?.length ?? 0
 }
 
-function localHasRicherRows(local: Base, remote: Base): boolean {
-  if (countBaseRows(local) > countBaseRows(remote)) return true
-  return local.tables.some((localTable) => {
-    const remoteTable = remote.tables.find((table) => table.id === localTable.id)
-    return !remoteTable || countTableRows(localTable) > countTableRows(remoteTable)
+/** True when `a` has strictly more row data than `b` (total or per-table). */
+export function baseHasMoreRowsThan(a: Base, b: Base): boolean {
+  const left = normalizeBase(a)
+  const right = normalizeBase(b)
+  if (countBaseRows(left) > countBaseRows(right)) return true
+  return left.tables.some((leftTable) => {
+    const rightTable = right.tables.find((table) => table.id === leftTable.id)
+    return !rightTable || countTableRows(leftTable) > countTableRows(rightTable)
   })
+}
+
+function localHasRicherRows(local: Base, remote: Base): boolean {
+  return baseHasMoreRowsThan(local, remote)
 }
 
 /** Keep winner rows intact; fill empty cells from the other copy; append rows only on the other side. */
@@ -57,6 +64,48 @@ export function mergeTableRowSources(primary: Table, secondary: Table): Table {
   const winner = primary.rows.length >= secondary.rows.length ? primary : secondary
   const other = winner === primary ? secondary : primary
   return unionTableRows(winner, other)
+}
+
+/** Union every row from both bases — used for recovery; never drops rows by timestamp. */
+export function mergeBaseRichest(a: Base, b: Base): Base {
+  const left = normalizeBase(a)
+  const right = normalizeBase(b)
+  if (left.id !== right.id) return left
+
+  const tableIds = new Set([
+    ...left.tables.map((table) => table.id),
+    ...right.tables.map((table) => table.id),
+  ])
+
+  const tables = Array.from(tableIds).map((tableId) => {
+    const leftTable = left.tables.find((table) => table.id === tableId)
+    const rightTable = right.tables.find((table) => table.id === tableId)
+    if (!leftTable) return rightTable!
+    if (!rightTable) return leftTable
+    return mergeTableRowSources(leftTable, rightTable)
+  })
+
+  const metadata = baseHasMoreRowsThan(left, right)
+    ? left
+    : baseHasMoreRowsThan(right, left)
+      ? right
+      : left
+
+  return {
+    ...metadata,
+    tables,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+/** Fold many copies of the same bases together, keeping the fullest row data for each id. */
+export function mergeBasesRichest(bases: Base[]): Base[] {
+  const byId = new Map<string, Base>()
+  for (const base of bases.map(normalizeBase)) {
+    const existing = byId.get(base.id)
+    byId.set(base.id, existing ? mergeBaseRichest(existing, base) : base)
+  }
+  return Array.from(byId.values())
 }
 
 /** True when local removed tables that still exist on remote (intentional delete on this device). */
@@ -155,6 +204,8 @@ export function mergeWorkspaceBases(workspaceId: string, existing: Base[], incom
     } else if (resolved.tables.length < remoteBase.tables.length) {
       needsCloudSync.push(resolved)
     } else if (localHasRicherRows(localBase, remoteBase)) {
+      needsCloudSync.push(resolved)
+    } else if (countBaseRows(resolved) > countBaseRows(remoteBase)) {
       needsCloudSync.push(resolved)
     }
     return resolved

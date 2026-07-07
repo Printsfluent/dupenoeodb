@@ -1,11 +1,11 @@
-import { collection, getDocsFromCache, query, where } from 'firebase/firestore'
+import { collection, getDocs, getDocsFromCache, query, where } from 'firebase/firestore'
 import type { Base, Table } from '../types'
-import { countAllBaseRows, countBaseRows, mergeBasesList, resolveBaseConflict } from './baseMerge'
+import { countAllBaseRows, mergeBasesList, mergeBasesRichest, mergeBaseRichest, baseHasMoreRowsThan } from './baseMerge'
 import { getCache, setBases } from './dataStore'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
-import { loadAllBasesFromIdb } from './baseLocalStore'
+import { loadAllBasesFromIdb, loadArchivedBasesFromIdb } from './baseLocalStore'
 import { hydrateBaseRowsFromCloud } from './baseRowSync'
-import { COL, ensureBaseInCache } from './firestoreSync'
+import { COL, ensureBaseInCache, persistBases } from './firestoreSync'
 import { normalizeBase } from './tableSchema'
 import { clearStorageBloat, pruneOversizedHistoryOnStartup, safeWriteJson } from './safeStorage'
 
@@ -130,7 +130,36 @@ export function collectRecoverableBases(): Base[] {
 
 export async function collectRecoverableBasesAsync(): Promise<Base[]> {
   const idbBases = await loadAllBasesFromIdb()
-  return mergeBasesList(collectRecoverableBases(), idbBases)
+  const archivedBases = await loadArchivedBasesFromIdb()
+  return mergeBasesRichest([...collectRecoverableBases(), ...idbBases, ...archivedBases])
+}
+
+export async function recoverBasesFromFirestoreServer(workspaceIds: string[]): Promise<Base[]> {
+  if (!isFirebaseConfigured() || workspaceIds.length === 0) return []
+
+  const firestore = getFirestoreDb()
+  const recovered: Base[] = []
+
+  await Promise.all(
+    workspaceIds.map(async (workspaceId) => {
+      try {
+        const snapshot = await getDocs(
+          query(collection(firestore, COL.bases), where('workspaceId', '==', workspaceId)),
+        )
+        for (const docSnap of snapshot.docs) {
+          recovered.push(
+            await hydrateBaseRowsFromCloud(
+              normalizeBase({ id: docSnap.id, ...docSnap.data() } as Base),
+            ),
+          )
+        }
+      } catch (error) {
+        console.warn('Firestore server recovery failed for workspace', workspaceId, error)
+      }
+    }),
+  )
+
+  return recovered
 }
 
 export async function recoverBasesFromFirestoreCache(workspaceIds: string[]): Promise<Base[]> {
@@ -165,7 +194,79 @@ export interface RecoveryResult {
   restored: boolean
   previousRows: number
   recoveredRows: number
+  rowsAdded: number
   sources: string[]
+}
+
+/** Scan every available copy and merge in the fullest row data for each base. */
+export async function healBasesFromAllSources(workspaceIds: string[]): Promise<RecoveryResult> {
+  const current = getCache().bases.map(normalizeBase)
+  const previousRows = countAllBaseRows(current)
+  const sources: string[] = []
+  const pool: Base[] = [...current]
+
+  const local = await collectRecoverableBasesAsync()
+  if (local.length > 0) {
+    pool.push(...local)
+    sources.push('browser storage')
+  }
+
+  const cached = await recoverBasesFromFirestoreCache(workspaceIds)
+  if (cached.length > 0) {
+    pool.push(...cached)
+    sources.push('firestore-cache')
+  }
+
+  const server = await recoverBasesFromFirestoreServer(workspaceIds)
+  if (server.length > 0) {
+    pool.push(...server)
+    sources.push('firestore-server')
+  }
+
+  const richest = mergeBasesRichest(pool)
+  const byId = new Map(current.map((base) => [base.id, base]))
+  const changed: Base[] = []
+
+  for (const base of richest) {
+    const existing = byId.get(base.id)
+    if (!existing) {
+      byId.set(base.id, base)
+      changed.push(base)
+      continue
+    }
+    const merged = mergeBaseRichest(existing, base)
+    if (baseHasMoreRowsThan(merged, existing)) {
+      byId.set(base.id, merged)
+      changed.push(merged)
+    }
+  }
+
+  const nextBases = Array.from(byId.values())
+  const recoveredRows = countAllBaseRows(nextBases)
+  const rowsAdded = recoveredRows - previousRows
+
+  if (rowsAdded <= 0) {
+    return { restored: false, previousRows, recoveredRows: previousRows, rowsAdded: 0, sources: [] }
+  }
+
+  setBases(nextBases)
+  appendBasesHistory(nextBases)
+
+  if (isFirebaseConfigured() && changed.length > 0) {
+    try {
+      await persistBases(changed)
+    } catch (error) {
+      console.warn('Failed to push recovered bases to Firestore:', error)
+    }
+  }
+
+  return {
+    restored: true,
+    previousRows,
+    recoveredRows,
+    rowsAdded,
+    sources: [...new Set(sources)],
+  }
 }
 
 /** True when older browser/offline copies have more row data than the current cache. */
@@ -176,104 +277,61 @@ export async function canOfferDataRecovery(workspaceIds: string[]): Promise<bool
   if (candidates.length === 0 && workspaceIds.length > 0) {
     candidates = await recoverBasesFromFirestoreCache(workspaceIds)
   }
+  if (candidates.length === 0 && workspaceIds.length > 0) {
+    candidates = await recoverBasesFromFirestoreServer(workspaceIds)
+  }
   if (candidates.length === 0) return false
 
   if (current.length === 0) {
     return countAllBaseRows(candidates) > 0
   }
 
-  const currentById = new Map(
-    current.map((base) => [base.id, countBaseRows(normalizeBase(base))]),
-  )
-  return candidates.some((base) => {
-    const recoveredRows = countBaseRows(normalizeBase(base))
-    const existingRows = currentById.get(base.id) ?? 0
-    return recoveredRows > existingRows
-  })
+  const richest = mergeBasesRichest([...current.map(normalizeBase), ...candidates.map(normalizeBase)])
+  return countAllBaseRows(richest) > countAllBaseRows(current)
 }
 
-/** Merge richer offline copies into the current cache without overwriting intentional deletes. */
+/** Merge richer copies from every source into the current cache. */
 export async function runManualDataRecovery(workspaceIds: string[]): Promise<RecoveryResult> {
-  const current = getCache().bases.map(normalizeBase)
-  const previousRows = countAllBaseRows(current)
-
-  if (!(await canOfferDataRecovery(workspaceIds))) {
-    return { restored: false, previousRows, recoveredRows: previousRows, sources: [] }
-  }
-
-  const sources: string[] = []
-  let candidates = await collectRecoverableBasesAsync()
-  if (candidates.length > 0) sources.push('browser storage')
-
-  const cached = await recoverBasesFromFirestoreCache(workspaceIds)
-  candidates = mergeBasesList(candidates, cached)
-  if (cached.length > 0) sources.push('firestore-cache')
-
-  const byId = new Map(current.map((base) => [base.id, base]))
-  let changed = false
-
-  for (const candidate of candidates) {
-    const normalized = normalizeBase(candidate)
-    const existing = byId.get(normalized.id)
-    if (!existing) {
-      byId.set(normalized.id, normalized)
-      changed = true
-      continue
-    }
-    if (countBaseRows(normalized) <= countBaseRows(existing)) continue
-    byId.set(normalized.id, resolveBaseConflict(existing, normalized))
-    changed = true
-  }
-
-  if (!changed) {
-    return { restored: false, previousRows, recoveredRows: previousRows, sources: [] }
-  }
-
-  const nextBases = Array.from(byId.values())
-  setBases(nextBases)
-  appendBasesHistory(nextBases)
-
-  return {
-    restored: true,
-    previousRows,
-    recoveredRows: countAllBaseRows(nextBases),
-    sources: [...new Set(sources)],
-  }
+  return healBasesFromAllSources(workspaceIds)
 }
 
 export async function runStartupDataRecovery(workspaceIds: string[]): Promise<RecoveryResult> {
   const current = getCache().bases
-  const previousRows = countAllBaseRows(current)
 
-  // Never overwrite hydrated cache — row-rich backups resurrect deleted tables/columns.
-  if (current.length > 0) {
-    return { restored: false, previousRows, recoveredRows: previousRows, sources: [] }
+  if (current.length === 0) {
+    const sources: string[] = []
+    let recovered = await collectRecoverableBasesAsync()
+    if (recovered.length > 0) sources.push('browser storage')
+
+    const cached = await recoverBasesFromFirestoreCache(workspaceIds)
+    recovered = mergeBasesList(recovered, cached)
+    if (cached.length > 0) sources.push('firestore-cache')
+
+    const server = await recoverBasesFromFirestoreServer(workspaceIds)
+    recovered = mergeBasesList(recovered, server)
+    if (server.length > 0) sources.push('firestore-server')
+
+    if (recovered.length === 0) {
+      return { restored: false, previousRows: 0, recoveredRows: 0, rowsAdded: 0, sources: [] }
+    }
+
+    setBases(recovered)
+    appendBasesHistory(recovered)
+
+    await Promise.all(recovered.map((base) => ensureBaseInCache(base.id)))
+
+    const recoveredRows = countAllBaseRows(recovered)
+    return {
+      restored: true,
+      previousRows: 0,
+      recoveredRows,
+      rowsAdded: recoveredRows,
+      sources,
+    }
   }
 
-  const sources: string[] = []
-  let recovered = await collectRecoverableBasesAsync()
-  if (recovered.length > 0) sources.push('browser storage')
-
-  const cached = await recoverBasesFromFirestoreCache(workspaceIds)
-  recovered = mergeBasesList(recovered, cached)
-  if (cached.length > 0) sources.push('firestore-cache')
-
-  if (recovered.length === 0) {
-    return { restored: false, previousRows: 0, recoveredRows: 0, sources: [] }
-  }
-
-  setBases(recovered)
-  appendBasesHistory(recovered)
-
-  await Promise.all(recovered.map((base) => ensureBaseInCache(base.id)))
-
-  const recoveredRows = countAllBaseRows(recovered)
-  return {
-    restored: true,
-    previousRows: 0,
-    recoveredRows,
-    sources,
-  }
+  // Cache exists — still scan all sources in case a richer copy was missed on hydrate.
+  return healBasesFromAllSources(workspaceIds)
 }
 
 export function installRecoveryConsoleHelper() {

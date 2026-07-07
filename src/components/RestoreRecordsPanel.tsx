@@ -19,9 +19,8 @@ export default function RestoreRecordsPanel() {
     <section className="rounded-xl border border-app-border bg-app-surface p-6">
       <h2 className="text-sm font-semibold text-app-text mb-1">Restore records</h2>
       <p className="text-xs text-app-faint mb-4">
-        Scan this browser for older copies of your data — local storage, IndexedDB, and offline
-        cache. Use this if rows disappeared after a refresh. Works best on the same device where
-        you last edited the data.
+        Scan this browser and Firestore for older copies of your data — local storage, IndexedDB,
+        offline cache, and the server. Use this if rows disappeared after a refresh.
       </p>
       {localMode && (
         <p className="text-xs text-brand-300 mb-4">
