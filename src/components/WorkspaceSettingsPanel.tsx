@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
 import { useNavigate } from 'react-router-dom'
+import RestoreRecordsPanel from './RestoreRecordsPanel'
 
 interface WorkspaceSettingsPanelProps {
   workspace: Workspace
@@ -179,6 +180,8 @@ export default function WorkspaceSettingsPanel({
           </div>
         )}
       </section>
+
+      <RestoreRecordsPanel />
 
       {hasFullAccess && (
         <section className="rounded-xl border border-app-border bg-app-surface p-6">
