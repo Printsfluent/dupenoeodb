@@ -414,18 +414,55 @@ export function installRecoveryConsoleHelper() {
     sheetflowRecoverData?: () => Promise<RecoveryResult>
     sheetflowScanStorage?: () => ReturnType<typeof scanLocalStorageForBases>
     sheetflowScanAllSources?: () => Promise<RecoveryScanResult>
+    sheetflowScan?: () => Promise<RecoveryScanResult>
     sheetflowClearStorageBloat?: () => void
+    sheetflowLastScanResult?: RecoveryScanResult
+    sheetflowLastRecoveryResult?: RecoveryResult
   }
+
+  const showScanAlert = (result: RecoveryScanResult) => {
+    globalWindow.sheetflowLastScanResult = result
+    const missing = Math.max(0, result.bestAvailableRows - result.currentRows)
+    const lines = [
+      `Loaded now: ${result.currentRows} records`,
+      `Best in this Safari browser: ${result.bestAvailableRows} records`,
+    ]
+    if (missing > 0) lines.push(`${missing} missing record${missing === 1 ? '' : 's'} can be restored.`)
+    else if (result.bestAvailableRows === 0) lines.push('No table data found in this browser.')
+    else lines.push('No richer copy found in this browser.')
+    alert(`SheetFlow storage scan\n\n${lines.join('\n')}`)
+  }
+
+  const showRecoveryAlert = (result: RecoveryResult) => {
+    globalWindow.sheetflowLastRecoveryResult = result
+    if (result.error) {
+      alert(`SheetFlow recovery failed\n\n${result.error}`)
+      return
+    }
+    if (result.restored) {
+      alert(
+        `SheetFlow recovery complete\n\nRestored ${result.rowsAdded} missing record${result.rowsAdded === 1 ? '' : 's'}.\nTotal now: ${result.recoveredRows} records.\n\nCheck your table, wait 10 seconds, then refresh once.`,
+      )
+      return
+    }
+    alert(
+      `SheetFlow recovery\n\nNo richer copy found in this Safari browser.\nTotal: ${result.recoveredRows} records.\n\nIf you expected more, the extra rows may already have been overwritten here.`,
+    )
+  }
+
   globalWindow.sheetflowScanStorage = scanLocalStorageForBases
-  globalWindow.sheetflowScanAllSources = async () => {
+  const runScan = async () => {
     const workspaceIds = await recoveryWorkspaceIds()
     const result = await scanRecoverySources(workspaceIds)
     console.log('=== SheetFlow storage scan ===')
     console.log(`Loaded now: ${result.currentRows} records`)
     console.log(`Best in this browser: ${result.bestAvailableRows} records`)
     console.table(result.sources)
+    showScanAlert(result)
     return result
   }
+  globalWindow.sheetflowScanAllSources = runScan
+  globalWindow.sheetflowScan = runScan
   globalWindow.sheetflowClearStorageBloat = () => {
     clearStorageBloat()
     console.info('Cleared bulky local record copies. Reload the page if storage was full.')
@@ -441,9 +478,10 @@ export function installRecoveryConsoleHelper() {
           : `No richer copy found (${result.recoveredRows} records in this browser)`,
       )
       console.log(result)
+      showRecoveryAlert(result)
       return result
     } catch (error) {
-      const failed = {
+      const failed: RecoveryResult = {
         restored: false,
         previousRows: countAllBaseRows(getCache().bases),
         recoveredRows: countAllBaseRows(getCache().bases),
@@ -452,6 +490,7 @@ export function installRecoveryConsoleHelper() {
         error: error instanceof Error ? error.message : String(error),
       }
       console.error('SheetFlow recovery failed:', error)
+      showRecoveryAlert(failed)
       return failed
     }
   }
