@@ -15,6 +15,7 @@ import {
   persistUser,
   persistWorkspace,
 } from './firestoreSync'
+import { flushCacheToLocalStorageAsync } from './localPersistence'
 import {
   ensureUserIsOwner,
   getAllMembers,
@@ -244,6 +245,7 @@ export function upsertWorkspace(workspace: Workspace) {
 
 export function upsertBase(base: Base, options?: { flush?: boolean }) {
   void persistBase(base)
+  void flushCacheToLocalStorageAsync()
   if (options?.flush) void flushPersistBase(base.id)
 }
 
