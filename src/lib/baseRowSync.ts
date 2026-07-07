@@ -113,15 +113,21 @@ async function commitBatches(
 }
 
 /** Persist each table's rows to Firestore subcollections (chunked when needed). */
-export async function writeTableRowsToCloud(base: Base): Promise<void> {
+export async function writeTableRowsToCloud(
+  base: Base,
+  onTableProgress?: (info: { tableName: string; tablesDone: number; tablesTotal: number }) => void,
+): Promise<void> {
   if (!isFirebaseConfigured()) return
 
   const db = getFirestoreDb()
   const updatedAt = base.updatedAt ?? new Date().toISOString()
   const targetDocIds = new Set<string>()
   const writes: Array<{ ref: ReturnType<typeof doc>; data: Record<string, unknown> }> = []
+  const tablesTotal = base.tables.length
+  let tablesDone = 0
 
   for (const table of base.tables) {
+    onTableProgress?.({ tableName: table.name, tablesDone, tablesTotal })
     const rows = table.rows ?? []
     const payload = JSON.stringify(rows)
 
@@ -150,6 +156,7 @@ export async function writeTableRowsToCloud(base: Base): Promise<void> {
         },
       })
     })
+    tablesDone += 1
   }
 
   const existing = await getDocs(tableRowsCollection(base.id))

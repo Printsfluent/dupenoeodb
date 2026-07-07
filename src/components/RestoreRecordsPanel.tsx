@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext'
 import { useToast } from '../context/ToastContext'
 import { getCache } from '../lib/dataStore'
 import { scanRecoverySources, type RecoveryScanResult } from '../lib/dataRecovery'
-import { syncAllCachedBasesToCloud } from '../lib/firestoreSync'
+import { syncAllCachedBasesToCloud, type CloudSyncProgress } from '../lib/firestoreSync'
 
 function computeWorkspaceIds(userId: string, email: string) {
   const cache = getCache()
@@ -29,6 +29,7 @@ export default function RestoreRecordsPanel() {
   const toast = useToast()
   const [recovering, setRecovering] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [scan, setScan] = useState<RecoveryScanResult | null>(null)
 
@@ -57,18 +58,43 @@ export default function RestoreRecordsPanel() {
     }
   }
 
+  function handleSyncProgress(progress: CloudSyncProgress) {
+    if (progress.phase === 'preparing') {
+      setSyncStatus('Preparing upload…')
+      return
+    }
+    if (progress.phase === 'metadata') {
+      setSyncStatus(`Uploading ${progress.baseName ?? 'database'} info…`)
+      return
+    }
+    if (progress.phase === 'rows') {
+      const total = progress.tablesTotal ?? 1
+      const done = (progress.tablesDone ?? 0) + 1
+      setSyncStatus(
+        `Uploading rows: ${progress.tableName ?? 'table'} (${done}/${total})…`,
+      )
+      return
+    }
+    if (progress.phase === 'done') {
+      setSyncStatus('Finishing…')
+    }
+  }
+
   async function handleSyncToCloud() {
     setSyncing(true)
+    setSyncStatus('Starting upload…')
     try {
-      const result = await syncAllCachedBasesToCloud()
+      const result = await syncAllCachedBasesToCloud(handleSyncProgress)
       toast.success(
         `Uploaded ${result.rows} records to Firestore. Scan again in a few seconds to confirm.`,
       )
       await runScan()
-    } catch {
+    } catch (error) {
+      console.error('Cloud sync failed:', error)
       toast.toast('Cloud sync failed — stay in Safari and try again.', 'info')
     } finally {
       setSyncing(false)
+      setSyncStatus(null)
     }
   }
 
@@ -136,9 +162,12 @@ export default function RestoreRecordsPanel() {
           {needsCloudSync && (
             <p className="text-xs text-amber-300/90">
               Your cloud backup is behind this browser ({scan.cloudRows} vs {scan.currentRows}{' '}
-              records). Click <strong>Sync all records to cloud</strong> so your data survives outside
-              Safari.
+              records). Click <strong>Sync all records to cloud</strong> — row data uploads in under
+              a minute; images stay in this browser until synced separately.
             </p>
+          )}
+          {syncStatus && (
+            <p className="text-xs text-brand-300/90">{syncStatus}</p>
           )}
           {!canRecover && !needsCloudSync && scan.bestAvailableRows > 0 && (
             <p className="text-xs text-app-faint">

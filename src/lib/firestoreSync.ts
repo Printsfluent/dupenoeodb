@@ -286,7 +286,21 @@ export async function deleteWorkspaceCascade(
 const cloudPersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const CLOUD_PERSIST_DEBOUNCE_MS = 450
 
-async function writeBaseToCloud(base: Base) {
+export interface CloudSyncProgress {
+  phase: 'preparing' | 'metadata' | 'rows' | 'done'
+  baseName?: string
+  tableName?: string
+  tablesDone?: number
+  tablesTotal?: number
+}
+
+interface WriteBaseOptions {
+  inlineAttachments?: boolean
+  onProgress?: (progress: CloudSyncProgress) => void
+}
+
+async function writeBaseToCloud(base: Base, options: WriteBaseOptions = {}) {
+  const { inlineAttachments = true, onProgress } = options
   let normalized = normalizeBase(base)
   try {
     const idbBases = await loadAllBasesFromIdb()
@@ -299,11 +313,15 @@ async function writeBaseToCloud(base: Base) {
     logSyncError('writeBaseToCloud:idb', error)
   }
 
-  const withAttachments = await inlineAttachmentRefsInBase(normalized)
-  const stamped = stampBase(withAttachments)
+  onProgress?.({ phase: 'preparing', baseName: normalized.name })
+  const payload = inlineAttachments ? await inlineAttachmentRefsInBase(normalized) : normalized
+  const stamped = stampBase(payload)
   const metadata = stripRowsFromBaseMetadata(stamped)
+  onProgress?.({ phase: 'metadata', baseName: stamped.name })
   await setDoc(doc(getFirestoreDb(), COL.bases, stamped.id), metadata)
-  await writeTableRowsToCloud(stamped)
+  await writeTableRowsToCloud(stamped, ({ tableName, tablesDone, tablesTotal }) => {
+    onProgress?.({ phase: 'rows', baseName: stamped.name, tableName, tablesDone, tablesTotal })
+  })
 }
 
 export async function flushPersistBase(baseId: string) {
@@ -354,11 +372,15 @@ export async function persistBases(bases: Base[]) {
 }
 
 /** Upload every cached database (all rows) to Firestore — use when local copy is ahead of the cloud. */
-export async function syncAllCachedBasesToCloud(): Promise<{ synced: number; rows: number }> {
+export async function syncAllCachedBasesToCloud(
+  onProgress?: (progress: CloudSyncProgress) => void,
+): Promise<{ synced: number; rows: number }> {
   const bases = getCache().bases.map(normalizeBase)
   if (bases.length === 0) return { synced: 0, rows: 0 }
   const rows = countAllBaseRows(bases)
   if (skipCloudSync()) return { synced: bases.length, rows }
+
+  onProgress?.({ phase: 'preparing' })
 
   try {
     for (const base of bases) {
@@ -367,12 +389,15 @@ export async function syncAllCachedBasesToCloud(): Promise<{ synced: number; row
         clearTimeout(existing)
         cloudPersistTimers.delete(base.id)
       }
-      await writeBaseToCloud(base)
+      // Skip inlining attachment blobs — that can hang on 1000+ rows; row data syncs in seconds.
+      await writeBaseToCloud(base, { inlineAttachments: false, onProgress })
     }
   } catch (error) {
     logSyncError('syncAllCachedBasesToCloud', error)
+    throw error
   }
 
+  onProgress?.({ phase: 'done' })
   return { synced: bases.length, rows }
 }
 
