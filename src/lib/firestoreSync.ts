@@ -23,7 +23,7 @@ import type {
   WorkspaceMember,
 } from '../types'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
-import { countBaseRows, pickRicherBase, resolveBaseConflict, mergeBaseRichest, baseHasMoreRowsThan } from './baseMerge'
+import { countBaseRows, pickRicherBase, resolveBaseConflict, mergeBaseRichest, baseHasMoreRowsThan, countAllBaseRows } from './baseMerge'
 import { isBaseNewer, stampBase } from './baseUpdated'
 import { inlineAttachmentRefsInBase } from './attachments'
 import { loadAllBasesFromIdb } from './baseLocalStore'
@@ -351,6 +351,29 @@ export async function persistBases(bases: Base[]) {
   } catch (error) {
     logSyncError('persistBases', error)
   }
+}
+
+/** Upload every cached database (all rows) to Firestore — use when local copy is ahead of the cloud. */
+export async function syncAllCachedBasesToCloud(): Promise<{ synced: number; rows: number }> {
+  const bases = getCache().bases.map(normalizeBase)
+  if (bases.length === 0) return { synced: 0, rows: 0 }
+  const rows = countAllBaseRows(bases)
+  if (skipCloudSync()) return { synced: bases.length, rows }
+
+  try {
+    for (const base of bases) {
+      const existing = cloudPersistTimers.get(base.id)
+      if (existing) {
+        clearTimeout(existing)
+        cloudPersistTimers.delete(base.id)
+      }
+      await writeBaseToCloud(base)
+    }
+  } catch (error) {
+    logSyncError('syncAllCachedBasesToCloud', error)
+  }
+
+  return { synced: bases.length, rows }
 }
 
 export async function deleteBaseDoc(baseId: string) {

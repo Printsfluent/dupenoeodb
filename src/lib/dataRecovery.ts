@@ -5,7 +5,7 @@ import { getCache, setBases } from './dataStore'
 import { getFirestoreDb, isFirebaseConfigured } from './firebase'
 import { loadAllBasesFromIdb, loadArchivedBasesFromIdb } from './baseLocalStore'
 import { hydrateBaseRowsFromCloud } from './baseRowSync'
-import { COL, ensureBaseInCache, persistBases } from './firestoreSync'
+import { COL, ensureBaseInCache, persistBases, syncAllCachedBasesToCloud } from './firestoreSync'
 import { normalizeBase } from './tableSchema'
 import { clearStorageBloat, pruneOversizedHistoryOnStartup, safeWriteJson } from './safeStorage'
 
@@ -142,6 +142,7 @@ export interface RecoverySourceScan {
 export interface RecoveryScanResult {
   currentRows: number
   bestAvailableRows: number
+  cloudRows: number
   sources: RecoverySourceScan[]
 }
 
@@ -185,6 +186,7 @@ export async function scanRecoverySources(workspaceIds: string[]): Promise<Recov
   pool.push(...cached)
 
   const server = await recoverBasesFromFirestoreServer(workspaceIds)
+  const cloudRows = countAllBaseRows(server.map(normalizeBase))
   pushSourceScan(scans, 'Firestore server', server)
   pool.push(...server)
 
@@ -193,6 +195,7 @@ export async function scanRecoverySources(workspaceIds: string[]): Promise<Recov
   return {
     currentRows,
     bestAvailableRows,
+    cloudRows,
     sources: scans.sort((a, b) => b.rowCount - a.rowCount),
   }
 }
@@ -415,6 +418,7 @@ export function installRecoveryConsoleHelper() {
     sheetflowScanStorage?: () => ReturnType<typeof scanLocalStorageForBases>
     sheetflowScanAllSources?: () => Promise<RecoveryScanResult>
     sheetflowScan?: () => Promise<RecoveryScanResult>
+    sheetflowSyncToCloud?: () => Promise<{ synced: number; rows: number }>
     sheetflowClearStorageBloat?: () => void
     sheetflowLastScanResult?: RecoveryScanResult
     sheetflowLastRecoveryResult?: RecoveryResult
@@ -426,9 +430,12 @@ export function installRecoveryConsoleHelper() {
     const lines = [
       `Loaded now: ${result.currentRows} records`,
       `Best in this Safari browser: ${result.bestAvailableRows} records`,
+      `Firestore server: ${result.cloudRows} records`,
     ]
     if (missing > 0) lines.push(`${missing} missing record${missing === 1 ? '' : 's'} can be restored.`)
-    else if (result.bestAvailableRows === 0) lines.push('No table data found in this browser.')
+    else if (result.currentRows > result.cloudRows) {
+      lines.push('Your cloud backup is behind — run Sync all records to cloud in Settings.')
+    } else if (result.bestAvailableRows === 0) lines.push('No table data found in this browser.')
     else lines.push('No richer copy found in this browser.')
     alert(`SheetFlow storage scan\n\n${lines.join('\n')}`)
   }
@@ -463,6 +470,14 @@ export function installRecoveryConsoleHelper() {
   }
   globalWindow.sheetflowScanAllSources = runScan
   globalWindow.sheetflowScan = runScan
+  globalWindow.sheetflowSyncToCloud = async () => {
+    const result = await syncAllCachedBasesToCloud()
+    alert(
+      `SheetFlow cloud sync\n\nUploaded ${result.rows} records from ${result.synced} database${result.synced === 1 ? '' : 's'} to Firestore.\n\nWait 10 seconds, then scan again to confirm Firestore server matches.`,
+    )
+    console.log('SheetFlow cloud sync:', result)
+    return result
+  }
   globalWindow.sheetflowClearStorageBloat = () => {
     clearStorageBloat()
     console.info('Cleared bulky local record copies. Reload the page if storage was full.')

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { RotateCcw, Search } from 'lucide-react'
+import { CloudUpload, RotateCcw, Search } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
+import { useToast } from '../context/ToastContext'
 import { getCache } from '../lib/dataStore'
 import { scanRecoverySources, type RecoveryScanResult } from '../lib/dataRecovery'
+import { syncAllCachedBasesToCloud } from '../lib/firestoreSync'
 
 function computeWorkspaceIds(userId: string, email: string) {
   const cache = getCache()
@@ -24,7 +26,9 @@ function computeWorkspaceIds(userId: string, email: string) {
 export default function RestoreRecordsPanel() {
   const { user } = useAuth()
   const { localMode, tryRecoverData } = useData()
+  const toast = useToast()
   const [recovering, setRecovering] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [scan, setScan] = useState<RecoveryScanResult | null>(null)
 
@@ -53,7 +57,23 @@ export default function RestoreRecordsPanel() {
     }
   }
 
+  async function handleSyncToCloud() {
+    setSyncing(true)
+    try {
+      const result = await syncAllCachedBasesToCloud()
+      toast.success(
+        `Uploaded ${result.rows} records to Firestore. Scan again in a few seconds to confirm.`,
+      )
+      await runScan()
+    } catch {
+      toast.toast('Cloud sync failed — stay in Safari and try again.', 'info')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const canRecover = scan ? scan.bestAvailableRows > scan.currentRows : false
+  const needsCloudSync = scan ? scan.currentRows > scan.cloudRows && !localMode : false
 
   return (
     <section className="rounded-xl border border-app-border bg-app-surface p-6">
@@ -66,8 +86,8 @@ export default function RestoreRecordsPanel() {
       <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2.5 mb-4">
         <p className="text-xs text-amber-200/90">
           <strong className="font-medium">Safari only?</strong> Stay in this Safari window. Do not
-          open SheetFlow in Chrome or clear Safari website data until recovery finishes — your records
-          may only exist in this browser.
+          open SheetFlow in Chrome or clear Safari website data until your records are synced to the
+          cloud — your full copy may only exist in this browser.
         </p>
       </div>
 
@@ -84,11 +104,16 @@ export default function RestoreRecordsPanel() {
               Loaded now: <strong className="text-app-text">{scan.currentRows}</strong> records
             </span>
             <span className="text-app-muted">
-              Best found in this browser:{' '}
+              Best in this browser:{' '}
               <strong className={canRecover ? 'text-green-400' : 'text-app-text'}>
                 {scan.bestAvailableRows}
-              </strong>{' '}
-              records
+              </strong>
+            </span>
+            <span className="text-app-muted">
+              Firestore server:{' '}
+              <strong className={needsCloudSync ? 'text-amber-400' : 'text-app-text'}>
+                {scan.cloudRows}
+              </strong>
             </span>
           </div>
           {scan.sources.length > 0 && (
@@ -108,10 +133,16 @@ export default function RestoreRecordsPanel() {
               browser.
             </p>
           )}
-          {!canRecover && scan.bestAvailableRows > 0 && scan.bestAvailableRows === scan.currentRows && (
+          {needsCloudSync && (
+            <p className="text-xs text-amber-300/90">
+              Your cloud backup is behind this browser ({scan.cloudRows} vs {scan.currentRows}{' '}
+              records). Click <strong>Sync all records to cloud</strong> so your data survives outside
+              Safari.
+            </p>
+          )}
+          {!canRecover && !needsCloudSync && scan.bestAvailableRows > 0 && (
             <p className="text-xs text-app-faint">
-              No richer copy was found in this browser. If you had more rows before, they may already
-              have been overwritten here.
+              Local and cloud copies match. No older copy was found in this browser.
             </p>
           )}
         </div>
@@ -127,9 +158,20 @@ export default function RestoreRecordsPanel() {
           <Search className={`w-4 h-4 ${scanning ? 'animate-pulse' : ''}`} />
           {scanning ? 'Scanning…' : 'Scan again'}
         </button>
+        {needsCloudSync && (
+          <button
+            type="button"
+            disabled={syncing || scanning}
+            onClick={handleSyncToCloud}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 disabled:opacity-60"
+          >
+            <CloudUpload className={`w-4 h-4 ${syncing ? 'animate-pulse' : ''}`} />
+            {syncing ? 'Uploading…' : 'Sync all records to cloud'}
+          </button>
+        )}
         <button
           type="button"
-          disabled={recovering || scanning}
+          disabled={recovering || scanning || !canRecover}
           onClick={handleRestore}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-60"
         >
