@@ -25,7 +25,7 @@ export const FIELD_TYPE_OPTIONS: FieldTypeOption[] = [
   { value: 'multiSelect', label: 'Multi select', icon: ListChecks, group: 'basic' },
   { value: 'rating', label: 'Rating', icon: Star, group: 'advanced' },
   { value: 'colour', label: 'Colour', icon: Palette, group: 'advanced' },
-  { value: 'dateTime', label: 'Date time', icon: CalendarClock, group: 'advanced' },
+  { value: 'dateTime', label: 'Date & time', icon: CalendarClock, group: 'advanced' },
   { value: 'geometry', label: 'Geometry', icon: Shapes, group: 'advanced' },
   { value: 'geoData', label: 'Geo data', icon: MapPin, group: 'advanced' },
   { value: 'json', label: 'JSON', icon: Braces, group: 'advanced' },

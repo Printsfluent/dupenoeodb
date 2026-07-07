@@ -1,6 +1,7 @@
 import { useState, useEffect, type ReactNode } from 'react'
 import { Star } from 'lucide-react'
 import type { ColumnType, SelectOption } from '../types'
+import { formatDateDisplay, formatTimeDisplay, mergeDateTimeToIso } from '../lib/dates'
 import { normalizeColumnType } from '../lib/fieldTypes'
 import SelectCellEditor from './SelectCellEditor'
 import AttachmentCellEditor from './AttachmentCellEditor'
@@ -39,18 +40,86 @@ function CellInputForm({ children }: { children: ReactNode }) {
   )
 }
 
-function toDatetimeLocal(value: string) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
+function DateTimeCellEditor({
+  value,
+  onChange,
+  onDone,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onDone?: () => void
+}) {
+  const cls = inputClass()
+  const [dateText, setDateText] = useState(() => formatDateDisplay(value))
+  const [timeText, setTimeText] = useState(() => formatTimeDisplay(value))
 
-function fromDatetimeLocal(value: string) {
-  if (!value) return ''
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toISOString()
+  useEffect(() => {
+    setDateText(formatDateDisplay(value))
+    setTimeText(formatTimeDisplay(value))
+  }, [value])
+
+  function commit(nextDate = dateText, nextTime = timeText) {
+    const iso = mergeDateTimeToIso(nextDate, nextTime, value)
+    onChange(iso)
+    onDone?.()
+  }
+
+  return (
+    <CellInputForm>
+      <div className="flex items-center gap-2 px-2 py-1.5 border-2 border-brand-500 bg-app-surface min-w-[240px]">
+        <input
+          autoFocus
+          type="text"
+          inputMode="numeric"
+          value={dateText}
+          onChange={(e) => setDateText(e.target.value)}
+          onBlur={() => commit()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commit()
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              setDateText(formatDateDisplay(value))
+              setTimeText(formatTimeDisplay(value))
+              onDone?.()
+            }
+          }}
+          placeholder="dd/mm/yyyy"
+          aria-label="Date"
+          className={`${cls} border-0 px-2 py-1 flex-1 min-w-0`}
+          {...disableBrowserAutocomplete}
+        />
+        <span className="text-app-faint shrink-0" aria-hidden>
+          |
+        </span>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={timeText}
+          onChange={(e) => setTimeText(e.target.value)}
+          onBlur={() => commit()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commit()
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              setDateText(formatDateDisplay(value))
+              setTimeText(formatTimeDisplay(value))
+              onDone?.()
+            }
+          }}
+          placeholder="HH:mm"
+          aria-label="Time"
+          className={`${cls} border-0 px-2 py-1 w-[5.5rem] shrink-0 tabular-nums`}
+          {...disableBrowserAutocomplete}
+        />
+      </div>
+    </CellInputForm>
+  )
 }
 
 function normalizeHex(value: string) {
@@ -219,20 +288,7 @@ export default function CellValueEditor({
       )
 
     case 'dateTime':
-      return (
-        <CellInputForm>
-          <input
-            autoFocus
-            type="datetime-local"
-            value={toDatetimeLocal(draft)}
-            onChange={(e) => updateDraft(fromDatetimeLocal(e.target.value))}
-            onBlur={() => commit(draft)}
-            onKeyDown={handleKeyDown}
-            className={cls}
-            {...disableBrowserAutocomplete}
-          />
-        </CellInputForm>
-      )
+      return <DateTimeCellEditor value={value} onChange={commit} onDone={onDone} />
 
     case 'colour': {
       const hex = value.startsWith('#') ? value : value ? `#${value}` : '#3388fc'

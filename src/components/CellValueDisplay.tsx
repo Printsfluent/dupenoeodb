@@ -5,7 +5,7 @@ import type { ColumnType, SelectOption } from '../types'
 import { normalizeColumnType } from '../lib/fieldTypes'
 import { findSelectOption, parseMultiSelectValue } from '../lib/selectOptions'
 import SelectOptionBadge from './SelectOptionBadge'
-import { formatDateTimeDisplay } from '../lib/dates'
+import { formatDateDisplay, formatTimeDisplay } from '../lib/dates'
 import { extractLinkHref } from '../lib/links'
 import { parseAttachments } from '../lib/attachments'
 import AttachmentThumbnails from './AttachmentThumbnails'
@@ -173,7 +173,17 @@ export default function CellValueDisplay({
       return <span className={`${cellText} tabular-nums`}>{renderHighlighted(value, highlightQuery)}</span>
 
     case 'dateTime':
-      return <span className={cellText}>{renderHighlighted(formatDateTimeDisplay(value), highlightQuery)}</span>
+      if (!value) return null
+      return (
+        <span className={`inline-flex flex-col gap-0.5 leading-tight ${cellText}`}>
+          <span className="tabular-nums">{renderHighlighted(formatDateDisplay(value), highlightQuery)}</span>
+          {formatTimeDisplay(value) ? (
+            <span className="text-xs text-app-faint tabular-nums">
+              {renderHighlighted(formatTimeDisplay(value), highlightQuery)}
+            </span>
+          ) : null}
+        </span>
+      )
 
     case 'geometry':
       return <span className={`${cellText} font-mono text-xs`}>{renderHighlighted(value, highlightQuery)}</span>

@@ -1,7 +1,7 @@
 import type { Column } from '../types'
 import { normalizeColumnType, isSelectFieldType } from './fieldTypes'
 import { findSelectOption, parseMultiSelectValue } from './selectOptions'
-import { formatDateTimeDisplay } from './dates'
+import { formatDateTimeDisplay, parsePastedDateTime } from './dates'
 import { mergeAttachmentValues, parseAttachments, resolveAttachmentBlobForClipboard, resolveAttachmentsForClipboard, serializeAttachments } from './attachments'
 
 export interface CellCoord {
@@ -115,8 +115,7 @@ export function resolvePastedValue(col: Column, pasted: string, existing = ''): 
   }
 
   if (normalized === 'dateTime' && trimmed) {
-    const date = new Date(trimmed)
-    if (!Number.isNaN(date.getTime())) return date.toISOString()
+    return parsePastedDateTime(trimmed)
   }
 
   if (!isSelectFieldType(col.type)) return trimmed
